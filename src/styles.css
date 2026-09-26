@@ -67,6 +67,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .book-cover { width: 100%; aspect-ratio: 3 / 4; border: 0; border-radius: 6px 14px 14px 6px; background: linear-gradient(145deg, #82bee3, #4f8fbe); color: white; box-shadow: inset 7px 0 #2f638312, 0 12px 25px #376f9824; cursor: pointer; display: grid; place-items: center; position: relative; overflow: hidden; }
 .book-cover span { writing-mode: vertical-rl; letter-spacing: .25em; font: 22px "Yu Mincho", serif; opacity: .85; }
 .book-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.book-cover:disabled, .book-title:disabled, .text-button:disabled, .chapter-item:disabled { cursor: wait; opacity: .62; }
 .book-meta { padding: 13px 3px; }
 .book-title { border: 0; background: none; padding: 0; font-weight: 750; cursor: pointer; text-align: left; font-size: 16px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .book-meta p { color: var(--muted); font-size: 12px; margin: 5px 0 8px; }
@@ -101,6 +102,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .processing-panel { width: min(620px, calc(100% - 48px)); margin: 13vh auto; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 40px; }
 .processing-panel h1 { font: 600 30px "Yu Mincho", serif; margin: 8px 0; }
 .processing-panel > p:not(.eyebrow) { color: var(--muted); line-height: 1.8; }
+.loading-chapter { text-align: center; }
+.loading-spinner { width: 28px; height: 28px; margin: 0 auto 14px; border: 3px solid #d4e9f7; border-top-color: var(--accent); border-radius: 50%; animation: loading-spin .8s linear infinite; }
+.reader-loading { min-height: 42vh; display: grid; place-items: center; align-content: center; gap: 4px; color: var(--muted); }
+.reader-loading .loading-spinner { margin-bottom: 6px; }
+.load-more-sentinel { margin: 32px 0 0; padding: 12px; text-align: center; border-top: 1px solid var(--line); color: var(--muted); font: 12px "Noto Sans SC", sans-serif; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
 .error-box { background: #faece9; color: #843d32; border: 1px solid #edc9c1; border-radius: 9px; padding: 11px 13px; margin: 14px 0; font-size: 13px; white-space: pre-wrap; }
 .inline-warning { background: #e0f0fd; color: #3b6f98; border: 1px solid #b7d7ed; border-radius: 9px; padding: 11px 13px; margin: 14px 0; font-size: 13px; white-space: pre-wrap; }
 .inline-warning button { border: 0; background: none; color: #3278aa; font-weight: 800; cursor: pointer; }

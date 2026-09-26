@@ -10,7 +10,16 @@ from .ai import explain_sentence as explain_sentence_with_ai
 from .ai import review_sentence_boundaries
 from .dictionary_store import import_yomitan, lookup
 from .epub import BOOK_DATA_DIR, parse_epub
-from .library_store import load_library, save_library
+from .library_store import (
+    apply_library_patch,
+    delete_book as delete_library_book,
+    find_personal_lexeme,
+    load_chapter,
+    load_library,
+    load_library_index,
+    load_study_data,
+    save_library,
+)
 from .models import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -21,6 +30,8 @@ from .models import (
     ImportedBook,
     ImportedChapter,
     LexemeOut,
+    LibraryIndex,
+    LibraryPatch,
     LibrarySnapshot,
     LocalAiSettingsInput,
     LocalAiSettingsStatus,
@@ -28,6 +39,8 @@ from .models import (
     SentenceOut,
     TextImportRequest,
     TokenOut,
+    ChapterSnapshot,
+    StudyDataSnapshot,
 )
 from .nlp import lexeme_key, split_sentences, stable_id, tokenize_sentence
 from .paths import DIST_DIR
@@ -122,15 +135,8 @@ async def _segment_chapter(chapter: ImportedChapter, api_key: str, base_url: str
 
 
 def _personal_entry(token: TokenOut) -> dict | None:
-    snapshot = load_library()
-    if not snapshot:
-        return None
     exact_key = lexeme_key(token.lemma, token.reading, token.part_of_speech)
-    exact = next((row for row in snapshot.lexemes if row.get("key") == exact_key), None)
-    if exact:
-        return exact
-    return next((row for row in snapshot.lexemes
-                 if row.get("lemma") in {token.lemma, token.surface} and row.get("reading") == token.reading), None)
+    return find_personal_lexeme(exact_key, token.lemma, token.reading, token.surface)
 
 
 def _entry_for_token(token: TokenOut) -> dict | None:
@@ -139,7 +145,7 @@ def _entry_for_token(token: TokenOut) -> dict | None:
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok"}
+    return {"status": "ok", "app": "bingdu", "version": app.version}
 
 
 @app.get("/api/settings", response_model=LocalAiSettingsStatus)
@@ -160,6 +166,34 @@ async def read_library() -> LibrarySnapshot | None:
 @app.put("/api/library", response_model=LibrarySnapshot)
 async def update_library(snapshot: LibrarySnapshot) -> LibrarySnapshot:
     return save_library(snapshot)
+
+
+@app.get("/api/library/index", response_model=LibraryIndex)
+async def read_library_index() -> LibraryIndex:
+    return load_library_index()
+
+
+@app.get("/api/library/chapters/{chapter_id}", response_model=ChapterSnapshot)
+async def read_library_chapter(chapter_id: str) -> ChapterSnapshot:
+    return load_chapter(chapter_id)
+
+
+@app.get("/api/library/study-data", response_model=StudyDataSnapshot)
+async def read_library_study_data() -> StudyDataSnapshot:
+    return load_study_data()
+
+
+@app.patch("/api/library")
+async def patch_library(patch: LibraryPatch) -> dict[str, int]:
+    try:
+        return apply_library_patch(patch)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.delete("/api/library/books/{book_id}")
+async def delete_library_book_data(book_id: str) -> dict[str, int]:
+    return delete_library_book(book_id)
 
 
 @app.post("/api/import/text", response_model=ImportedBook)

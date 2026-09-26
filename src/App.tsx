@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { checkHealth, deleteBookCover, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, saveApiSettings, segmentChapter, uploadBookCover } from './api'
-import { db, persistProjectData, removeBook, restoreProjectData } from './db'
+import { db, loadChapterData, loadStudyData, removeBook, restoreProjectIndex, syncRecords } from './db'
 import type {
   Annotation,
   AnalyzeResponse,
@@ -72,12 +72,16 @@ function App() {
   const [backgroundJob, setBackgroundJob] = useState<BackgroundJob | null>(null)
   const [dataRevision, setDataRevision] = useState(0)
   const [logoBouncing, setLogoBouncing] = useState(false)
+  const [loadingBookId, setLoadingBookId] = useState<string | null>(null)
+  const [loadingChapterId, setLoadingChapterId] = useState<string | null>(null)
+  const [libraryLoading, setLibraryLoading] = useState(true)
   const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
   const backgroundAbortRef = useRef<AbortController | null>(null)
+  const navigationAbortRef = useRef<AbortController | null>(null)
 
   const refreshBooks = useCallback(async () => {
     const rows = await db.books.orderBy('updatedAt').reverse().toArray()
-    let addedDefaultCover = false
+    const changedBooks: Book[] = []
     for (const book of rows) {
       if (book.coverUrl) continue
       const chapters = await db.chapters.where('bookId').equals(book.id).sortBy('order')
@@ -86,10 +90,10 @@ function App() {
       if (coverUrl) {
         book.coverUrl = coverUrl
         await db.books.put(book)
-        addedDefaultCover = true
+        changedBooks.push(book)
       }
     }
-    if (addedDefaultCover) await persistProjectData()
+    if (changedBooks.length) await syncRecords({ books: changedBooks })
     setBooks(rows)
     if (activeBook) {
       setActiveBook(rows.find((book) => book.id === activeBook.id) ?? null)
@@ -97,9 +101,14 @@ function App() {
   }, [activeBook])
 
   useEffect(() => {
-    void restoreProjectData().then(refreshBooks).catch((error) => setNotice(error instanceof Error ? error.message : String(error)))
+    const controller = new AbortController()
+    void restoreProjectIndex(controller.signal)
+      .then(refreshBooks)
+      .catch((error) => { if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : String(error)) })
+      .finally(() => { if (!controller.signal.aborted) setLibraryLoading(false) })
     void checkHealth().then(setServerReady)
     void loadApiSettings().then(setSettings).catch(() => undefined)
+    return () => controller.abort()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -153,7 +162,7 @@ function App() {
       if (sentences.length) await db.sentences.bulkAdd(sentences)
       if (tokens.length) await db.tokens.bulkAdd(tokens)
     })
-    await persistProjectData()
+    await syncRecords({ books: [book], chapters, sentences, tokens })
     setShowImport(false)
     setActiveBook(book)
     setActiveChapter(chapters[0])
@@ -165,18 +174,63 @@ function App() {
   }
 
   async function openBook(book: Book) {
-    const chapters = await db.chapters.where('bookId').equals(book.id).sortBy('order')
-    const preferred = chapters.find((chapter) => chapter.id === book.currentChapterId) ?? chapters[0]
-    setActiveBook(book)
-    setActiveChapter(preferred ?? null)
-    setNotice('')
+    if (loadingBookId) return
+    navigationAbortRef.current?.abort()
+    const controller = new AbortController()
+    navigationAbortRef.current = controller
+    setLoadingBookId(book.id)
+    try {
+      const chapters = await db.chapters.where('bookId').equals(book.id).sortBy('order')
+      const preferred = chapters.find((chapter) => chapter.id === book.currentChapterId) ?? chapters[0]
+      setActiveBook(book)
+      setActiveChapter(null)
+      setNotice('')
+      if (!preferred) return
+      setLoadingChapterId(preferred.id)
+      const snapshot = await loadChapterData(preferred.id, controller.signal)
+      if (!controller.signal.aborted) setActiveChapter(snapshot.chapter)
+    } catch (error) {
+      if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : String(error))
+    } finally {
+      if (navigationAbortRef.current === controller) navigationAbortRef.current = null
+      if (!controller.signal.aborted) {
+        setLoadingBookId(null)
+        setLoadingChapterId(null)
+      }
+    }
+  }
+
+  async function selectChapter(chapter: Chapter) {
+    if (!activeBook || loadingChapterId) return
+    navigationAbortRef.current?.abort()
+    const controller = new AbortController()
+    navigationAbortRef.current = controller
+    setLoadingChapterId(chapter.id)
+    setActiveChapter(null)
+    try {
+      const snapshot = await loadChapterData(chapter.id, controller.signal)
+      if (controller.signal.aborted) return
+      const nextBook = { ...activeBook, currentChapterId: chapter.id, updatedAt: Date.now() }
+      await db.books.put(nextBook)
+      await syncRecords({ books: [nextBook] }, {}, controller.signal)
+      setActiveBook(nextBook)
+      setActiveChapter(snapshot.chapter)
+    } catch (error) {
+      if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : String(error))
+    } finally {
+      if (navigationAbortRef.current === controller) navigationAbortRef.current = null
+      if (!controller.signal.aborted) setLoadingChapterId(null)
+    }
   }
 
   async function storeChapterResult(chapter: Chapter, result: AnalyzeResponse, status: Chapter['status'], persist = true) {
     const oldSentences = await db.sentences.where('chapter_id').equals(chapter.id).toArray()
     const oldSentenceIds = oldSentences.map((sentence) => sentence.id)
     const oldTokens = await db.tokens.where('sentence_id').anyOf(oldSentenceIds).toArray()
+    const oldAnnotations = await db.annotations.where('sentence_id').anyOf(oldSentenceIds).toArray()
     const tokens: Token[] = result.tokens.map((token) => ({ ...token, lexemeKey: makeLexemeKey(token) }))
+    const storedLexemes: Lexeme[] = []
+    const nextChapter = { ...chapter, status, error: result.warnings.join('\n') || undefined }
     await db.transaction('rw', [db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.lexemes], async () => {
       await db.contextSenses.bulkDelete(oldTokens.map((token) => token.id))
       await db.annotations.where('sentence_id').anyOf(oldSentenceIds).delete()
@@ -188,16 +242,33 @@ function App() {
       await db.contextSenses.bulkPut(result.context_senses)
       for (const incoming of result.lexemes) {
         const existing = await db.lexemes.get(incoming.key)
-        if (!existing) await db.lexemes.put({ ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() })
+        if (!existing) {
+          const next = { ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() }
+          await db.lexemes.put(next)
+          storedLexemes.push(next)
+        }
       }
-      await db.chapters.update(chapter.id, { status, error: result.warnings.join('\n') || undefined })
+      await db.chapters.put(nextChapter)
     })
-    if (persist) await persistProjectData()
+    if (persist) await syncRecords(
+      {
+        chapters: [nextChapter], sentences: result.sentences, tokens,
+        annotations: result.annotations, contextSenses: result.context_senses, lexemes: storedLexemes,
+      },
+      {
+        sentences: oldSentenceIds,
+        tokens: oldTokens.map((token) => token.id),
+        annotations: oldAnnotations.map((annotation) => annotation.id),
+        contextSenses: oldTokens.map((token) => token.id),
+      },
+    )
     setActiveChapter((current) => current?.id === chapter.id ? { ...current, status, error: result.warnings.join('\n') || undefined } : current)
   }
 
   async function processChapter(chapter: Chapter, options: { quiet?: boolean; persist?: boolean; signal?: AbortSignal } = {}): Promise<boolean> {
     await db.chapters.update(chapter.id, { status: 'processing', error: undefined })
+    const processingChapter = { ...chapter, status: 'processing' as const, error: undefined }
+    if (options.persist ?? true) await syncRecords({ chapters: [processingChapter] }, {}, options.signal)
     setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'processing' } : current)
     let localReady = false
     try {
@@ -214,13 +285,14 @@ function App() {
       if (options.signal?.aborted) {
         const restoredStatus = chapter.status === 'processing' ? 'pending' : chapter.status
         await db.chapters.update(chapter.id, { status: restoredStatus, error: undefined })
+        if (options.persist ?? true) await syncRecords({ chapters: [{ ...chapter, status: restoredStatus, error: undefined }] })
         setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: restoredStatus, error: undefined } : current)
         throw error
       }
       const message = error instanceof Error ? error.message : String(error)
       const fallbackStatus = localReady ? 'local-ready' : 'failed'
       await db.chapters.update(chapter.id, { status: fallbackStatus, error: message })
-      if (options.persist ?? true) await persistProjectData()
+      if (options.persist ?? true) await syncRecords({ chapters: [{ ...chapter, status: fallbackStatus, error: message }] })
       setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: fallbackStatus, error: message } : current)
       if (!options.quiet) setNotice(message)
       return localReady
@@ -236,6 +308,8 @@ function App() {
     )
     const nextSentence = result.sentences[0]
     const tokenIds = tokens.map((token) => token.id)
+    const oldAnnotations = await db.annotations.where('sentence_id').equals(sentence.id).toArray()
+    const storedLexemes: Lexeme[] = []
     await db.transaction('rw', [db.sentences, db.annotations, db.contextSenses, db.lexemes], async () => {
       await db.sentences.put(nextSentence)
       await db.annotations.where('sentence_id').equals(sentence.id).delete()
@@ -245,11 +319,20 @@ function App() {
       for (const incoming of result.lexemes) {
         const existing = await db.lexemes.get(incoming.key)
         if (!existing?.correctedByUser) {
-          await db.lexemes.put({ ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() })
+          const next = { ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() }
+          await db.lexemes.put(next)
+          storedLexemes.push(next)
         }
       }
     })
-    if (persist) await persistProjectData()
+    if (persist) await syncRecords(
+      {
+        sentences: [nextSentence], annotations: result.annotations,
+        contextSenses: result.context_senses, lexemes: storedLexemes,
+      },
+      { annotations: oldAnnotations.map((item) => item.id), contextSenses: tokenIds },
+      signal,
+    )
     return result
   }
 
@@ -269,17 +352,19 @@ function App() {
       const readyChapters: Chapter[] = []
       for (let index = 0; index < targets.length; index += 1) {
         ensureNotCanceled()
-        const target = (await db.chapters.get(targets[index].id)) ?? targets[index]
+        const targetIndex = (await db.chapters.get(targets[index].id)) ?? targets[index]
+        const loaded = await loadChapterData(targetIndex.id, controller.signal)
+        const target = loaded.chapter
+        ensureNotCanceled()
         const sentenceCount = await db.sentences.where('chapter_id').equals(target.id).count()
         let ready = sentenceCount > 0 && target.status !== 'pending' && target.status !== 'failed'
         if (!ready && target.text.trim()) {
           setBackgroundJob((current) => current && ({ ...current, label: `后台切分：${target.title}`, completed: index, total: targets.length, failed }))
-          ready = await processChapter(target, { quiet: true, persist: false, signal: controller.signal })
+          ready = await processChapter(target, { quiet: true, persist: true, signal: controller.signal })
           if (!ready) failed += 1
         }
         if (ready) readyChapters.push(target)
         setBackgroundJob((current) => current && ({ ...current, completed: index + 1, failed }))
-        if ((index + 1) % 5 === 0) await persistProjectData()
       }
 
       if (kind === 'translate') {
@@ -298,7 +383,7 @@ function App() {
           const sentenceTokens = await db.tokens.where('sentence_id').equals(sentence.id).toArray()
           try {
             await db.sentences.update(sentence.id, { explanation_status: 'processing', error: null })
-            await explainAndStoreSentence(sentence, sentenceTokens, false, controller.signal)
+            await explainAndStoreSentence(sentence, sentenceTokens, true, controller.signal)
           } catch (error) {
             if (controller.signal.aborted) {
               await db.sentences.update(sentence.id, { explanation_status: 'idle', error: null })
@@ -307,18 +392,17 @@ function App() {
             failed += 1
             const message = error instanceof Error ? error.message : String(error)
             await db.sentences.update(sentence.id, { explanation_status: 'failed', error: message })
+            const failedSentence = { ...sentence, explanation_status: 'failed' as const, error: message }
+            await syncRecords({ sentences: [failedSentence] })
           }
           setBackgroundJob((current) => current && ({ ...current, completed: index + 1, failed }))
-          if ((index + 1) % 5 === 0) await persistProjectData()
         }
       }
 
-      await persistProjectData()
       setDataRevision((value) => value + 1)
       setBackgroundJob((current) => current && ({ ...current, label: `后台${jobName}完成`, running: false, failed }))
       setNotice(failed ? `后台${jobName}完成，${failed} 项失败，可稍后重试。` : `后台${jobName}完成。`)
     } catch (error) {
-      await persistProjectData().catch(() => undefined)
       setDataRevision((value) => value + 1)
       if (controller.signal.aborted) {
         setBackgroundJob((current) => current && ({ ...current, label: `后台${jobName}已取消`, running: false }))
@@ -342,7 +426,6 @@ function App() {
   async function deleteBook(book: Book) {
     if (book.customCover) await deleteBookCover(book.id).catch(() => undefined)
     await removeBook(book.id)
-    await persistProjectData()
     if (activeBook?.id === book.id) {
       setActiveBook(null)
       setActiveChapter(null)
@@ -355,7 +438,7 @@ function App() {
       const coverUrl = await uploadBookCover(book.id, file)
       const next = { ...book, coverUrl, customCover: true, updatedAt: Date.now() }
       await db.books.put(next)
-      await persistProjectData()
+      await syncRecords({ books: [next] })
       setActiveBook((current) => current?.id === book.id ? next : current)
       await refreshBooks()
       setNotice(`《${book.title}》的封面已更新。`)
@@ -365,6 +448,10 @@ function App() {
   }
 
   function bounceLogoAndOpenLibrary() {
+    navigationAbortRef.current?.abort()
+    navigationAbortRef.current = null
+    setLoadingBookId(null)
+    setLoadingChapterId(null)
     const audio = new Audio('/bingdu-logo-click.wav')
     logoAudiosRef.current.add(audio)
     audio.addEventListener('ended', () => logoAudiosRef.current.delete(audio), { once: true })
@@ -393,16 +480,13 @@ function App() {
       {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
 
       {!activeBook ? (
-        <Library books={books} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} />
+        <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} />
       ) : (
         <Workspace
           book={activeBook}
           activeChapter={activeChapter}
-          onSelectChapter={async (chapter) => {
-            setActiveChapter(chapter)
-            await db.books.update(activeBook.id, { currentChapterId: chapter.id, updatedAt: Date.now() })
-            await persistProjectData()
-          }}
+          loadingChapterId={loadingChapterId}
+          onSelectChapter={(chapter) => void selectChapter(chapter)}
           onProcessChapter={processChapter}
           onExplainSentence={explainAndStoreSentence}
           backgroundJob={backgroundJob}
@@ -434,8 +518,10 @@ function App() {
   )
 }
 
-function Library({ books, onOpen, onDelete, onChangeCover, onImport }: {
+function Library({ books, loading, loadingBookId, onOpen, onDelete, onChangeCover, onImport }: {
   books: Book[]
+  loading: boolean
+  loadingBookId: string | null
   onOpen: (book: Book) => void
   onDelete: (book: Book) => Promise<void>
   onChangeCover: (book: Book, file: File) => Promise<void>
@@ -466,7 +552,13 @@ function Library({ books, onOpen, onDelete, onChangeCover, onImport }: {
         <div><p className="eyebrow">我的书架</p><h1>继续冰读</h1></div>
         <p>电子书、学习数据和阅读进度保存在本地项目中。</p>
       </div>
-      {books.length === 0 ? (
+      {loading ? (
+        <section className="empty-state loading-state" aria-live="polite">
+          <div className="loading-spinner" />
+          <h2>正在读取书架</h2>
+          <p>只加载书籍与章节索引，不读取正文、词元和释义。</p>
+        </section>
+      ) : books.length === 0 ? (
         <section className="empty-state">
           <div className="empty-glyph">文</div>
           <h2>导入第一篇日文</h2>
@@ -477,15 +569,15 @@ function Library({ books, onOpen, onDelete, onChangeCover, onImport }: {
         <div className="book-grid">
           {books.map((book) => (
             <article className="book-card" key={book.id}>
-              <button className="book-cover" aria-label={`打开《${book.title}》`} onClick={() => onOpen(book)}>
+              <button className="book-cover" disabled={Boolean(loadingBookId)} aria-label={`打开《${book.title}》`} onClick={() => onOpen(book)}>
                 <span aria-hidden="true">読む</span>
                 {book.coverUrl && <img src={book.coverUrl} alt="" onError={(event) => { event.currentTarget.hidden = true }} />}
               </button>
               <div className="book-meta">
-                <button className="book-title" onClick={() => onOpen(book)}>{book.title}</button>
+                <button className="book-title" disabled={Boolean(loadingBookId)} onClick={() => onOpen(book)}>{book.title}</button>
                 <p>{book.author || '作者未知'}</p>
                 <div className="book-card-actions">
-                  <button className="text-button" onClick={() => onOpen(book)}>打开</button>
+                  <button className="text-button" disabled={Boolean(loadingBookId)} onClick={() => onOpen(book)}>{loadingBookId === book.id ? '正在加载…' : '打开'}</button>
                   <label className={`text-button cover-picker ${changingCoverId === book.id ? 'disabled' : ''}`}>
                     {changingCoverId === book.id ? '上传中…' : '更换封面'}
                     <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={changingCoverId === book.id} onChange={(event) => { void changeCover(book, event.target.files?.[0] ?? null); event.target.value = '' }} />
@@ -513,9 +605,10 @@ function Library({ books, onOpen, onDelete, onChangeCover, onImport }: {
   )
 }
 
-function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onCancelBackground, onNotice }: {
+function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onCancelBackground, onNotice }: {
   book: Book
   activeChapter: Chapter | null
+  loadingChapterId: string | null
   onSelectChapter: (chapter: Chapter) => void
   onProcessChapter: (chapter: Chapter) => void
   onExplainSentence: (sentence: Sentence, tokens: Token[]) => Promise<AnalyzeResponse>
@@ -543,14 +636,14 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onE
         {backgroundJob && <BackgroundProgress job={backgroundJob} onCancel={onCancelBackground} />}
         <nav aria-label="章节">
           {chapters.map((chapter) => (
-            <button key={chapter.id} className={`chapter-item ${activeChapter?.id === chapter.id ? 'active' : ''}`} onClick={() => onSelectChapter(chapter)}>
-              <span>{chapter.title}</span><StatusBadge status={chapter.status} />
+            <button key={chapter.id} disabled={Boolean(loadingChapterId)} className={`chapter-item ${activeChapter?.id === chapter.id ? 'active' : ''}`} onClick={() => onSelectChapter(chapter)}>
+              <span>{chapter.title}</span>{loadingChapterId === chapter.id ? <small className="status">加载中…</small> : <StatusBadge status={chapter.status} />}
             </button>
           ))}
         </nav>
       </aside>
       <main className="reading-stage">
-        {!activeChapter ? null : (
+        {!activeChapter && loadingChapterId ? <section className="processing-panel loading-chapter" aria-live="polite"><div className="loading-spinner" /><p className="eyebrow">按章读取</p><h1>正在加载章节</h1><p>正在读取本章句子、分词和注释。点击左上角头像可以安全返回书架。</p></section> : !activeChapter ? null : (
           <Reader
             book={book}
             chapter={activeChapter}
@@ -609,25 +702,40 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
   const [showAnnotations, setShowAnnotations] = useState(true)
   const [showImages, setShowImages] = useState(false)
   const [viewMode, setViewMode] = useState<'study' | 'original'>('study')
+  const [readerLoading, setReaderLoading] = useState(true)
+  const [visibleSentenceCount, setVisibleSentenceCount] = useState(120)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    let canceled = false
+    setReaderLoading(true)
     void (async () => {
       const nextSentences = await db.sentences.where('chapter_id').equals(chapter.id).sortBy('start')
       const ids = nextSentences.map((sentence) => sentence.id)
-      const nextTokens = await db.tokens.where('sentence_id').anyOf(ids).toArray()
-      const nextAnnotations = await db.annotations.where('sentence_id').anyOf(ids).toArray()
+      const nextTokens = ids.length ? await db.tokens.where('sentence_id').anyOf(ids).toArray() : []
+      const nextAnnotations = ids.length ? await db.annotations.where('sentence_id').anyOf(ids).toArray() : []
       const tokenIds = nextTokens.map((token) => token.id)
-      const nextSenses = await db.contextSenses.where('token_id').anyOf(tokenIds).toArray()
+      const nextSenses = tokenIds.length ? await db.contextSenses.where('token_id').anyOf(tokenIds).toArray() : []
+      if (canceled) return
       setSentences(nextSentences)
       setTokens(nextTokens)
       setAnnotations(nextAnnotations)
       setContextSenses(nextSenses)
       const restored = nextSentences.find((sentence) => sentence.id === book.currentSentenceId)?.id
+      const restoredIndex = restored ? nextSentences.findIndex((sentence) => sentence.id === restored) : -1
+      setVisibleSentenceCount(Math.max(120, restoredIndex + 30))
       setSelectedSentenceId(restored ?? nextSentences[0]?.id ?? null)
       setSelectedTokenId(null)
       setLexemesByToken({})
       setExplainError('')
-    })()
+      setReaderLoading(false)
+    })().catch((error) => {
+      if (!canceled) {
+        setReaderLoading(false)
+        onNotice(error instanceof Error ? error.message : String(error))
+      }
+    })
+    return () => { canceled = true }
   }, [book.currentSentenceId, chapter.id, chapter.status, dataRevision])
 
   const tokensBySentence = useMemo(() => {
@@ -644,22 +752,47 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
   const currentSense = contextSenses.find((sense) => sense.token_id === selectedTokenId)
   const currentNotes = annotations.filter((annotation) => annotation.sentence_id === selectedSentenceId)
   const sentenceExplained = selectedSentence?.explanation_status === 'complete'
+  const visibleSentences = useMemo(() => sentences.slice(0, visibleSentenceCount), [sentences, visibleSentenceCount])
+  const visibleSentenceIds = useMemo(() => new Set(visibleSentences.map((sentence) => sentence.id)), [visibleSentences])
+  const sentencesByBlock = useMemo(() => {
+    const map = new Map<string, Sentence[]>()
+    for (const block of chapter.blocks ?? []) {
+      if (block.type === 'image' || block.type === 'page-break' || block.type === 'separator') continue
+      map.set(block.id, sentences.filter((sentence) => sentence.start >= block.start && sentence.end <= block.end))
+    }
+    return map
+  }, [chapter.blocks, sentences])
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target || visibleSentenceCount >= sentences.length) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setVisibleSentenceCount((value) => Math.min(value + 120, sentences.length))
+      }
+    }, { rootMargin: '500px 0px' })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [sentences.length, visibleSentenceCount])
 
   useEffect(() => {
     if (!selectedSentenceId) return
+    const controller = new AbortController()
     const rows = tokensBySentence.get(selectedSentenceId)?.filter((token) => token.is_content) ?? []
     void Promise.all(rows.map(async (token) => {
       const personal = await db.lexemes.get(token.lexemeKey)
-      const value = personal ?? await lookupDictionary(token.lemma, token.reading, token.surface).catch(() => null)
+      const value = personal ?? await lookupDictionary(token.lemma, token.reading, token.surface, controller.signal).catch(() => null)
       return [token.id, value] as const
-    })).then((values) => setLexemesByToken(Object.fromEntries(values)))
+    })).then((values) => { if (!controller.signal.aborted) setLexemesByToken(Object.fromEntries(values)) })
+    return () => controller.abort()
   }, [selectedSentenceId, tokensBySentence, contextSenses])
 
   async function selectSentence(sentence: Sentence) {
     setSelectedSentenceId(sentence.id)
     setSelectedTokenId(null)
-    await db.books.update(book.id, { currentChapterId: chapter.id, currentSentenceId: sentence.id, updatedAt: Date.now() })
-    void persistProjectData()
+    const nextBook = { ...book, currentChapterId: chapter.id, currentSentenceId: sentence.id, updatedAt: Date.now() }
+    await db.books.put(nextBook)
+    void syncRecords({ books: [nextBook] })
   }
 
   async function saveLexeme(senses: string[]) {
@@ -676,7 +809,7 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
       updatedAt: Date.now(),
     }
     await db.lexemes.put(next)
-    void persistProjectData()
+    void syncRecords({ lexemes: [next] })
     setLexemesByToken((current) => ({ ...current, [selectedToken.id]: next }))
   }
 
@@ -709,7 +842,7 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
       const failed = { ...selectedSentence, explanation_status: 'failed' as const, error: message }
       await db.sentences.put(failed)
       setSentences((current) => current.map((sentence) => sentence.id === failed.id ? failed : sentence))
-      void persistProjectData()
+      void syncRecords({ sentences: [failed] })
     } finally {
       setExplaining(false)
     }
@@ -726,7 +859,7 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
       sourceLabel: `${book.title} · ${chapter.title}`, createdAt: Date.now(),
     }
     await db.cards.put(card)
-    await persistProjectData()
+    await syncRecords({ cards: [card] })
   }
 
   const renderSentence = (sentence: Sentence) => (
@@ -753,7 +886,9 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
     if (block.type === 'image') return showImages ? <figure key={block.id} className={`book-image ${block.placement ?? 'left'}`}><img src={block.asset_url ?? ''} alt={block.alt ?? ''} /></figure> : null
     if (block.type === 'page-break') return <div key={block.id} className="page-break" aria-hidden="true" />
     if (block.type === 'separator') return <hr key={block.id} />
-    const matches = sentences.filter((sentence) => sentence.start >= block.start && sentence.end <= block.end)
+    const blockSentences = sentencesByBlock.get(block.id) ?? []
+    const matches = blockSentences.filter((sentence) => visibleSentenceIds.has(sentence.id))
+    if (blockSentences.length && !matches.length) return null
     const content = matches.length ? matches.map(renderSentence) : block.text
     if (block.type === 'heading') return <h2 key={block.id} className="book-block heading">{content}</h2>
     if (block.type === 'quote') return <blockquote key={block.id} className="book-block quote">{content}</blockquote>
@@ -779,9 +914,12 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
         </div>
         {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章尚未切分。<button disabled={backgroundJob?.running} onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
         {chapter.status === 'processing' && <div className="inline-warning">正在切分本章。</div>}
-        {viewMode === 'original' && chapter.originalHtmlUrl
+        {readerLoading ? <div className="reader-loading" aria-live="polite"><div className="loading-spinner" /><span>正在整理本章内容…</span></div> : viewMode === 'original' && chapter.originalHtmlUrl
           ? <iframe className="original-preview" sandbox="" src={chapter.originalHtmlUrl} title={`${chapter.title} 原书预览`} />
-          : <div className="japanese-text" lang="ja">{chapter.blocks?.length ? chapter.blocks.map(renderBlock) : sentences.length ? sentences.map(renderSentence) : chapter.text}</div>}
+          : <div className="japanese-text" lang="ja">
+              {chapter.blocks?.length ? chapter.blocks.map(renderBlock) : sentences.length ? visibleSentences.map(renderSentence) : chapter.text}
+              {visibleSentenceCount < sentences.length && <div ref={loadMoreRef} className="load-more-sentinel">继续加载 · {visibleSentenceCount}/{sentences.length}</div>}
+            </div>}
       </article>
       <aside className="study-panel">
         <p className="panel-kicker">当前句</p>
@@ -855,13 +993,15 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
   }
 
   useEffect(() => {
-    void Promise.all([
-      db.lexemes.orderBy('reading').toArray(),
-      db.cards.orderBy('createdAt').reverse().toArray(),
-    ]).then(([nextLexemes, nextCards]) => {
-      setLexemes(nextLexemes)
-      setCards(nextCards)
+    const controller = new AbortController()
+    void loadStudyData(controller.signal).then((snapshot) => {
+      if (controller.signal.aborted) return
+      setLexemes([...snapshot.lexemes].sort((a, b) => a.reading.localeCompare(b.reading, 'ja')))
+      setCards([...snapshot.cards].sort((a, b) => b.createdAt - a.createdAt))
+    }).catch((error) => {
+      if (!controller.signal.aborted) setDictionaryNotice(error instanceof Error ? error.message : String(error))
     })
+    return () => controller.abort()
   }, [])
 
   const filteredLexemes = lexemes.filter((item) =>

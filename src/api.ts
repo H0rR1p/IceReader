@@ -74,9 +74,9 @@ export async function importYomitanDictionary(file: File): Promise<{ source: str
   return parseResponse(await fetch('/api/dictionary/import', { method: 'POST', body: form }))
 }
 
-export async function lookupDictionary(lemma: string, reading: string, surface = ''): Promise<Lexeme | null> {
+export async function lookupDictionary(lemma: string, reading: string, surface = '', signal?: AbortSignal): Promise<Lexeme | null> {
   const params = new URLSearchParams({ lemma, reading, surface })
-  const response = await parseResponse<{ entry: { lemma: string; reading: string; senses_zh: string[]; source: string } | null }>(await fetch(`/api/dictionary/lookup?${params}`))
+  const response = await parseResponse<{ entry: { lemma: string; reading: string; senses_zh: string[]; source: string } | null }>(await fetch(`/api/dictionary/lookup?${params}`, { signal }))
   return response.entry ? {
     key: `${response.entry.lemma}|${response.entry.reading}|词典`,
     lemma: response.entry.lemma,

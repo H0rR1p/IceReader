@@ -31,6 +31,30 @@ class LibrarySnapshot(BaseModel):
     cards: list[dict] = Field(default_factory=list)
 
 
+class LibraryIndex(BaseModel):
+    books: list[dict] = Field(default_factory=list)
+    chapters: list[dict] = Field(default_factory=list)
+
+
+class ChapterSnapshot(BaseModel):
+    chapter: dict | None = None
+    sentences: list[dict] = Field(default_factory=list)
+    tokens: list[dict] = Field(default_factory=list)
+    annotations: list[dict] = Field(default_factory=list)
+    contextSenses: list[dict] = Field(default_factory=list)
+    lexemes: list[dict] = Field(default_factory=list)
+
+
+class StudyDataSnapshot(BaseModel):
+    lexemes: list[dict] = Field(default_factory=list)
+    cards: list[dict] = Field(default_factory=list)
+
+
+class LibraryPatch(BaseModel):
+    upserts: dict[str, list[dict]] = Field(default_factory=dict)
+    deletes: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class AnalyzeRequest(BaseModel):
     chapter_id: str
     text: str = Field(min_length=1, max_length=120_000)
