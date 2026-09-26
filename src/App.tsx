@@ -335,8 +335,8 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <button className="brand" onClick={() => { setActiveBook(null); setActiveChapter(null) }}>
-          <span className="brand-mark">日</span>
-          <span><strong>日读</strong><small>AI 日语精读器</small></span>
+          <span className="brand-mark"><img src="/bingdu-logo.png" alt="" /></span>
+          <span><strong>冰读</strong><small>baka都能用的日语学习阅读器</small></span>
         </button>
         <div className="top-actions">
           <span className={`server-dot ${serverReady ? 'ready' : 'down'}`} title={serverReady ? '本地服务正常' : '本地服务未连接'} />
@@ -829,7 +829,7 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
         <div className="data-tools">
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="按词形、读音或首个片假名查找" />
           <label className="button small file-button"><input type="file" accept=".zip,application/zip" onChange={(event) => void importDictionary(event.target.files?.[0] ?? null)} />{importingDictionary ? '导入中…' : '导入日中词典'}</label>
-          <button className="button small" onClick={() => downloadJson(`日读个人词库-${new Date().toISOString().slice(0, 10)}.json`, { format: 'nichidoku-lexicon-v1', exportedAt: new Date().toISOString(), lexemes })}>导出共享</button>
+          <button className="button small" onClick={() => downloadJson(`冰读个人词库-${new Date().toISOString().slice(0, 10)}.json`, { format: 'nichidoku-lexicon-v1', exportedAt: new Date().toISOString(), lexemes })}>导出共享</button>
         </div>
         {dictionaryNotice && <p className="muted">{dictionaryNotice}</p>}
         <div className="data-list">{filteredLexemes.length ? filteredLexemes.map((item) => <article key={item.key}>
@@ -839,7 +839,7 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
       </> : <>
         <div className="data-tools">
           <p>词卡保留书籍、章节、原句和当前语境义。</p>
-          <button className="button small" onClick={() => downloadJson(`日读上下文词卡-${new Date().toISOString().slice(0, 10)}.json`, { format: 'nichidoku-cards-v1', exportedAt: new Date().toISOString(), cards })}>导出词卡</button>
+          <button className="button small" onClick={() => downloadJson(`冰读上下文词卡-${new Date().toISOString().slice(0, 10)}.json`, { format: 'nichidoku-cards-v1', exportedAt: new Date().toISOString(), cards })}>导出词卡</button>
         </div>
         <div className="data-list cards">{cards.length ? cards.map((card) => <article key={card.id}>
           <div><strong lang="ja">{card.surface}</strong><span>{toHiragana(card.reading)}</span></div><p>{card.glossZh}</p>

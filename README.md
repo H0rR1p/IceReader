@@ -1,4 +1,4 @@
-# 日读 · AI 日语精读器
+# 冰读 · baka都能用的日语学习阅读器
 
 本机运行的 Satori Reader 式日语精读 Web 应用。导入无 DRM EPUB、UTF-8 TXT 或粘贴日文后，应用会生成：
 

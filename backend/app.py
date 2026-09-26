@@ -33,7 +33,7 @@ from .nlp import lexeme_key, split_sentences, stable_id, tokenize_sentence
 from .settings_store import get_settings_status, resolve_settings, save_settings
 
 
-app = FastAPI(title="日读本地 API", version="0.2.0")
+app = FastAPI(title="冰读本地 API", version="0.2.0")
 app.mount("/api/assets", StaticFiles(directory=BOOK_DATA_DIR, check_dir=False), name="book-assets")
 app.add_middleware(
     CORSMiddleware,
