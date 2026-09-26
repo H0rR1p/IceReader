@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ApiSettings, ImportedBook } from './types'
+import type { AnalyzeResponse, ApiSettings, ImportedBook, Lexeme } from './types'
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -55,6 +55,27 @@ export async function importEpub(file: File): Promise<ImportedBook> {
   return parseResponse(response)
 }
 
+export async function importYomitanDictionary(file: File): Promise<{ source: string; entries: number }> {
+  const form = new FormData()
+  form.append('file', file)
+  return parseResponse(await fetch('/api/dictionary/import', { method: 'POST', body: form }))
+}
+
+export async function lookupDictionary(lemma: string, reading: string): Promise<Lexeme | null> {
+  const params = new URLSearchParams({ lemma, reading })
+  const response = await parseResponse<{ entry: { lemma: string; reading: string; senses_zh: string[]; source: string } | null }>(await fetch(`/api/dictionary/lookup?${params}`))
+  return response.entry ? {
+    key: `${response.entry.lemma}|${response.entry.reading}|词典`,
+    lemma: response.entry.lemma,
+    reading: response.entry.reading,
+    firstKana: response.entry.reading[0] || '未',
+    part_of_speech: '本地词典',
+    senses_zh: response.entry.senses_zh,
+    source: response.entry.source,
+    updatedAt: 0,
+  } : null
+}
+
 export async function analyzeChapter(
   chapterId: string,
   text: string,
@@ -72,6 +93,19 @@ export async function analyzeChapter(
       text,
       only_sentence_ids: onlySentenceIds,
       known_lexeme_keys: knownLexemeKeys,
+      settings: { base_url: settings.baseUrl, model: settings.model },
+    }),
+  })
+  return parseResponse(response)
+}
+
+export async function preprocessChapter(chapterId: string, text: string, settings: ApiSettings): Promise<AnalyzeResponse> {
+  const response = await fetch('/api/preprocess', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chapter_id: chapterId,
+      text,
       settings: { base_url: settings.baseUrl, model: settings.model },
     }),
   })

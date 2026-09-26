@@ -4,14 +4,14 @@ from collections.abc import Iterable
 import httpx
 
 
-SYSTEM_PROMPT = """你是一名严谨的日语 N1 精读编辑。输出必须是简体中文和合法 JSON。
-你的任务类似 Satori Reader 的人工注释：忠实翻译，结合语境选择词义，只解释真正影响 N1 学习者理解的语法、语气、省略/指代和文化背景。
-不要改写日文原文，不要虚构辞书来源或文化事实，不要为每个基础助词写注释。无法可靠判断时省略注释。
+SYSTEM_PROMPT = """你是一名严谨的日语 N1 语法分析员。输出必须是简体中文和合法 JSON。
+你的职责仅限于检查句子结构，并解释真正影响 N1 学习者理解的语法、语气、省略/指代和文化背景。
+不要编写词典释义，不要改写日文原文，不要为每个基础助词写注释。无法可靠判断时省略注释。
 所有 anchor_start/anchor_end 都是对应句子中的 Unicode 字符偏移，必须满足 [start,end)，quote 必须严格等于原文切片。
 """
 
 
-def chunks(items: list[dict], size: int = 18) -> Iterable[list[dict]]:
+def chunks(items: list[dict], size: int = 60) -> Iterable[list[dict]]:
     for i in range(0, len(items), size):
         yield items[i:i + size]
 
@@ -36,8 +36,6 @@ async def enrich_batch(
                 "lemma": token["lemma"],
                 "reading": token["reading"],
                 "part_of_speech": token["part_of_speech"],
-                "lexeme_key": token["lexeme_key"],
-                "needs_dictionary_entry": token["lexeme_key"] not in known_lexeme_keys,
             })
         compact_sentences.append({
             "sentence_id": sentence["id"],
@@ -48,8 +46,6 @@ async def enrich_batch(
     schema_hint = {
         "sentences": [{
             "sentence_id": "string",
-            "translation_zh": "简体中文忠实译文",
-            "context_senses": [{"token_id": "string", "gloss_zh": "当前句中简短含义"}],
             "annotations": [{
                 "type": "grammar|pragmatics|ellipsis|culture",
                 "anchor_start": 0,
@@ -58,17 +54,10 @@ async def enrich_batch(
                 "explanation_zh": "面向 N1 学习者的简体中文说明",
             }],
         }],
-        "lexemes": [{
-            "lexeme_key": "仅为 needs_dictionary_entry=true 的词返回",
-            "lemma": "词典形",
-            "reading": "片假名",
-            "part_of_speech": "词性",
-            "senses_zh": ["日中词典式简体中文释义，不包含当前句解释"],
-        }],
     }
     user_prompt = (
-        "处理以下连续句子。必须覆盖每个 sentence_id，并为每个内容词返回 context_senses。"
-        "只为 needs_dictionary_entry=true 的词生成 lexemes；同一 lexeme_key 只返回一次。\n"
+        "检查以下候选句。只返回有实际学习价值的语法、语气、省略、指代或文化注释；"
+        "不得生成词义或词典条目。没有需要说明的句子返回空 annotations。\n"
         f"输出结构示例：{json.dumps(schema_hint, ensure_ascii=False)}\n"
         f"输入：{json.dumps(compact_sentences, ensure_ascii=False)}"
     )

@@ -1,16 +1,22 @@
+import asyncio
 import json
+import re
+import zipfile
 from collections import defaultdict
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .ai import chunks, enrich_batch
-from .epub import parse_epub
+from .epub import BOOK_DATA_DIR, parse_epub
+from .dictionary_store import import_yomitan, lookup
 from .models import (
     AnalyzeRequest,
     AnalyzeResponse,
     AnnotationOut,
+    ContentBlock,
     ContextSenseOut,
     ImportedBook,
     ImportedChapter,
@@ -27,7 +33,11 @@ from .library_store import load_library, save_library
 from .settings_store import get_settings_status, resolve_settings, save_settings
 
 
+GRAMMAR_CANDIDATE = re.compile(r"ところ|わけ|ものの|にもかかわらず|にしては|ことから|ながら|つつ|ように|という|ので|のに|なら|てしま|ざる|べき|まい|られ|させ")
+
+
 app = FastAPI(title="日读本地 API", version="0.1.0")
+app.mount("/api/assets", StaticFiles(directory=BOOK_DATA_DIR, check_dir=False), name="book-assets")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -64,6 +74,22 @@ async def update_library(snapshot: LibrarySnapshot) -> LibrarySnapshot:
 
 @app.post("/api/import/text", response_model=ImportedBook)
 async def import_text(request: TextImportRequest) -> ImportedBook:
+    blocks: list[ContentBlock] = []
+    cursor = 0
+    for index, line in enumerate(request.text.splitlines()):
+        value = line.strip()
+        if not value:
+            cursor += len(line) + 1
+            continue
+        start = request.text.find(value, cursor)
+        end = start + len(value)
+        blocks.append(ContentBlock(
+            id=stable_id("block", f"text:{index}:{value[:80]}"),
+            type="paragraph", start=start, end=end, text=value,
+        ))
+        cursor = end
+    if not blocks:
+        blocks.append(ContentBlock(id=stable_id("block", request.text), type="paragraph", start=0, end=len(request.text), text=request.text))
     return ImportedBook(
         title=request.title.strip() or "粘贴文本",
         chapters=[ImportedChapter(
@@ -71,6 +97,7 @@ async def import_text(request: TextImportRequest) -> ImportedBook:
             title="正文",
             order=0,
             text=request.text,
+            blocks=blocks,
         )],
     )
 
@@ -86,6 +113,39 @@ async def import_epub(file: UploadFile = File(...)) -> ImportedBook:
         return parse_epub(payload, file.filename or "book.epub")
     except Exception as exc:
         raise HTTPException(422, f"无法解析 EPUB：{exc}") from exc
+
+
+@app.post("/api/dictionary/import")
+async def import_dictionary(file: UploadFile = File(...)) -> dict:
+    if not (file.filename or "").lower().endswith(".zip"):
+        raise HTTPException(400, "请选择 Yomitan 词典 ZIP")
+    try:
+        return import_yomitan(await file.read(), file.filename or "dictionary.zip")
+    except (ValueError, zipfile.BadZipFile) as exc:
+        raise HTTPException(422, f"无法导入词典：{exc}") from exc
+
+
+@app.get("/api/dictionary/lookup")
+async def lookup_dictionary(lemma: str, reading: str = "") -> dict:
+    return {"entry": lookup(lemma, reading)}
+
+
+@app.post("/api/preprocess", response_model=AnalyzeResponse)
+async def preprocess(request: AnalyzeRequest) -> AnalyzeResponse:
+    spans = split_sentences(request.text)
+    if not spans:
+        raise HTTPException(422, "章节中没有可处理的日文正文")
+    sentences: list[SentenceOut] = []
+    tokens: list[TokenOut] = []
+    for index, span in enumerate(spans):
+        sentence_id = stable_id("sent", f"{request.chapter_id}:{index}:{span.start}:{span.text}")
+        sentences.append(SentenceOut(
+            id=sentence_id, chapter_id=request.chapter_id, start=span.start, end=span.end,
+            original=span.text, translation_zh="", status="complete",
+        ))
+        for token in tokenize_sentence(sentence_id, span.text):
+            tokens.append(TokenOut(**{key: value for key, value in token.items() if key != "lexeme_key"}))
+    return AnalyzeResponse(sentences=sentences, tokens=tokens, annotations=[], context_senses=[], lexemes=[], warnings=[])
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
@@ -133,32 +193,25 @@ async def analyze(
     lexemes: dict[str, LexemeOut] = {}
     warnings: list[str] = []
     sentence_by_id = {row["id"]: row for row in sentence_rows}
-    token_by_id = {row["id"]: row for row in all_tokens}
+    candidate_rows = [row for row in sentence_rows if len(row["original"]) >= 28 or GRAMMAR_CANDIDATE.search(row["original"])]
+    semaphore = asyncio.Semaphore(3)
 
-    for batch in chunks(sentence_rows):
+    async def run_batch(batch: list[dict]) -> tuple[list[dict], dict | None, Exception | None]:
         try:
-            enriched = await enrich_batch(
-                batch,
-                tokens_by_sentence,
-                api_key,
-                base_url,
-                model,
-                set(request.known_lexeme_keys),
-            )
+            async with semaphore:
+                enriched = await enrich_batch(batch, tokens_by_sentence, api_key, base_url, model, set())
+            return batch, enriched, None
+        except Exception as exc:
+            return batch, None, exc
+
+    results = await asyncio.gather(*(run_batch(batch) for batch in chunks(candidate_rows)))
+    for batch, enriched, error in results:
+        if error is None and enriched is not None:
             for item in enriched.get("sentences", []):
                 sentence = sentence_by_id.get(item.get("sentence_id"))
                 if not sentence:
                     continue
                 sentence["translation_zh"] = str(item.get("translation_zh", "")).strip()
-                if not sentence["translation_zh"]:
-                    sentence["status"] = "failed"
-                    sentence["error"] = "AI 未返回译文"
-                for sense in item.get("context_senses", []):
-                    token_id = sense.get("token_id")
-                    if token_id in token_by_id and token_by_id[token_id]["sentence_id"] == sentence["id"]:
-                        gloss = str(sense.get("gloss_zh", "")).strip()
-                        if gloss:
-                            context_senses.append(ContextSenseOut(token_id=token_id, gloss_zh=gloss))
                 for note in item.get("annotations", []):
                     try:
                         start, end = int(note["anchor_start"]), int(note["anchor_end"])
@@ -184,22 +237,8 @@ async def analyze(
                         ))
                     except (KeyError, TypeError, ValueError):
                         continue
-            for entry in enriched.get("lexemes", []):
-                key = str(entry.get("lexeme_key", ""))
-                if not key or key in request.known_lexeme_keys:
-                    continue
-                senses = [str(x).strip() for x in entry.get("senses_zh", []) if str(x).strip()]
-                if senses:
-                    lexemes[key] = LexemeOut(
-                        key=key,
-                        lemma=str(entry.get("lemma", "")),
-                        reading=str(entry.get("reading", "")),
-                        part_of_speech=str(entry.get("part_of_speech", "")),
-                        senses_zh=senses,
-                        source="AI 日中词典",
-                    )
-        except Exception as exc:
-            message = f"一批句子处理失败：{exc}"
+        else:
+            message = f"一批语法分析失败：{error}"
             warnings.append(message)
             for sentence in batch:
                 sentence["status"] = "failed"

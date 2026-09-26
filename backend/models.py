@@ -100,14 +100,40 @@ class TextImportRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2_000_000)
 
 
+class ContentBlock(BaseModel):
+    id: str
+    type: Literal["heading", "paragraph", "quote", "list-item", "image", "page-break", "separator"]
+    start: int = 0
+    end: int = 0
+    text: str = ""
+    level: int | None = None
+    asset_url: str | None = None
+    alt: str = ""
+    placement: Literal["left", "center", "right", "inline"] = "left"
+    width: int | None = None
+    height: int | None = None
+
+
 class ImportedChapter(BaseModel):
     id: str
     title: str
     order: int
     text: str
+    blocks: list[ContentBlock] = Field(default_factory=list)
+    original_html_url: str | None = None
+
+
+class ImportReport(BaseModel):
+    source_documents: int = 0
+    imported_sections: int = 0
+    images: int = 0
+    image_references: int = 0
+    image_only_sections: int = 0
+    broken_image_references: int = 0
 
 
 class ImportedBook(BaseModel):
     title: str
     author: str = ""
     chapters: list[ImportedChapter]
+    import_report: ImportReport | None = None

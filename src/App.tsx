@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { analyzeChapter, checkHealth, importEpub, importPlainText, loadApiSettings, saveApiSettings } from './api'
+import { analyzeChapter, checkHealth, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, preprocessChapter, saveApiSettings } from './api'
 import { db, persistProjectData, removeBook, restoreProjectData } from './db'
 import type {
   Annotation,
+  AnalyzeResponse,
   ApiSettings,
   Book,
   Chapter,
   ContextSense,
+  ContentBlock,
   ImportedBook,
   Lexeme,
   Sentence,
@@ -34,6 +36,13 @@ function makeLexemeKey(token: Pick<Token, 'lemma' | 'reading' | 'part_of_speech'
 
 function containsKanji(value: string) {
   return /[一-龯々]/.test(value)
+}
+
+function toHiragana(value: string) {
+  return Array.from(value).map((char) => {
+    const code = char.charCodeAt(0)
+    return code >= 0x30a1 && code <= 0x30f6 ? String.fromCharCode(code - 0x60) : char
+  }).join('')
 }
 
 function newId(prefix: string) {
@@ -82,7 +91,9 @@ function App() {
       title: chapter.title,
       order: chapter.order,
       text: chapter.text,
-      status: 'pending',
+      blocks: chapter.blocks,
+      originalHtmlUrl: chapter.original_html_url,
+      status: chapter.text.trim() ? 'pending' : 'complete',
     }))
     await db.transaction('rw', [db.books, db.chapters], async () => {
       await db.books.add(book)
@@ -92,6 +103,10 @@ function App() {
     setShowImport(false)
     setActiveBook(book)
     setActiveChapter(chapters[0])
+    if (imported.import_report) {
+      const report = imported.import_report
+      setNotice(`导入完成：${report.imported_sections} 节、${report.images} 张原图${report.broken_image_references ? `，${report.broken_image_references} 个图片引用失效` : '，图片引用完整'}。`)
+    }
     await refreshBooks()
   }
 
@@ -103,69 +118,63 @@ function App() {
     setNotice('')
   }
 
+  async function storeChapterResult(chapter: Chapter, result: AnalyzeResponse, status: Chapter['status']) {
+    const oldSentences = await db.sentences.where('chapter_id').equals(chapter.id).toArray()
+    const oldSentenceIds = oldSentences.map((sentence) => sentence.id)
+    const oldTokens = await db.tokens.where('sentence_id').anyOf(oldSentenceIds).toArray()
+    const tokens: Token[] = result.tokens.map((token) => ({ ...token, lexemeKey: makeLexemeKey(token) }))
+    await db.transaction('rw', [db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.lexemes], async () => {
+      await db.contextSenses.bulkDelete(oldTokens.map((token) => token.id))
+      await db.annotations.where('sentence_id').anyOf(oldSentenceIds).delete()
+      await db.tokens.where('sentence_id').anyOf(oldSentenceIds).delete()
+      await db.sentences.where('chapter_id').equals(chapter.id).delete()
+      await db.sentences.bulkPut(result.sentences)
+      await db.tokens.bulkPut(tokens)
+      await db.annotations.bulkPut(result.annotations)
+      await db.contextSenses.bulkPut(result.context_senses)
+      for (const incoming of result.lexemes) {
+        const existing = await db.lexemes.get(incoming.key)
+        if (!existing) await db.lexemes.put({ ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() })
+      }
+      await db.chapters.update(chapter.id, { status, error: result.warnings.join('\n') || undefined })
+    })
+    await persistProjectData()
+    setActiveChapter((current) => current?.id === chapter.id ? { ...current, status, error: result.warnings.join('\n') || undefined } : current)
+  }
+
   async function processChapter(chapter: Chapter): Promise<boolean> {
-    if (!settings.apiKey.trim() && !settings.hasStoredApiKey) {
-      setShowSettings(true)
-      setNotice('请先在 AI 设置中输入自己的 API Key。')
-      return false
-    }
     await db.chapters.update(chapter.id, { status: 'processing', error: undefined })
     setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'processing' } : current)
+    let localReady = false
     try {
+      const local = await preprocessChapter(chapter.id, chapter.text, settings)
+      await storeChapterResult(chapter, local, 'local-ready')
+      localReady = true
+      if (!settings.apiKey.trim() && !settings.hasStoredApiKey) {
+        setNotice(`《${chapter.title}》已完成本地分词；配置 API Key 后可继续语法分析。`)
+        return true
+      }
+      await db.chapters.update(chapter.id, { status: 'processing' })
+      setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'processing' } : current)
       const knownLexemeKeys = await db.lexemes.toCollection().primaryKeys() as string[]
-      const failedSentenceIds = chapter.status === 'partial-failed'
-        ? (await db.sentences.where('chapter_id').equals(chapter.id).toArray()).filter((sentence) => sentence.status === 'failed').map((sentence) => sentence.id)
-        : []
-      const result = await analyzeChapter(chapter.id, chapter.text, knownLexemeKeys, settings, failedSentenceIds)
-      const oldSentences = await db.sentences.where('chapter_id').equals(chapter.id).toArray()
-      const returnedSentenceIds = result.sentences.map((sentence) => sentence.id)
-      const oldSentenceIds = failedSentenceIds.length ? returnedSentenceIds : oldSentences.map((sentence) => sentence.id)
-      const oldTokens = await db.tokens.where('sentence_id').anyOf(oldSentenceIds).toArray()
-      const tokens: Token[] = result.tokens.map((token) => ({ ...token, lexemeKey: makeLexemeKey(token) }))
+      const result = await analyzeChapter(chapter.id, chapter.text, knownLexemeKeys, settings)
       const status = result.sentences.some((sentence) => sentence.status === 'failed') ? 'partial-failed' : 'complete'
-      await db.transaction('rw', [db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.lexemes], async () => {
-        await db.contextSenses.bulkDelete(oldTokens.map((token) => token.id))
-        await db.annotations.where('sentence_id').anyOf(oldSentenceIds).delete()
-        await db.tokens.where('sentence_id').anyOf(oldSentenceIds).delete()
-        if (failedSentenceIds.length) await db.sentences.bulkDelete(returnedSentenceIds)
-        else await db.sentences.where('chapter_id').equals(chapter.id).delete()
-        await db.sentences.bulkPut(result.sentences)
-        await db.tokens.bulkPut(tokens)
-        await db.annotations.bulkPut(result.annotations)
-        await db.contextSenses.bulkPut(result.context_senses)
-        for (const incoming of result.lexemes) {
-          const existing = await db.lexemes.get(incoming.key)
-          if (!existing) {
-            await db.lexemes.put({ ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() })
-          }
-        }
-        await db.chapters.update(chapter.id, {
-          status,
-          error: result.warnings.length ? result.warnings.join('\n') : undefined,
-        })
-      })
-      await persistProjectData()
-      const updated = { ...chapter, status, error: result.warnings.join('\n') || undefined } as Chapter
-      setActiveChapter((current) => current?.id === chapter.id ? updated : current)
-      setNotice(status === 'complete' ? `《${chapter.title}》处理完成。` : `《${chapter.title}》部分句子处理失败，可以重试。`)
+      await storeChapterResult(chapter, result, status)
+      setNotice(status === 'complete' ? `《${chapter.title}》语法分析完成。` : `《${chapter.title}》部分语法分析失败，可以重试。`)
       return status === 'complete'
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      await db.chapters.update(chapter.id, { status: 'failed', error: message })
+      const fallbackStatus = localReady ? 'local-ready' : 'failed'
+      await db.chapters.update(chapter.id, { status: fallbackStatus, error: message })
       await persistProjectData()
-      setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'failed', error: message } : current)
+      setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: fallbackStatus, error: message } : current)
       setNotice(message)
-      return false
+      return localReady
     }
   }
 
   async function processBook() {
     if (!activeBook || busy) return
-    if (!settings.apiKey.trim() && !settings.hasStoredApiKey) {
-      setShowSettings(true)
-      setNotice('请先在 AI 设置中输入自己的 API Key。')
-      return
-    }
     setBusy(true)
     const chapters = await db.chapters.where('bookId').equals(activeBook.id).sortBy('order')
     for (const chapter of chapters) {
@@ -260,7 +269,7 @@ function Library({ books, onOpen, onDelete, onImport }: {
         <section className="empty-state">
           <div className="empty-glyph">文</div>
           <h2>导入第一篇日文</h2>
-          <p>支持粘贴文本、UTF-8 TXT 和无 DRM EPUB。AI 会先处理，再生成可交互的精读材料。</p>
+          <p>支持粘贴文本、UTF-8 TXT 和无 DRM EPUB。本地解析完成后即可阅读，AI 仅补充重点语法与语境注释。</p>
           <button className="button primary" onClick={onImport}>导入内容</button>
         </section>
       ) : (
@@ -309,18 +318,8 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onP
         </nav>
       </aside>
       <main className="reading-stage">
-        {!activeChapter ? null : activeChapter.status === 'complete' || activeChapter.status === 'partial-failed' ? (
+        {!activeChapter ? null : (
           <Reader book={book} chapter={activeChapter} onRetry={() => onProcessChapter(activeChapter)} />
-        ) : (
-          <section className="processing-panel">
-            <p className="eyebrow">{activeChapter.title}</p>
-            <h1>{activeChapter.status === 'processing' ? '正在生成精读材料' : '本章尚未处理'}</h1>
-            <p>处理包括分句、分词、读音、日中词义、简体中文翻译和 N1 级学习注释。</p>
-            {activeChapter.error && <div className="error-box">{activeChapter.error}</div>}
-            <button className="button primary" disabled={busy || activeChapter.status === 'processing'} onClick={() => onProcessChapter(activeChapter)}>
-              {activeChapter.status === 'failed' ? '重试本章' : '处理本章'}
-            </button>
-          </section>
         )}
       </main>
     </div>
@@ -329,7 +328,7 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onP
 
 function StatusBadge({ status }: { status: Chapter['status'] }) {
   const labels: Record<Chapter['status'], string> = {
-    pending: '待处理', processing: '处理中', complete: '已完成', 'partial-failed': '部分失败', failed: '失败',
+    pending: '待处理', 'local-ready': '本地可读', processing: '分析中', complete: '已完成', 'partial-failed': '部分失败', failed: '失败',
   }
   return <small className={`status ${status}`}>{labels[status]}</small>
 }
@@ -343,8 +342,10 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null)
   const [lexeme, setLexeme] = useState<Lexeme | null>(null)
   const [showFurigana, setShowFurigana] = useState(true)
-  const [showTranslation, setShowTranslation] = useState(true)
+  const [showTranslation, setShowTranslation] = useState(false)
   const [showAnnotations, setShowAnnotations] = useState(true)
+  const [showImages, setShowImages] = useState(false)
+  const [viewMode, setViewMode] = useState<'study' | 'original'>('study')
 
   useEffect(() => {
     void (async () => {
@@ -374,17 +375,21 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
   const selectedToken = tokens.find((token) => token.id === selectedTokenId) ?? null
   const currentSense = contextSenses.find((sense) => sense.token_id === selectedTokenId)
   const currentNotes = annotations.filter((annotation) => annotation.sentence_id === selectedSentenceId)
+  const hasTranslations = sentences.some((sentence) => Boolean(sentence.translation_zh?.trim()))
 
   useEffect(() => {
     if (!selectedToken) { setLexeme(null); return }
-    void db.lexemes.get(selectedToken.lexemeKey).then((value) => setLexeme(value ?? null))
+    void db.lexemes.get(selectedToken.lexemeKey).then(async (value) => {
+      if (value) setLexeme(value)
+      else setLexeme(await lookupDictionary(selectedToken.lemma, selectedToken.reading))
+    })
   }, [selectedToken])
 
   async function selectSentence(sentence: Sentence) {
     setSelectedSentenceId(sentence.id)
     setSelectedTokenId(null)
     await db.books.update(book.id, { currentChapterId: chapter.id, currentSentenceId: sentence.id, updatedAt: Date.now() })
-    await persistProjectData()
+            void persistProjectData()
   }
 
   async function saveLexeme(senses: string[]) {
@@ -401,7 +406,7 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
       updatedAt: Date.now(),
     }
     await db.lexemes.put(next)
-    await persistProjectData()
+    void persistProjectData()
     setLexeme(next)
   }
 
@@ -419,39 +424,57 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
     await persistProjectData()
   }
 
+  const renderSentence = (sentence: Sentence) => (
+    <button
+      key={sentence.id}
+      className={`sentence ${selectedSentenceId === sentence.id ? 'selected' : ''} ${sentence.status === 'failed' ? 'failed' : ''}`}
+      onClick={() => void selectSentence(sentence)}
+    >
+      {(tokensBySentence.get(sentence.id) ?? []).map((token) => (
+        <span
+          key={token.id}
+          className={`token ${token.is_content ? 'content' : ''} ${selectedTokenId === token.id ? 'selected' : ''}`}
+          onClick={(event) => { event.stopPropagation(); setSelectedSentenceId(sentence.id); if (token.is_content) setSelectedTokenId(token.id) }}
+          tabIndex={token.is_content ? 0 : -1}
+          onKeyDown={(event) => { if (token.is_content && (event.key === 'Enter' || event.key === ' ')) setSelectedTokenId(token.id) }}
+        >
+          {showFurigana && token.is_content && containsKanji(token.surface) ? <ruby>{token.surface}<rt>{toHiragana(token.reading)}</rt></ruby> : token.surface}
+        </span>
+      ))}
+    </button>
+  )
+
+  const renderBlock = (block: ContentBlock) => {
+    if (block.type === 'image') return showImages ? <figure key={block.id} className={`book-image ${block.placement ?? 'left'}`}><img src={block.asset_url ?? ''} alt={block.alt ?? ''} /></figure> : null
+    if (block.type === 'page-break') return <div key={block.id} className="page-break" aria-hidden="true" />
+    if (block.type === 'separator') return <hr key={block.id} />
+    const matches = sentences.filter((sentence) => sentence.start >= block.start && sentence.end <= block.end)
+    const content = matches.length ? matches.map(renderSentence) : block.text
+    if (block.type === 'heading') return <h2 key={block.id} className="book-block heading">{content}</h2>
+    if (block.type === 'quote') return <blockquote key={block.id} className="book-block quote">{content}</blockquote>
+    if (block.type === 'list-item') return <div key={block.id} className="book-block list-item">{content}</div>
+    return <p key={block.id} className="book-block paragraph">{content}</p>
+  }
+
   return (
     <div className="reader-layout">
       <article className="reader-pane">
         <div className="reader-toolbar">
           <div><p className="eyebrow">{book.title}</p><h1>{chapter.title}</h1></div>
           <div className="display-toggles">
+            {chapter.originalHtmlUrl && <button className={`mode-button ${viewMode === 'original' ? 'active' : ''}`} onClick={() => setViewMode(viewMode === 'study' ? 'original' : 'study')}>{viewMode === 'study' ? '原书预览' : '精读模式'}</button>}
             <Toggle label="振假名" value={showFurigana} onChange={setShowFurigana} />
-            <Toggle label="译文" value={showTranslation} onChange={setShowTranslation} />
+            <Toggle label="插图" value={showImages} onChange={setShowImages} />
+            {hasTranslations && <Toggle label="译文" value={showTranslation} onChange={setShowTranslation} />}
             <Toggle label="注释" value={showAnnotations} onChange={setShowAnnotations} />
           </div>
         </div>
+        {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章可预览，尚未完成本地分词和语法分析。<button onClick={onRetry}>{chapter.status === 'failed' ? '重试' : '开始处理'}</button></div>}
+        {chapter.status === 'processing' && <div className="inline-warning">正在进行本地分词与 AI 语法分析，已完成内容会自动保留。</div>}
         {chapter.status === 'partial-failed' && <div className="inline-warning">本章有句子处理失败。<button onClick={onRetry}>重试</button></div>}
-        <div className="japanese-text" lang="ja">
-          {sentences.map((sentence) => (
-            <button
-              key={sentence.id}
-              className={`sentence ${selectedSentenceId === sentence.id ? 'selected' : ''} ${sentence.status === 'failed' ? 'failed' : ''}`}
-              onClick={() => void selectSentence(sentence)}
-            >
-              {(tokensBySentence.get(sentence.id) ?? []).map((token) => (
-                <span
-                  key={token.id}
-                  className={`token ${token.is_content ? 'content' : ''} ${selectedTokenId === token.id ? 'selected' : ''}`}
-                  onClick={(event) => { event.stopPropagation(); setSelectedSentenceId(sentence.id); if (token.is_content) setSelectedTokenId(token.id) }}
-                  tabIndex={token.is_content ? 0 : -1}
-                  onKeyDown={(event) => { if (token.is_content && (event.key === 'Enter' || event.key === ' ')) setSelectedTokenId(token.id) }}
-                >
-                  {showFurigana && token.is_content && containsKanji(token.surface) ? <ruby>{token.surface}<rt>{token.reading}</rt></ruby> : token.surface}
-                </span>
-              ))}
-            </button>
-          ))}
-        </div>
+        {viewMode === 'original' && chapter.originalHtmlUrl
+          ? <iframe className="original-preview" sandbox="" src={chapter.originalHtmlUrl} title={`${chapter.title} 原书预览`} />
+          : <div className="japanese-text" lang="ja">{chapter.blocks?.length ? chapter.blocks.map(renderBlock) : sentences.length ? sentences.map(renderSentence) : chapter.text}</div>}
       </article>
       <aside className="study-panel">
         <p className="panel-kicker">当前句</p>
@@ -460,7 +483,7 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
             <p className="panel-original" lang="ja">{selectedSentence.original}</p>
             {selectedSentence.status === 'failed' ? <div className="error-box">{selectedSentence.error || '本句处理失败'}</div> : (
               <>
-                {showTranslation && <section className="panel-section"><h3>译文</h3><p>{selectedSentence.translation_zh}</p></section>}
+                {showTranslation && selectedSentence.translation_zh && <section className="panel-section"><h3>AI 参考译文</h3><p>{selectedSentence.translation_zh}</p></section>}
                 {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCard} />}
                 {showAnnotations && <section className="panel-section"><h3>学习注释</h3>{currentNotes.length ? currentNotes.map((note) => <div className="annotation" key={note.id}><span>{ANNOTATION_LABELS[note.type]}</span><strong lang="ja">{note.quote}</strong><p>{note.explanation_zh}</p></div>) : <p className="muted">本句没有需要补充的 N1 级注释。</p>}</section>}
               </>
@@ -481,11 +504,11 @@ function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
   useEffect(() => { setValue(lexeme?.senses_zh.join('\n') ?? '') }, [lexeme])
   return (
     <section className="dictionary-card">
-      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{token.reading}</p></div><button className="button small" onClick={() => void onAddCard()}>加入词卡</button></div>
-      <div className="context-gloss"><small>当前句义</small><p>{contextGloss || '未生成语境义'}</p></div>
+      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><button className="button small" onClick={() => void onAddCard()}>加入词卡</button></div>
+      {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
         <div className="section-title"><h3>日中词典</h3><button className="text-button" onClick={() => setEditing(!editing)}>{editing ? '取消' : '修正'}</button></div>
-        {editing ? <><textarea value={value} onChange={(event) => setValue(event.target.value)} rows={4} /><button className="button primary small" onClick={() => { void onSave(value.split('\n').map((x) => x.trim()).filter(Boolean)); setEditing(false) }}>保存到个人词库</button></> : <>{lexeme?.senses_zh.length ? <ol>{lexeme.senses_zh.map((sense, index) => <li key={index}>{sense}</li>)}</ol> : <p className="muted">暂无通用释义</p>}<small className="source">来源：{lexeme?.source ?? '未知'}</small></>}
+        {editing ? <><textarea value={value} onChange={(event) => setValue(event.target.value)} rows={4} /><button className="button primary small" onClick={() => { void onSave(value.split('\n').map((x) => x.trim()).filter(Boolean)); setEditing(false) }}>保存到个人词库</button></> : <>{lexeme?.senses_zh.length ? <ol>{lexeme.senses_zh.map((sense, index) => <li key={index}>{sense}</li>)}</ol> : <p className="muted">本地词典未收录。可在“词库与词卡”中导入 Yomitan 格式日中词典。</p>}<small className="source">来源：{lexeme?.source ?? '未收录'}</small></>}
       </div>
     </section>
   )
@@ -510,6 +533,19 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
   const [cards, setCards] = useState<StudyCard[]>([])
   const [tab, setTab] = useState<'dictionary' | 'cards'>('dictionary')
   const [query, setQuery] = useState('')
+  const [dictionaryNotice, setDictionaryNotice] = useState('')
+  const [importingDictionary, setImportingDictionary] = useState(false)
+
+  async function importDictionary(file: File | null) {
+    if (!file) return
+    setImportingDictionary(true); setDictionaryNotice('')
+    try {
+      const result = await importYomitanDictionary(file)
+      setDictionaryNotice(`已导入 ${result.source}：${result.entries.toLocaleString()} 个词条。`)
+    } catch (error) {
+      setDictionaryNotice(error instanceof Error ? error.message : String(error))
+    } finally { setImportingDictionary(false) }
+  }
 
   useEffect(() => {
     void Promise.all([
@@ -534,10 +570,12 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
       {tab === 'dictionary' ? <>
         <div className="data-tools">
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="按词形、读音或首个片假名查找" />
+          <label className="button small file-button"><input type="file" accept=".zip,application/zip" onChange={(event) => void importDictionary(event.target.files?.[0] ?? null)} />{importingDictionary ? '导入中…' : '导入日中词典'}</label>
           <button className="button small" onClick={() => downloadJson(`日读个人词库-${new Date().toISOString().slice(0, 10)}.json`, { format: 'nichidoku-lexicon-v1', exportedAt: new Date().toISOString(), lexemes })}>导出共享</button>
         </div>
+        {dictionaryNotice && <p className="muted">{dictionaryNotice}</p>}
         <div className="data-list">{filteredLexemes.length ? filteredLexemes.map((item) => <article key={item.key}>
-          <div><strong lang="ja">{item.lemma}</strong><span>{item.reading} · {item.part_of_speech}</span></div>
+          <div><strong lang="ja">{item.lemma}</strong><span>{toHiragana(item.reading)} · {item.part_of_speech}</span></div>
           <p>{item.senses_zh.join('；')}</p><small>{item.firstKana} · {item.source}</small>
         </article>) : <p className="muted">还没有匹配的词条。</p>}</div>
       </> : <>
@@ -546,7 +584,7 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
           <button className="button small" onClick={() => downloadJson(`日读上下文词卡-${new Date().toISOString().slice(0, 10)}.json`, { format: 'nichidoku-cards-v1', exportedAt: new Date().toISOString(), cards })}>导出词卡</button>
         </div>
         <div className="data-list cards">{cards.length ? cards.map((card) => <article key={card.id}>
-          <div><strong lang="ja">{card.surface}</strong><span>{card.reading}</span></div><p>{card.glossZh}</p>
+          <div><strong lang="ja">{card.surface}</strong><span>{toHiragana(card.reading)}</span></div><p>{card.glossZh}</p>
           <blockquote lang="ja">{card.sentence}</blockquote><small>{card.sourceLabel}</small>
         </article>) : <p className="muted">还没有词卡。阅读时点击词语即可收藏。</p>}</div>
       </>}
@@ -573,7 +611,7 @@ function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported
   }
   return (
     <Modal title="导入日文内容" onClose={onClose}>
-      <p className="muted">支持无 DRM EPUB、UTF-8 TXT，或直接粘贴日文。为保证分词和对齐，阅读时使用重排版，暂不导入插图。</p>
+      <p className="muted">支持无 DRM EPUB、UTF-8 TXT，或直接粘贴日文。EPUB 会保留段落结构和原图位置；精读模式默认隐藏插图，可随时开启。</p>
       <label className="field"><span>标题</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="可选" /></label>
       <label className="drop-zone"><input type="file" accept=".epub,.txt,text/plain,application/epub+zip" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><strong>{file ? file.name : '选择 EPUB 或 TXT'}</strong><small>也可以把文件拖到这里</small></label>
       <div className="divider"><span>或者粘贴文本</span></div>

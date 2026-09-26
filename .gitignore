@@ -6,9 +6,7 @@ dist/
 __pycache__/
 *.pyc
 .env
-data/*.sqlite3
-data/*.db
-data/*.json
+data/
 .pytest_cache/
 *.tsbuildinfo
 vite.config.js

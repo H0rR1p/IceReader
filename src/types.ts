@@ -1,4 +1,18 @@
-export type ChapterStatus = 'pending' | 'processing' | 'complete' | 'partial-failed' | 'failed'
+export type ChapterStatus = 'pending' | 'local-ready' | 'processing' | 'complete' | 'partial-failed' | 'failed'
+
+export interface ContentBlock {
+  id: string
+  type: 'heading' | 'paragraph' | 'quote' | 'list-item' | 'image' | 'page-break' | 'separator'
+  start: number
+  end: number
+  text: string
+  level?: number | null
+  asset_url?: string | null
+  alt?: string
+  placement?: 'left' | 'center' | 'right' | 'inline'
+  width?: number | null
+  height?: number | null
+}
 
 export interface Book {
   id: string
@@ -16,6 +30,8 @@ export interface Chapter {
   title: string
   order: number
   text: string
+  blocks?: ContentBlock[]
+  originalHtmlUrl?: string
   status: ChapterStatus
   error?: string
 }
@@ -91,7 +107,8 @@ export interface StudyCard {
 export interface ImportedBook {
   title: string
   author: string
-  chapters: Array<{ id: string; title: string; order: number; text: string }>
+  chapters: Array<{ id: string; title: string; order: number; text: string; blocks?: ContentBlock[]; original_html_url?: string }>
+  import_report?: { source_documents: number; imported_sections: number; images: number; image_references: number; image_only_sections: number; broken_image_references: number } | null
 }
 
 export interface AnalyzeResponse {
