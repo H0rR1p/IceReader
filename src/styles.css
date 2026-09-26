@@ -1,0 +1,172 @@
+:root {
+  font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: #18383b;
+  background: #f1f7f7;
+  font-synthesis: none;
+  --ink: #18383b;
+  --muted: #668084;
+  --line: #cbdedf;
+  --paper: #fbfefe;
+  --soft: #e4f0f0;
+  --accent: #217f84;
+  --accent-deep: #155f65;
+  --accent-soft: #dceff0;
+  --green: #27776d;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 75% 5%, #dfeff0 0, transparent 32%), #f1f7f7; }
+button, input, textarea { font: inherit; }
+button { color: inherit; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app-shell { min-height: 100vh; }
+.topbar { height: 68px; padding: 0 28px; background: rgba(248, 253, 253, .9); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px); }
+.brand { border: 0; background: none; display: flex; align-items: center; gap: 10px; cursor: pointer; text-align: left; padding: 0; }
+.brand-mark { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: white; background: linear-gradient(145deg, #43a3a6, var(--accent-deep)); box-shadow: 0 7px 18px #17666b28; font-family: "Yu Mincho", serif; font-size: 22px; }
+.brand strong, .brand small { display: block; }
+.brand strong { font-size: 16px; letter-spacing: .08em; }
+.brand small { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.top-actions { display: flex; gap: 10px; align-items: center; }
+.server-dot { width: 8px; height: 8px; border-radius: 50%; background: #aaa; margin-right: 2px; }
+.server-dot.ready { background: #4b9b77; box-shadow: 0 0 0 4px #e1f0e9; }
+.server-dot.down { background: #c95b4b; box-shadow: 0 0 0 4px #f7e5e2; }
+.button { border: 1px solid var(--line); background: var(--paper); border-radius: 9px; padding: 9px 14px; font-weight: 650; cursor: pointer; transition: .15s ease; }
+.button:hover:not(:disabled) { transform: translateY(-1px); border-color: #bcb7ae; }
+.button:disabled { opacity: .5; cursor: default; }
+.button.primary { border-color: var(--accent); background: linear-gradient(135deg, #2e9295, var(--accent-deep)); color: white; box-shadow: 0 5px 14px #15666a1f; }
+.button.ghost { background: transparent; }
+.button.small { padding: 6px 10px; font-size: 12px; }
+.button.full { width: 100%; }
+.text-button { border: 0; background: none; color: var(--accent); padding: 3px 6px; cursor: pointer; font-size: 13px; }
+.text-button.danger { color: #9a4033; }
+.notice { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 30; max-width: min(680px, calc(100vw - 32px)); padding: 10px 12px 10px 16px; background: #2d2a26; color: white; border-radius: 10px; box-shadow: 0 10px 30px #0003; display: flex; gap: 20px; align-items: center; font-size: 13px; }
+.notice button { border: 0; background: none; color: white; cursor: pointer; font-size: 20px; }
+.page-width { width: min(1120px, calc(100% - 48px)); margin: 0 auto; }
+.library { padding: 68px 0; }
+.page-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 32px; }
+.page-heading h1 { margin: 5px 0 0; font-family: "Yu Mincho", "Noto Serif SC", serif; font-size: 34px; font-weight: 600; }
+.page-heading > p { color: var(--muted); max-width: 360px; text-align: right; font-size: 13px; }
+.eyebrow, .panel-kicker { text-transform: uppercase; letter-spacing: .13em; color: var(--accent); font-size: 11px; font-weight: 800; margin: 0; }
+.empty-state { margin-top: 40px; text-align: center; padding: 52px 24px; border: 1px solid #d2e4e5; border-radius: 20px; background: linear-gradient(145deg, #fbfefe, #edf7f7); box-shadow: 0 18px 45px #1d64670b; }
+.empty-glyph { width: 72px; height: 72px; margin: 0 auto 16px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font: 32px "Yu Mincho", serif; }
+.empty-state h2 { margin: 0 0 8px; }
+.empty-state p { max-width: 520px; margin: 0 auto 22px; color: var(--muted); line-height: 1.7; }
+.book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 28px; }
+.book-card { min-width: 0; }
+.book-cover { width: 100%; aspect-ratio: 3 / 4; border: 0; border-radius: 6px 14px 14px 6px; background: linear-gradient(145deg, #63afb1, #226f76); color: white; box-shadow: inset 7px 0 #103e4212, 0 12px 25px #1a565923; cursor: pointer; display: grid; place-items: center; }
+.book-cover span { writing-mode: vertical-rl; letter-spacing: .25em; font: 22px "Yu Mincho", serif; opacity: .85; }
+.book-meta { padding: 13px 3px; }
+.book-title { border: 0; background: none; padding: 0; font-weight: 750; cursor: pointer; text-align: left; font-size: 16px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.book-meta p { color: var(--muted); font-size: 12px; margin: 5px 0 8px; }
+.workspace { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: calc(100vh - 68px); }
+.chapter-nav { background: linear-gradient(180deg, #e7f1f1, #f2f7f7); border-right: 1px solid var(--line); padding: 26px 18px; position: sticky; top: 68px; height: calc(100vh - 68px); overflow-y: auto; }
+.book-heading { padding: 0 7px 20px; }
+.book-heading small { color: var(--muted); }
+.book-heading h2 { font: 600 21px "Yu Mincho", serif; margin: 7px 0 5px; }
+.book-heading p { margin: 0; color: var(--muted); font-size: 12px; }
+.chapter-nav nav { display: grid; gap: 5px; margin-top: 18px; }
+.chapter-item { border: 0; background: transparent; border-radius: 8px; padding: 10px; cursor: pointer; text-align: left; display: grid; gap: 5px; }
+.chapter-item:hover, .chapter-item.active { background: var(--paper); }
+.chapter-item > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.status { font-size: 10px; color: var(--muted); }
+.status.complete { color: var(--green); }
+.status.failed, .status.partial-failed { color: var(--accent); }
+.reading-stage { min-width: 0; }
+.processing-panel { width: min(620px, calc(100% - 48px)); margin: 13vh auto; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 40px; }
+.processing-panel h1 { font: 600 30px "Yu Mincho", serif; margin: 8px 0; }
+.processing-panel > p:not(.eyebrow) { color: var(--muted); line-height: 1.8; }
+.error-box, .inline-warning { background: #faece9; color: #843d32; border: 1px solid #edc9c1; border-radius: 9px; padding: 11px 13px; margin: 14px 0; font-size: 13px; white-space: pre-wrap; }
+.inline-warning button { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; }
+.reader-layout { display: grid; grid-template-columns: minmax(430px, 1fr) 360px; min-height: calc(100vh - 68px); }
+.reader-pane { background: var(--paper); padding: 38px clamp(28px, 5vw, 76px) 90px; min-width: 0; }
+.reader-toolbar { display: flex; justify-content: space-between; align-items: end; gap: 24px; border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 34px; }
+.reader-toolbar h1 { margin: 6px 0 0; font: 600 28px "Yu Mincho", serif; }
+.display-toggles { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.toggle { cursor: pointer; }
+.toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle span { display: block; padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: 11px; }
+.toggle input:checked + span { color: var(--accent); border-color: #dca69b; background: var(--accent-soft); }
+.japanese-text { max-width: 760px; margin: 0 auto; font-family: "Yu Mincho", "Noto Serif JP", serif; font-size: 20px; line-height: 2.25; letter-spacing: .035em; }
+.sentence { display: inline; border: 0; background: transparent; padding: 3px 1px; border-radius: 4px; text-align: left; cursor: pointer; font: inherit; line-height: inherit; letter-spacing: inherit; }
+.sentence.selected { background: #e5f1f1; box-shadow: 0 0 0 3px #e5f1f1; }
+.sentence.failed { text-decoration: underline wavy #c95b4b; text-decoration-thickness: 1px; }
+.token { border-radius: 3px; transition: background .1s; }
+.token.content { cursor: pointer; }
+.token.content:hover, .token.content:focus, .token.selected { background: #b9dfe0; box-shadow: 0 0 0 2px #b9dfe0; }
+ruby { ruby-align: center; }
+rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; letter-spacing: 0; }
+.study-panel { border-left: 1px solid var(--line); background: #f3f9f9; padding: 30px 25px 70px; position: sticky; top: 68px; height: calc(100vh - 68px); overflow-y: auto; }
+.panel-original { font: 18px/1.8 "Yu Mincho", serif; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.panel-section { margin-top: 25px; }
+.panel-section h3, .dictionary-senses h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.panel-section > p { font-size: 14px; line-height: 1.75; }
+.annotation { border-left: 2px solid #69aeb1; padding-left: 12px; margin: 16px 0; }
+.annotation span { display: block; color: var(--accent); font-size: 10px; font-weight: 800; margin-bottom: 5px; }
+.annotation strong { font: 600 15px "Yu Mincho", serif; }
+.annotation p { margin: 5px 0 0; line-height: 1.65; font-size: 13px; }
+.dictionary-card { margin: 24px -4px; padding: 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 7px 18px #1b5c600d; }
+.dictionary-head { display: flex; align-items: start; justify-content: space-between; gap: 15px; }
+.dictionary-head small { color: var(--muted); }
+.dictionary-head h2 { font: 600 25px "Yu Mincho", serif; margin: 4px 0 1px; }
+.dictionary-head p { margin: 0; color: var(--muted); font-size: 13px; }
+.context-gloss { margin: 16px 0; padding: 11px 13px; background: var(--accent-soft); border-radius: 8px; border: 1px solid #c9e3e4; }
+.context-gloss small { color: var(--accent); font-weight: 800; }
+.context-gloss p { margin: 4px 0 0; font-size: 14px; }
+.dictionary-senses ol { padding-left: 19px; font-size: 13px; line-height: 1.65; }
+.section-title { display: flex; justify-content: space-between; align-items: center; }
+.section-title h3 { margin: 0; }
+.dictionary-senses textarea { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 7px; padding: 9px; margin: 8px 0; }
+.source { color: var(--muted); font-size: 10px; }
+.muted { color: var(--muted); }
+.modal-backdrop { position: fixed; inset: 0; background: #211e1a70; z-index: 50; display: grid; place-items: center; padding: 20px; }
+.modal { width: min(620px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; background: var(--paper); border-radius: 16px; padding: 24px; box-shadow: 0 24px 70px #0004; }
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.modal-head h2 { margin: 0; font: 600 24px "Yu Mincho", serif; }
+.modal-head button { border: 0; background: none; cursor: pointer; font-size: 24px; }
+.field { display: grid; gap: 6px; margin: 15px 0; }
+.field > span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.field input, .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: white; padding: 10px 11px; }
+.drop-zone { min-height: 110px; border: 1px dashed #8fbabb; border-radius: 11px; display: grid; place-items: center; align-content: center; gap: 4px; position: relative; background: #f2f9f9; }
+.drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop-zone small { color: var(--muted); }
+.divider { height: 34px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; }
+.divider::before, .divider::after { content: ""; height: 1px; background: var(--line); flex: 1; }
+.divider span { padding: 0 10px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+.privacy-note { padding: 12px 14px; border-radius: 9px; background: #e2f2f2; color: #245f63; }
+.privacy-note p { margin: 4px 0 0; line-height: 1.5; font-size: 12px; }
+.tab-row { display: flex; gap: 5px; border-bottom: 1px solid var(--line); margin-bottom: 15px; }
+.tab-row button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 9px 12px; color: var(--muted); cursor: pointer; }
+.tab-row button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 750; }
+.data-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.data-tools input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
+.data-tools p { margin: 0; color: var(--muted); font-size: 12px; }
+.data-list { display: grid; gap: 8px; max-height: 52vh; overflow-y: auto; }
+.data-list article { border: 1px solid var(--line); border-radius: 9px; padding: 12px; background: #fff; }
+.data-list article > div { display: flex; align-items: baseline; gap: 10px; }
+.data-list article strong { font: 600 18px "Yu Mincho", serif; }
+.data-list article span, .data-list article small { color: var(--muted); font-size: 11px; }
+.data-list article p { margin: 6px 0; font-size: 13px; line-height: 1.55; }
+.data-list blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid #69aeb1; font: 13px/1.6 "Yu Mincho", serif; }
+
+@media (max-width: 980px) {
+  .reader-layout { grid-template-columns: minmax(0, 1fr) 320px; }
+  .reader-pane { padding-left: 30px; padding-right: 30px; }
+}
+
+@media (max-width: 760px) {
+  .topbar { padding: 0 14px; }
+  .top-actions .button.ghost:first-of-type { display: none; }
+  .brand small { display: none; }
+  .workspace { display: block; }
+  .chapter-nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 18px; }
+  .chapter-nav nav { grid-auto-flow: column; grid-auto-columns: minmax(140px, 1fr); overflow-x: auto; }
+  .reader-layout { display: block; }
+  .study-panel { position: static; height: auto; border-left: 0; border-top: 1px solid var(--line); }
+  .reader-toolbar, .page-heading { align-items: start; flex-direction: column; }
+  .page-heading > p { text-align: left; }
+  .reader-pane { padding: 28px 20px 60px; }
+  .japanese-text { font-size: 18px; }
+  .page-width { width: min(100% - 28px, 1120px); }
+  .library { padding-top: 40px; }
+}
