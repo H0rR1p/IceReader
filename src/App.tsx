@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { checkHealth, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, saveApiSettings, segmentChapter } from './api'
+import { checkHealth, deleteBookCover, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, saveApiSettings, segmentChapter, uploadBookCover } from './api'
 import { db, persistProjectData, removeBook, restoreProjectData } from './db'
 import type {
   Annotation,
@@ -74,6 +74,19 @@ function App() {
 
   const refreshBooks = useCallback(async () => {
     const rows = await db.books.orderBy('updatedAt').reverse().toArray()
+    let addedDefaultCover = false
+    for (const book of rows) {
+      if (book.coverUrl) continue
+      const chapters = await db.chapters.where('bookId').equals(book.id).sortBy('order')
+      const coverUrl = chapters.flatMap((chapter) => chapter.blocks ?? [])
+        .find((block) => block.type === 'image' && block.asset_url)?.asset_url
+      if (coverUrl) {
+        book.coverUrl = coverUrl
+        await db.books.put(book)
+        addedDefaultCover = true
+      }
+    }
+    if (addedDefaultCover) await persistProjectData()
     setBooks(rows)
     if (activeBook) {
       setActiveBook(rows.find((book) => book.id === activeBook.id) ?? null)
@@ -99,6 +112,9 @@ function App() {
       id: bookId,
       title: imported.title,
       author: imported.author,
+      coverUrl: imported.chapters.slice().sort((a, b) => a.order - b.order)
+        .flatMap((chapter) => chapter.blocks ?? [])
+        .find((block) => block.type === 'image' && block.asset_url)?.asset_url ?? undefined,
       createdAt: now,
       updatedAt: now,
     }
@@ -291,6 +307,7 @@ function App() {
   }
 
   async function deleteBook(book: Book) {
+    if (book.customCover) await deleteBookCover(book.id).catch(() => undefined)
     await removeBook(book.id)
     await persistProjectData()
     if (activeBook?.id === book.id) {
@@ -298,6 +315,20 @@ function App() {
       setActiveChapter(null)
     }
     await refreshBooks()
+  }
+
+  async function changeBookCover(book: Book, file: File) {
+    try {
+      const coverUrl = await uploadBookCover(book.id, file)
+      const next = { ...book, coverUrl, customCover: true, updatedAt: Date.now() }
+      await db.books.put(next)
+      await persistProjectData()
+      setActiveBook((current) => current?.id === book.id ? next : current)
+      await refreshBooks()
+      setNotice(`《${book.title}》的封面已更新。`)
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error))
+    }
   }
 
   return (
@@ -318,7 +349,7 @@ function App() {
       {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
 
       {!activeBook ? (
-        <Library books={books} onOpen={openBook} onDelete={deleteBook} onImport={() => setShowImport(true)} />
+        <Library books={books} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} />
       ) : (
         <Workspace
           book={activeBook}
@@ -358,14 +389,34 @@ function App() {
   )
 }
 
-function Library({ books, onOpen, onDelete, onImport }: {
+function Library({ books, onOpen, onDelete, onChangeCover, onImport }: {
   books: Book[]
   onOpen: (book: Book) => void
-  onDelete: (book: Book) => void
+  onDelete: (book: Book) => Promise<void>
+  onChangeCover: (book: Book, file: File) => Promise<void>
   onImport: () => void
 }) {
+  const [pendingDelete, setPendingDelete] = useState<Book | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [changingCoverId, setChangingCoverId] = useState<string | null>(null)
+
+  async function changeCover(book: Book, file: File | null) {
+    if (!file) return
+    setChangingCoverId(book.id)
+    await onChangeCover(book, file)
+    setChangingCoverId(null)
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete || deleting) return
+    setDeleting(true)
+    await onDelete(pendingDelete)
+    setDeleting(false)
+    setPendingDelete(null)
+  }
+
   return (
-    <main className="library page-width">
+    <><main className="library page-width">
       <div className="page-heading">
         <div><p className="eyebrow">我的书架</p><h1>继续精读</h1></div>
         <p>电子书、学习数据和阅读进度保存在本地项目中。</p>
@@ -381,17 +432,39 @@ function Library({ books, onOpen, onDelete, onImport }: {
         <div className="book-grid">
           {books.map((book) => (
             <article className="book-card" key={book.id}>
-              <button className="book-cover" onClick={() => onOpen(book)}><span>読む</span></button>
+              <button className="book-cover" aria-label={`打开《${book.title}》`} onClick={() => onOpen(book)}>
+                <span aria-hidden="true">読む</span>
+                {book.coverUrl && <img src={book.coverUrl} alt="" onError={(event) => { event.currentTarget.hidden = true }} />}
+              </button>
               <div className="book-meta">
                 <button className="book-title" onClick={() => onOpen(book)}>{book.title}</button>
                 <p>{book.author || '作者未知'}</p>
-                <div><button className="text-button" onClick={() => onOpen(book)}>打开</button><button className="text-button danger" onClick={() => onDelete(book)}>删除</button></div>
+                <div className="book-card-actions">
+                  <button className="text-button" onClick={() => onOpen(book)}>打开</button>
+                  <label className={`text-button cover-picker ${changingCoverId === book.id ? 'disabled' : ''}`}>
+                    {changingCoverId === book.id ? '上传中…' : '更换封面'}
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={changingCoverId === book.id} onChange={(event) => { void changeCover(book, event.target.files?.[0] ?? null); event.target.value = '' }} />
+                  </label>
+                  <button className="text-button danger" onClick={() => setPendingDelete(book)}>删除</button>
+                </div>
               </div>
             </article>
           ))}
         </div>
       )}
     </main>
+    {pendingDelete && <div className="modal-backdrop" role="presentation">
+      <section className="modal confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-book-title">
+        <div className="confirm-icon">删</div>
+        <h2 id="delete-book-title">确认删除这本书？</h2>
+        <p>《{pendingDelete.title}》的正文、阅读进度、逐句结果和词卡将从本地项目中删除。</p>
+        <div className="modal-actions">
+          <button className="button" autoFocus disabled={deleting} onClick={() => setPendingDelete(null)}>取消</button>
+          <button className="button danger-solid" disabled={deleting} onClick={() => void confirmDelete()}>{deleting ? '正在删除…' : '确认删除'}</button>
+        </div>
+      </section>
+    </div>}
+    </>
   )
 }
 

@@ -18,6 +18,8 @@ export interface Book {
   id: string
   title: string
   author: string
+  coverUrl?: string
+  customCover?: boolean
   createdAt: number
   updatedAt: number
   currentChapterId?: string

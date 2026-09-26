@@ -1,4 +1,6 @@
 import asyncio
+import re
+import time
 import zipfile
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -191,6 +193,38 @@ async def import_epub(file: UploadFile = File(...)) -> ImportedBook:
         return parse_epub(payload, file.filename or "book.epub")
     except Exception as exc:
         raise HTTPException(422, f"无法解析 EPUB：{exc}") from exc
+
+
+@app.post("/api/books/{book_id}/cover")
+async def upload_book_cover(book_id: str, file: UploadFile = File(...)) -> dict:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", book_id):
+        raise HTTPException(400, "书籍 ID 不合法")
+    content_type = (file.content_type or "").lower()
+    suffixes = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+    suffix = suffixes.get(content_type)
+    if not suffix:
+        raise HTTPException(400, "封面只支持 JPG、PNG、WebP 或 GIF 图片")
+    payload = await file.read()
+    if not payload:
+        raise HTTPException(400, "封面图片为空")
+    if len(payload) > 10 * 1024 * 1024:
+        raise HTTPException(413, "封面图片不能超过 10 MB")
+    cover_dir = BOOK_DATA_DIR / "custom-covers"
+    cover_dir.mkdir(parents=True, exist_ok=True)
+    for old_suffix in suffixes.values():
+        (cover_dir / f"{book_id}{old_suffix}").unlink(missing_ok=True)
+    (cover_dir / f"{book_id}{suffix}").write_bytes(payload)
+    return {"url": f"/api/assets/custom-covers/{book_id}{suffix}?v={time.time_ns()}"}
+
+
+@app.delete("/api/books/{book_id}/cover")
+async def delete_book_cover(book_id: str) -> dict:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", book_id):
+        raise HTTPException(400, "书籍 ID 不合法")
+    cover_dir = BOOK_DATA_DIR / "custom-covers"
+    for suffix in (".jpg", ".png", ".webp", ".gif"):
+        (cover_dir / f"{book_id}{suffix}").unlink(missing_ok=True)
+    return {"deleted": True}
 
 
 @app.post("/api/dictionary/import")

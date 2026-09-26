@@ -55,6 +55,19 @@ export async function importEpub(file: File): Promise<ImportedBook> {
   return parseResponse(response)
 }
 
+export async function uploadBookCover(bookId: string, file: File): Promise<string> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/cover`, { method: 'POST', body: form })
+  const result = await parseResponse<{ url: string }>(response)
+  return result.url
+}
+
+export async function deleteBookCover(bookId: string): Promise<void> {
+  const response = await fetch(`/api/books/${encodeURIComponent(bookId)}/cover`, { method: 'DELETE' })
+  await parseResponse(response)
+}
+
 export async function importYomitanDictionary(file: File): Promise<{ source: string; entries: number }> {
   const form = new FormData()
   form.append('file', file)
