@@ -86,6 +86,12 @@ function App() {
     void loadApiSettings().then(setSettings).catch(() => undefined)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(''), 5000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
   async function saveImportedBook(imported: ImportedBook) {
     const bookId = newId('book')
     const now = Date.now()
