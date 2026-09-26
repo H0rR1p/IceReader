@@ -1,12 +1,11 @@
 import json
 import sqlite3
-from pathlib import Path
-
 from .models import LibrarySnapshot
+from .paths import DATA_DIR
 
 
-LIBRARY_PATH = Path(__file__).resolve().parent.parent / "data" / "library.sqlite3"
-LEGACY_PATH = Path(__file__).resolve().parent.parent / "data" / "library.json"
+LIBRARY_PATH = DATA_DIR / "library.sqlite3"
+LEGACY_PATH = DATA_DIR / "library.json"
 TABLE_KEYS = {
     "books": "id", "chapters": "id", "sentences": "id", "tokens": "id",
     "annotations": "id", "contextSenses": "token_id", "lexemes": "key", "cards": "id",

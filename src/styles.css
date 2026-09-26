@@ -88,6 +88,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .background-progress > div { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; }
 .background-progress small { color: var(--muted); font-size: 10px; }
 .background-progress progress { display: block; width: 100%; height: 5px; margin: 8px 0 2px; accent-color: var(--accent); }
+.background-progress .background-progress-footer { align-items: center; margin-top: 5px; }
+.background-progress-footer button { border: 0; background: none; color: var(--accent-deep); padding: 1px 0; font-size: 10px; font-weight: 750; cursor: pointer; }
 .chapter-nav nav { display: grid; gap: 5px; margin-top: 18px; }
 .chapter-item { border: 0; background: transparent; border-radius: 8px; padding: 10px; cursor: pointer; text-align: left; display: grid; gap: 5px; }
 .chapter-item:hover, .chapter-item.active { background: var(--paper); }

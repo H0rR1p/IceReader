@@ -11,9 +11,10 @@ from ebooklib import epub
 
 from .models import ContentBlock, ImportReport, ImportedBook, ImportedChapter
 from .nlp import stable_id
+from .paths import DATA_DIR
 
 
-BOOK_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "books"
+BOOK_DATA_DIR = DATA_DIR / "books"
 TEXT_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "blockquote"}
 
 

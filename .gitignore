@@ -5,9 +5,12 @@ dist/
 .venv64/
 __pycache__/
 *.pyc
+*.log
 .env
 data/
 .pytest_cache/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+/冰读.exe
+/build/

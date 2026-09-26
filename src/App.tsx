@@ -73,6 +73,7 @@ function App() {
   const [dataRevision, setDataRevision] = useState(0)
   const [logoBouncing, setLogoBouncing] = useState(false)
   const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
+  const backgroundAbortRef = useRef<AbortController | null>(null)
 
   const refreshBooks = useCallback(async () => {
     const rows = await db.books.orderBy('updatedAt').reverse().toArray()
@@ -195,12 +196,12 @@ function App() {
     setActiveChapter((current) => current?.id === chapter.id ? { ...current, status, error: result.warnings.join('\n') || undefined } : current)
   }
 
-  async function processChapter(chapter: Chapter, options: { quiet?: boolean; persist?: boolean } = {}): Promise<boolean> {
+  async function processChapter(chapter: Chapter, options: { quiet?: boolean; persist?: boolean; signal?: AbortSignal } = {}): Promise<boolean> {
     await db.chapters.update(chapter.id, { status: 'processing', error: undefined })
     setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'processing' } : current)
     let localReady = false
     try {
-      const segmented = await segmentChapter(chapter.id, chapter.text, chapter.blocks ?? [], settings)
+      const segmented = await segmentChapter(chapter.id, chapter.text, chapter.blocks ?? [], settings, options.signal)
       await storeChapterResult(chapter, segmented, 'local-ready', options.persist ?? true)
       localReady = true
       if (!options.quiet) {
@@ -210,6 +211,12 @@ function App() {
       }
       return true
     } catch (error) {
+      if (options.signal?.aborted) {
+        const restoredStatus = chapter.status === 'processing' ? 'pending' : chapter.status
+        await db.chapters.update(chapter.id, { status: restoredStatus, error: undefined })
+        setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: restoredStatus, error: undefined } : current)
+        throw error
+      }
       const message = error instanceof Error ? error.message : String(error)
       const fallbackStatus = localReady ? 'local-ready' : 'failed'
       await db.chapters.update(chapter.id, { status: fallbackStatus, error: message })
@@ -220,11 +227,12 @@ function App() {
     }
   }
 
-  async function explainAndStoreSentence(sentence: Sentence, tokens: Token[], persist = true) {
+  async function explainAndStoreSentence(sentence: Sentence, tokens: Token[], persist = true, signal?: AbortSignal) {
     const result = await explainSentence(
       { ...sentence, explanation_status: 'processing' },
       tokens.map(({ lexemeKey: _lexemeKey, ...token }) => token),
       settings,
+      signal,
     )
     const nextSentence = result.sentences[0]
     const tokenIds = tokens.map((token) => token.id)
@@ -247,6 +255,9 @@ function App() {
 
   async function runBackground(kind: BackgroundJob['kind'], scope: BackgroundJob['scope'], chapter?: Chapter) {
     if (backgroundJob?.running || !activeBook) return
+    const controller = new AbortController()
+    backgroundAbortRef.current = controller
+    const ensureNotCanceled = () => controller.signal.throwIfAborted()
     const targets = chapter
       ? [chapter]
       : await db.chapters.where('bookId').equals(activeBook.id).sortBy('order')
@@ -257,12 +268,13 @@ function App() {
     try {
       const readyChapters: Chapter[] = []
       for (let index = 0; index < targets.length; index += 1) {
+        ensureNotCanceled()
         const target = (await db.chapters.get(targets[index].id)) ?? targets[index]
         const sentenceCount = await db.sentences.where('chapter_id').equals(target.id).count()
         let ready = sentenceCount > 0 && target.status !== 'pending' && target.status !== 'failed'
         if (!ready && target.text.trim()) {
           setBackgroundJob((current) => current && ({ ...current, label: `后台切分：${target.title}`, completed: index, total: targets.length, failed }))
-          ready = await processChapter(target, { quiet: true, persist: false })
+          ready = await processChapter(target, { quiet: true, persist: false, signal: controller.signal })
           if (!ready) failed += 1
         }
         if (ready) readyChapters.push(target)
@@ -273,19 +285,25 @@ function App() {
       if (kind === 'translate') {
         const pendingSentences: Sentence[] = []
         for (const target of readyChapters) {
+          ensureNotCanceled()
           const rows = await db.sentences.where('chapter_id').equals(target.id).sortBy('start')
           pendingSentences.push(...rows.filter((sentence) => sentence.explanation_status !== 'complete'))
         }
         setBackgroundJob((current) => current && ({ ...current, label: '准备后台逐句翻译', completed: 0, total: pendingSentences.length, failed }))
         for (let index = 0; index < pendingSentences.length; index += 1) {
+          ensureNotCanceled()
           const sentence = pendingSentences[index]
           const target = targets.find((item) => item.id === sentence.chapter_id)
           setBackgroundJob((current) => current && ({ ...current, label: `后台翻译：${target?.title ?? '当前章节'}`, completed: index, failed }))
           const sentenceTokens = await db.tokens.where('sentence_id').equals(sentence.id).toArray()
           try {
             await db.sentences.update(sentence.id, { explanation_status: 'processing', error: null })
-            await explainAndStoreSentence(sentence, sentenceTokens, false)
+            await explainAndStoreSentence(sentence, sentenceTokens, false, controller.signal)
           } catch (error) {
+            if (controller.signal.aborted) {
+              await db.sentences.update(sentence.id, { explanation_status: 'idle', error: null })
+              throw error
+            }
             failed += 1
             const message = error instanceof Error ? error.message : String(error)
             await db.sentences.update(sentence.id, { explanation_status: 'failed', error: message })
@@ -300,12 +318,25 @@ function App() {
       setBackgroundJob((current) => current && ({ ...current, label: `后台${jobName}完成`, running: false, failed }))
       setNotice(failed ? `后台${jobName}完成，${failed} 项失败，可稍后重试。` : `后台${jobName}完成。`)
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
       await persistProjectData().catch(() => undefined)
       setDataRevision((value) => value + 1)
-      setBackgroundJob((current) => current && ({ ...current, label: `后台${jobName}已停止`, running: false, failed: current.failed + 1 }))
-      setNotice(message)
+      if (controller.signal.aborted) {
+        setBackgroundJob((current) => current && ({ ...current, label: `后台${jobName}已取消`, running: false }))
+        setNotice(`后台${jobName}已取消，已完成的结果已保存。`)
+      } else {
+        const message = error instanceof Error ? error.message : String(error)
+        setBackgroundJob((current) => current && ({ ...current, label: `后台${jobName}已停止`, running: false, failed: current.failed + 1 }))
+        setNotice(message)
+      }
+    } finally {
+      if (backgroundAbortRef.current === controller) backgroundAbortRef.current = null
     }
+  }
+
+  function cancelBackground() {
+    if (!backgroundAbortRef.current || !backgroundJob?.running) return
+    backgroundAbortRef.current.abort()
+    setBackgroundJob((current) => current && ({ ...current, label: '正在取消后台任务…' }))
   }
 
   async function deleteBook(book: Book) {
@@ -375,6 +406,7 @@ function App() {
           onProcessChapter={processChapter}
           onExplainSentence={explainAndStoreSentence}
           backgroundJob={backgroundJob}
+          onCancelBackground={cancelBackground}
           dataRevision={dataRevision}
           onBackgroundBook={(kind) => void runBackground(kind, 'book')}
           onBackgroundChapter={(kind, chapter) => void runBackground(kind, 'chapter', chapter)}
@@ -481,7 +513,7 @@ function Library({ books, onOpen, onDelete, onChangeCover, onImport }: {
   )
 }
 
-function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onNotice }: {
+function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onCancelBackground, onNotice }: {
   book: Book
   activeChapter: Chapter | null
   onSelectChapter: (chapter: Chapter) => void
@@ -491,6 +523,7 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onE
   dataRevision: number
   onBackgroundBook: (kind: BackgroundJob['kind']) => void
   onBackgroundChapter: (kind: BackgroundJob['kind'], chapter: Chapter) => void
+  onCancelBackground: () => void
   onNotice: (message: string) => void
 }) {
   const [chapters, setChapters] = useState<Chapter[]>([])
@@ -507,7 +540,7 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onE
           <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('segment')}>后台切分全书</button>
           <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('translate')}>后台翻译全书</button>
         </div>
-        {backgroundJob && <BackgroundProgress job={backgroundJob} />}
+        {backgroundJob && <BackgroundProgress job={backgroundJob} onCancel={onCancelBackground} />}
         <nav aria-label="章节">
           {chapters.map((chapter) => (
             <button key={chapter.id} className={`chapter-item ${activeChapter?.id === chapter.id ? 'active' : ''}`} onClick={() => onSelectChapter(chapter)}>
@@ -534,12 +567,15 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onE
   )
 }
 
-function BackgroundProgress({ job }: { job: BackgroundJob }) {
+function BackgroundProgress({ job, onCancel }: { job: BackgroundJob; onCancel: () => void }) {
   const value = job.total ? Math.round((job.completed / job.total) * 100) : (job.running ? 0 : 100)
   return <div className={`background-progress ${job.running ? 'running' : 'done'}`} role="status">
     <div><span>{job.label}</span><small>{job.total ? `${job.completed}/${job.total}` : '无待处理内容'}</small></div>
     <progress max="100" value={value} />
-    {job.failed > 0 && <small>{job.failed} 项失败</small>}
+    <div className="background-progress-footer">
+      {job.failed > 0 ? <small>{job.failed} 项失败</small> : <span />}
+      {job.running && <button type="button" onClick={onCancel}>取消任务</button>}
+    </div>
   </div>
 }
 

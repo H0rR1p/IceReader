@@ -93,6 +93,7 @@ export async function explainSentence(
   sentence: AnalyzeResponse['sentences'][number],
   tokens: AnalyzeResponse['tokens'],
   settings: ApiSettings,
+  signal?: AbortSignal,
 ): Promise<AnalyzeResponse> {
   const response = await fetch('/api/sentences/explain', {
     method: 'POST',
@@ -104,11 +105,12 @@ export async function explainSentence(
       tokens,
       settings: { base_url: settings.baseUrl, model: settings.model },
     }),
+    signal,
   })
   return parseResponse(response)
 }
 
-export async function segmentChapter(chapterId: string, text: string, blocks: ContentBlock[], settings: ApiSettings): Promise<AnalyzeResponse> {
+export async function segmentChapter(chapterId: string, text: string, blocks: ContentBlock[], settings: ApiSettings, signal?: AbortSignal): Promise<AnalyzeResponse> {
   const response = await fetch('/api/chapters/segment', {
     method: 'POST',
     headers: settings.apiKey
@@ -120,6 +122,7 @@ export async function segmentChapter(chapterId: string, text: string, blocks: Co
       blocks,
       settings: { base_url: settings.baseUrl, model: settings.model },
     }),
+    signal,
   })
   return parseResponse(response)
 }

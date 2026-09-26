@@ -30,6 +30,7 @@ from .models import (
     TokenOut,
 )
 from .nlp import lexeme_key, split_sentences, stable_id, tokenize_sentence
+from .paths import DIST_DIR
 from .settings_store import get_settings_status, resolve_settings, save_settings
 
 
@@ -333,3 +334,7 @@ async def explain_sentence(request: ExplainSentenceRequest, x_api_key: str | Non
         sentences=[sentence], tokens=request.tokens, annotations=annotations,
         context_senses=context_senses, lexemes=list(lexemes.values()), warnings=warnings,
     )
+
+
+if DIST_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=DIST_DIR, html=True), name="web")

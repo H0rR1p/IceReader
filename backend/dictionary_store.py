@@ -6,9 +6,10 @@ import zipfile
 from pathlib import Path
 
 from .nlp import kata
+from .paths import DATA_DIR
 
 
-DICTIONARY_PATH = Path(__file__).resolve().parent.parent / "data" / "dictionary.sqlite3"
+DICTIONARY_PATH = DATA_DIR / "dictionary.sqlite3"
 
 
 def _connect() -> sqlite3.Connection:
