@@ -18,11 +18,11 @@ from .models import (
     ExplainSentenceRequest,
     ImportedBook,
     ImportedChapter,
-    ImportReport,
     LexemeOut,
     LibrarySnapshot,
     LocalAiSettingsInput,
     LocalAiSettingsStatus,
+    SegmentChapterRequest,
     SentenceOut,
     TextImportRequest,
     TokenOut,
@@ -91,10 +91,13 @@ async def _segment_chapter(chapter: ImportedChapter, api_key: str, base_url: str
             "can_merge_next": bool(next_span and same_block),
         })
     merge_ids: set[str] = set()
+    async def review_batch(batch: list[dict]) -> set[str]:
+        async with semaphore:
+            return await review_sentence_boundaries(batch, api_key, base_url, model)
+
     try:
-        for batch in _candidate_batches(candidates):
-            async with semaphore:
-                merge_ids.update(await review_sentence_boundaries(batch, api_key, base_url, model))
+        for result in await asyncio.gather(*(review_batch(batch) for batch in _candidate_batches(candidates))):
+            merge_ids.update(result)
     except Exception as exc:
         chapter.sentences, chapter.tokens = _local_analysis(chapter.id, chapter.text, spans)
         chapter.segmentation_source = "local-fallback"
@@ -113,19 +116,6 @@ async def _segment_chapter(chapter: ImportedChapter, api_key: str, base_url: str
     chapter.sentences, chapter.tokens = _local_analysis(chapter.id, chapter.text, merged)
     chapter.segmentation_source = "ai-reviewed"
     return chapter, None
-
-
-async def _prepare_imported_book(book: ImportedBook) -> ImportedBook:
-    api_key, base_url, model = resolve_settings(None, "https://api.deepseek.com", "deepseek-chat")
-    semaphore = asyncio.Semaphore(4)
-    tasks = [_segment_chapter(chapter, api_key, base_url, model, semaphore) for chapter in book.chapters]
-    results = await asyncio.gather(*tasks)
-    book.chapters = [chapter for chapter, _ in results]
-    report = book.import_report or ImportReport(source_documents=len(book.chapters), imported_sections=len(book.chapters))
-    report.ai_segmented_sections = sum(chapter.segmentation_source == "ai-reviewed" for chapter in book.chapters)
-    report.segmentation_warnings = [warning for _, warning in results if warning]
-    book.import_report = report
-    return book
 
 
 def _personal_entry(token: TokenOut) -> dict | None:
@@ -187,7 +177,7 @@ async def import_text(request: TextImportRequest) -> ImportedBook:
     book = ImportedBook(title=request.title.strip() or "粘贴文本", chapters=[ImportedChapter(
         id=stable_id("chapter", f"{request.title}:{request.text[:100]}"), title="正文", order=0, text=request.text, blocks=blocks,
     )])
-    return await _prepare_imported_book(book)
+    return book
 
 
 @app.post("/api/import/epub", response_model=ImportedBook)
@@ -198,7 +188,7 @@ async def import_epub(file: UploadFile = File(...)) -> ImportedBook:
     if len(payload) > 80 * 1024 * 1024:
         raise HTTPException(413, "EPUB 文件不能超过 80 MB")
     try:
-        return await _prepare_imported_book(parse_epub(payload, file.filename or "book.epub"))
+        return parse_epub(payload, file.filename or "book.epub")
     except Exception as exc:
         raise HTTPException(422, f"无法解析 EPUB：{exc}") from exc
 
@@ -224,6 +214,19 @@ async def preprocess(request: AnalyzeRequest) -> AnalyzeResponse:
     if not sentences:
         raise HTTPException(422, "章节中没有可处理的日文正文")
     return AnalyzeResponse(sentences=sentences, tokens=tokens, annotations=[], context_senses=[], lexemes=[], warnings=[])
+
+
+@app.post("/api/chapters/segment", response_model=AnalyzeResponse)
+async def segment_chapter(request: SegmentChapterRequest, x_api_key: str | None = Header(default=None)) -> AnalyzeResponse:
+    api_key, base_url, model = resolve_settings(x_api_key, str(request.settings.base_url), request.settings.model)
+    chapter = ImportedChapter(
+        id=request.chapter_id, title="当前章节", order=0, text=request.text, blocks=request.blocks,
+    )
+    chapter, warning = await _segment_chapter(chapter, api_key, base_url, model, asyncio.Semaphore(3))
+    warnings = [warning] if warning else []
+    return AnalyzeResponse(
+        sentences=chapter.sentences, tokens=chapter.tokens, annotations=[], context_senses=[], lexemes=[], warnings=warnings,
+    )
 
 
 @app.post("/api/sentences/explain", response_model=AnalyzeResponse)

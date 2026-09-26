@@ -114,7 +114,7 @@ export interface ImportedBook {
   }>
   import_report?: {
     source_documents: number; imported_sections: number; images: number; image_references: number
-    image_only_sections: number; broken_image_references: number; ai_segmented_sections?: number; segmentation_warnings?: string[]
+    image_only_sections: number; broken_image_references: number
   } | null
 }
 

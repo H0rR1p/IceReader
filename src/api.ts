@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ApiSettings, ImportedBook, Lexeme } from './types'
+import type { AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme } from './types'
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -95,13 +95,16 @@ export async function explainSentence(
   return parseResponse(response)
 }
 
-export async function preprocessChapter(chapterId: string, text: string, settings: ApiSettings): Promise<AnalyzeResponse> {
-  const response = await fetch('/api/preprocess', {
+export async function segmentChapter(chapterId: string, text: string, blocks: ContentBlock[], settings: ApiSettings): Promise<AnalyzeResponse> {
+  const response = await fetch('/api/chapters/segment', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: settings.apiKey
+      ? { 'Content-Type': 'application/json', 'X-API-Key': settings.apiKey }
+      : { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chapter_id: chapterId,
       text,
+      blocks,
       settings: { base_url: settings.baseUrl, model: settings.model },
     }),
   })

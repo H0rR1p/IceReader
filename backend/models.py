@@ -102,6 +102,13 @@ class ExplainSentenceRequest(BaseModel):
     settings: AiSettings = Field(default_factory=AiSettings)
 
 
+class SegmentChapterRequest(BaseModel):
+    chapter_id: str
+    text: str = Field(min_length=1, max_length=120_000)
+    blocks: list["ContentBlock"] = Field(default_factory=list)
+    settings: AiSettings = Field(default_factory=AiSettings)
+
+
 class TextImportRequest(BaseModel):
     title: str = "粘贴文本"
     text: str = Field(min_length=1, max_length=2_000_000)
@@ -140,8 +147,6 @@ class ImportReport(BaseModel):
     image_references: int = 0
     image_only_sections: int = 0
     broken_image_references: int = 0
-    ai_segmented_sections: int = 0
-    segmentation_warnings: list[str] = Field(default_factory=list)
 
 
 class ImportedBook(BaseModel):

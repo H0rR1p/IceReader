@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { checkHealth, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, preprocessChapter, saveApiSettings } from './api'
+import { checkHealth, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, saveApiSettings, segmentChapter } from './api'
 import { db, persistProjectData, removeBook, restoreProjectData } from './db'
 import type {
   Annotation,
@@ -122,12 +122,8 @@ function App() {
     setActiveChapter(chapters[0])
     if (imported.import_report) {
       const report = imported.import_report
-      const segmentation = report.ai_segmented_sections
-        ? `，AI 已审校 ${report.ai_segmented_sections} 节的句子边界`
-        : '，句子已在导入时完成本地切分'
-      const warning = report.segmentation_warnings?.length ? `；${report.segmentation_warnings.length} 节使用本地备用边界` : ''
-      setNotice(`导入完成：${report.imported_sections} 节、${report.images} 张原图${segmentation}${warning}。`)
-    }
+      setNotice(`导入完成：${report.imported_sections} 节、${report.images} 张原图。打开需要阅读的章节后再单独切分。`)
+    } else setNotice(`《${imported.title}》导入完成。点击“切分本章”后只处理当前章节。`)
     await refreshBooks()
   }
 
@@ -168,10 +164,12 @@ function App() {
     setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'processing' } : current)
     let localReady = false
     try {
-      const local = await preprocessChapter(chapter.id, chapter.text, settings)
-      await storeChapterResult(chapter, local, 'local-ready')
+      const segmented = await segmentChapter(chapter.id, chapter.text, chapter.blocks ?? [], settings)
+      await storeChapterResult(chapter, segmented, 'local-ready')
       localReady = true
-      setNotice(`《${chapter.title}》已完成句子切分和分词。请选择句子后在右栏按需释义。`)
+      setNotice(segmented.warnings.length
+        ? `《${chapter.title}》已使用本地备用边界完成切分：${segmented.warnings.join('；')}`
+        : `《${chapter.title}》已完成 AI 句界审校和分词。请选择句子后在右栏按需释义。`)
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -264,7 +262,7 @@ function Library({ books, onOpen, onDelete, onImport }: {
         <section className="empty-state">
           <div className="empty-glyph">文</div>
           <h2>导入第一篇日文</h2>
-          <p>支持粘贴文本、UTF-8 TXT 和无 DRM EPUB。导入时完成句子切分，阅读时按需逐句生成句意、词义和注释。</p>
+          <p>支持粘贴文本、UTF-8 TXT 和无 DRM EPUB。导入后按需切分当前章节，再逐句生成句意、词义和注释。</p>
           <button className="button primary" onClick={onImport}>导入内容</button>
         </section>
       ) : (
@@ -525,7 +523,7 @@ function Reader({ book, chapter, settings, onNotice, onRetry }: {
             <Toggle label="注释" value={showAnnotations} onChange={setShowAnnotations} />
           </div>
         </div>
-        {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">这是旧版导入章节，尚未保存句子边界。<button onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
+        {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章尚未切分。只会处理当前章节，不会等待整本书。<button onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
         {chapter.status === 'processing' && <div className="inline-warning">正在切分本章。</div>}
         {viewMode === 'original' && chapter.originalHtmlUrl
           ? <iframe className="original-preview" sandbox="" src={chapter.originalHtmlUrl} title={`${chapter.title} 原书预览`} />
@@ -675,13 +673,13 @@ function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported
   }
   return (
     <Modal title="导入日文内容" onClose={onClose}>
-      <p className="muted">导入时会完成全书句子切分与分词，并用 AI 审校句子边界。阅读时再按需逐句释义。EPUB 保留段落结构和原图位置。</p>
+      <p className="muted">导入只解析书籍结构、正文和图片，不等待全书 AI 处理。阅读时按需切分当前章节，再逐句释义。</p>
       <label className="field"><span>标题</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="可选" /></label>
       <label className="drop-zone"><input type="file" accept=".epub,.txt,text/plain,application/epub+zip" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><strong>{file ? file.name : '选择 EPUB 或 TXT'}</strong><small>也可以把文件拖到这里</small></label>
       <div className="divider"><span>或者粘贴文本</span></div>
       <label className="field"><textarea value={text} onChange={(event) => setText(event.target.value)} rows={9} placeholder="ここに日本語の文章を貼り付けてください。" /></label>
       {error && <div className="error-box">{error}</div>}
-      <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={busy || (!file && !text.trim())} onClick={() => void submit()}>{busy ? '正在导入并切分…' : '导入并切分'}</button></div>
+      <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={busy || (!file && !text.trim())} onClick={() => void submit()}>{busy ? '正在导入…' : '导入书籍'}</button></div>
     </Modal>
   )
 }
