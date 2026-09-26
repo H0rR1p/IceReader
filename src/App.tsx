@@ -222,7 +222,13 @@ function App() {
         <SettingsDialog
           value={settings}
           onClose={() => setShowSettings(false)}
-          onSave={(next) => { setSettings(next); setShowSettings(false); setNotice('AI 设置已应用到当前页面，会在关闭页面后清除密钥。') }}
+          onSave={(next) => {
+            setSettings(next)
+            setShowSettings(false)
+            setNotice(next.apiKey
+              ? 'AI 设置已应用到当前页面，会在关闭页面后清除密钥。'
+              : 'Base URL 和模型已应用；处理章节前还需要填写 API Key。')
+          }}
         />
       )}
     </div>
@@ -568,13 +574,19 @@ function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported
 
 function SettingsDialog({ value, onClose, onSave }: { value: ApiSettings; onClose: () => void; onSave: (next: ApiSettings) => void }) {
   const [draft, setDraft] = useState(value)
+  const canSave = Boolean(draft.baseUrl.trim() && draft.model.trim())
+  const save = () => onSave({
+    apiKey: draft.apiKey.trim(),
+    baseUrl: draft.baseUrl.trim().replace(/\/$/, ''),
+    model: draft.model.trim(),
+  })
   return (
     <Modal title="AI 设置" onClose={onClose}>
       <div className="privacy-note"><strong>密钥只在当前页面内存中使用</strong><p>不会写入 IndexedDB、localStorage、项目文件或后端日志。关闭或刷新页面后需要重新输入。</p></div>
-      <label className="field"><span>API Key</span><input type="password" autoComplete="off" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder="sk-…" /></label>
+      <label className="field"><span>API Key（处理章节时必填）</span><input type="password" autoComplete="off" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder="sk-…" /></label>
       <label className="field"><span>OpenAI 兼容 Base URL</span><input value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} /></label>
       <label className="field"><span>模型</span><input value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} /></label>
-      <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={!draft.apiKey.trim()} onClick={() => onSave(draft)}>应用</button></div>
+      <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={!canSave} onClick={save}>应用</button></div>
     </Modal>
   )
 }
