@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { checkHealth, deleteBookCover, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, saveApiSettings, segmentChapter, uploadBookCover } from './api'
 import { db, persistProjectData, removeBook, restoreProjectData } from './db'
 import type {
@@ -72,6 +72,7 @@ function App() {
   const [backgroundJob, setBackgroundJob] = useState<BackgroundJob | null>(null)
   const [dataRevision, setDataRevision] = useState(0)
   const [logoBouncing, setLogoBouncing] = useState(false)
+  const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
 
   const refreshBooks = useCallback(async () => {
     const rows = await db.books.orderBy('updatedAt').reverse().toArray()
@@ -333,6 +334,10 @@ function App() {
   }
 
   function bounceLogoAndOpenLibrary() {
+    const audio = new Audio('/bingdu-logo-click.wav')
+    logoAudiosRef.current.add(audio)
+    audio.addEventListener('ended', () => logoAudiosRef.current.delete(audio), { once: true })
+    void audio.play().catch(() => logoAudiosRef.current.delete(audio))
     setLogoBouncing(false)
     window.requestAnimationFrame(() => setLogoBouncing(true))
     setActiveBook(null)
