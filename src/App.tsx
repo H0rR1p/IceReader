@@ -71,6 +71,7 @@ function App() {
   const [notice, setNotice] = useState('')
   const [backgroundJob, setBackgroundJob] = useState<BackgroundJob | null>(null)
   const [dataRevision, setDataRevision] = useState(0)
+  const [logoBouncing, setLogoBouncing] = useState(false)
 
   const refreshBooks = useCallback(async () => {
     const rows = await db.books.orderBy('updatedAt').reverse().toArray()
@@ -331,11 +332,18 @@ function App() {
     }
   }
 
+  function bounceLogoAndOpenLibrary() {
+    setLogoBouncing(false)
+    window.requestAnimationFrame(() => setLogoBouncing(true))
+    setActiveBook(null)
+    setActiveChapter(null)
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => { setActiveBook(null); setActiveChapter(null) }}>
-          <span className="brand-mark"><img src="/bingdu-logo.png" alt="" /></span>
+        <button className="brand" onClick={bounceLogoAndOpenLibrary}>
+          <span className={`brand-mark ${logoBouncing ? 'is-bouncing' : ''}`} onAnimationEnd={() => setLogoBouncing(false)}><img src="/bingdu-logo.png" alt="" /></span>
           <span><strong>冰读</strong><small>baka都能用的日语学习阅读器</small></span>
         </button>
         <div className="top-actions">
@@ -418,7 +426,7 @@ function Library({ books, onOpen, onDelete, onChangeCover, onImport }: {
   return (
     <><main className="library page-width">
       <div className="page-heading">
-        <div><p className="eyebrow">我的书架</p><h1>继续精读</h1></div>
+        <div><p className="eyebrow">我的书架</p><h1>继续冰读</h1></div>
         <p>电子书、学习数据和阅读进度保存在本地项目中。</p>
       </div>
       {books.length === 0 ? (
@@ -718,7 +726,7 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
         <div className="reader-toolbar">
           <div><p className="eyebrow">{book.title}</p><h1>{chapter.title}</h1></div>
           <div className="display-toggles">
-            {chapter.originalHtmlUrl && <button className={`mode-button ${viewMode === 'original' ? 'active' : ''}`} onClick={() => setViewMode(viewMode === 'study' ? 'original' : 'study')}>{viewMode === 'study' ? '原书预览' : '精读模式'}</button>}
+            {chapter.originalHtmlUrl && <button className={`mode-button ${viewMode === 'original' ? 'active' : ''}`} onClick={() => setViewMode(viewMode === 'study' ? 'original' : 'study')}>{viewMode === 'study' ? '原书预览' : '冰读模式'}</button>}
             <Toggle label="振假名" value={showFurigana} onChange={setShowFurigana} />
             <Toggle label="插图" value={showImages} onChange={setShowImages} />
             <Toggle label="注释" value={showAnnotations} onChange={setShowAnnotations} />
@@ -747,7 +755,7 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
             {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCard} />}
             {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>学习注释</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>{ANNOTATION_LABELS[note.type]}</span><strong lang="ja">{note.quote}</strong><p>{note.explanation_zh}</p></div>)}</section>}
           </>
-        ) : <p className="muted">选择一个句子开始精读。</p>}
+        ) : <p className="muted">选择一个句子开始冰读。</p>}
       </aside>
     </div>
   )
