@@ -96,7 +96,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .toggle { cursor: pointer; }
 .toggle input { position: absolute; opacity: 0; pointer-events: none; }
 .toggle span { display: block; padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: 11px; }
-.toggle input:checked + span { color: var(--accent); border-color: #dca69b; background: var(--accent-soft); }
+.toggle input:checked + span { color: var(--accent); border-color: #69aeb1; background: var(--accent-soft); }
 .japanese-text { max-width: 760px; margin: 0 auto; font-family: "Yu Mincho", "Noto Serif JP", serif; font-size: 20px; line-height: 2.25; letter-spacing: .035em; }
 .book-block { margin: 0 0 1.15em; white-space: pre-wrap; }
 .book-block.heading { margin: 1.8em 0 .9em; font-size: 1.35em; line-height: 1.7; }
