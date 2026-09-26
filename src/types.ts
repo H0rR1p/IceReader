@@ -45,6 +45,7 @@ export interface Sentence {
   translation_zh: string
   status: 'complete' | 'failed'
   error?: string | null
+  explanation_status?: 'idle' | 'processing' | 'complete' | 'failed'
 }
 
 export interface Token {
@@ -107,8 +108,14 @@ export interface StudyCard {
 export interface ImportedBook {
   title: string
   author: string
-  chapters: Array<{ id: string; title: string; order: number; text: string; blocks?: ContentBlock[]; original_html_url?: string }>
-  import_report?: { source_documents: number; imported_sections: number; images: number; image_references: number; image_only_sections: number; broken_image_references: number } | null
+  chapters: Array<{
+    id: string; title: string; order: number; text: string; blocks?: ContentBlock[]; original_html_url?: string
+    sentences?: Sentence[]; tokens?: Omit<Token, 'lexemeKey'>[]; segmentation_source?: 'ai-reviewed' | 'local-fallback' | 'empty'
+  }>
+  import_report?: {
+    source_documents: number; imported_sections: number; images: number; image_references: number
+    image_only_sections: number; broken_image_references: number; ai_segmented_sections?: number; segmentation_warnings?: string[]
+  } | null
 }
 
 export interface AnalyzeResponse {

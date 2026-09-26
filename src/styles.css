@@ -114,6 +114,13 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .panel-section { margin-top: 25px; }
 .panel-section h3, .dictionary-senses h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .panel-section > p { font-size: 14px; line-height: 1.75; }
+.explain-button { margin: 16px 0 6px; }
+.sentence-word-list { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.sentence-word-list button { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); padding: 8px 9px; text-align: left; cursor: pointer; }
+.sentence-word-list button:hover, .sentence-word-list button.active { border-color: #77b9bc; background: var(--accent-soft); }
+.sentence-word-list span, .sentence-word-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sentence-word-list span { font: 600 15px "Yu Mincho", serif; }
+.sentence-word-list small { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .annotation { border-left: 2px solid #69aeb1; padding-left: 12px; margin: 16px 0; }
 .annotation span { display: block; color: var(--accent); font-size: 10px; font-weight: 800; margin-bottom: 5px; }
 .annotation strong { font: 600 15px "Yu Mincho", serif; }

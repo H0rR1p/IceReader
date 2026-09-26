@@ -84,6 +84,7 @@ class SentenceOut(BaseModel):
     translation_zh: str
     status: Literal["complete", "failed"] = "complete"
     error: str | None = None
+    explanation_status: Literal["idle", "processing", "complete", "failed"] = "idle"
 
 
 class AnalyzeResponse(BaseModel):
@@ -93,6 +94,12 @@ class AnalyzeResponse(BaseModel):
     context_senses: list[ContextSenseOut]
     lexemes: list[LexemeOut]
     warnings: list[str] = Field(default_factory=list)
+
+
+class ExplainSentenceRequest(BaseModel):
+    sentence: SentenceOut
+    tokens: list[TokenOut]
+    settings: AiSettings = Field(default_factory=AiSettings)
 
 
 class TextImportRequest(BaseModel):
@@ -121,6 +128,9 @@ class ImportedChapter(BaseModel):
     text: str
     blocks: list[ContentBlock] = Field(default_factory=list)
     original_html_url: str | None = None
+    sentences: list[SentenceOut] = Field(default_factory=list)
+    tokens: list[TokenOut] = Field(default_factory=list)
+    segmentation_source: Literal["ai-reviewed", "local-fallback", "empty"] = "empty"
 
 
 class ImportReport(BaseModel):
@@ -130,6 +140,8 @@ class ImportReport(BaseModel):
     image_references: int = 0
     image_only_sections: int = 0
     broken_image_references: int = 0
+    ai_segmented_sections: int = 0
+    segmentation_warnings: list[str] = Field(default_factory=list)
 
 
 class ImportedBook(BaseModel):

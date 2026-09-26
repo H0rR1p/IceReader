@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { analyzeChapter, checkHealth, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, preprocessChapter, saveApiSettings } from './api'
+import { checkHealth, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, preprocessChapter, saveApiSettings } from './api'
 import { db, persistProjectData, removeBook, restoreProjectData } from './db'
 import type {
   Annotation,
@@ -58,7 +58,6 @@ function App() {
   const [showStudyData, setShowStudyData] = useState(false)
   const [settings, setSettings] = useState<ApiSettings>(DEFAULT_SETTINGS)
   const [serverReady, setServerReady] = useState<boolean | null>(null)
-  const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
 
   const refreshBooks = useCallback(async () => {
@@ -85,19 +84,37 @@ function App() {
       createdAt: now,
       updatedAt: now,
     }
+    const chapterIdMap = new Map(imported.chapters.map((chapter) => [chapter.id, `${bookId}:${chapter.id}`]))
+    const sentenceIdMap = new Map(imported.chapters.flatMap((chapter) =>
+      (chapter.sentences ?? []).map((sentence) => [sentence.id, `${bookId}:${sentence.id}`] as const),
+    ))
     const chapters: Chapter[] = imported.chapters.map((chapter) => ({
-      id: `${bookId}:${chapter.id}`,
+      id: chapterIdMap.get(chapter.id)!,
       bookId,
       title: chapter.title,
       order: chapter.order,
       text: chapter.text,
       blocks: chapter.blocks,
       originalHtmlUrl: chapter.original_html_url,
-      status: chapter.text.trim() ? 'pending' : 'complete',
+      status: chapter.text.trim() ? ((chapter.sentences?.length ?? 0) > 0 ? 'local-ready' : 'pending') : 'complete',
     }))
-    await db.transaction('rw', [db.books, db.chapters], async () => {
+    const sentences: Sentence[] = imported.chapters.flatMap((chapter) => (chapter.sentences ?? []).map((sentence) => ({
+      ...sentence,
+      id: sentenceIdMap.get(sentence.id)!,
+      chapter_id: chapterIdMap.get(chapter.id)!,
+      explanation_status: 'idle',
+    })))
+    const tokens: Token[] = imported.chapters.flatMap((chapter) => (chapter.tokens ?? []).map((token) => ({
+      ...token,
+      id: `${bookId}:${token.id}`,
+      sentence_id: sentenceIdMap.get(token.sentence_id)!,
+      lexemeKey: makeLexemeKey(token),
+    })))
+    await db.transaction('rw', [db.books, db.chapters, db.sentences, db.tokens], async () => {
       await db.books.add(book)
       await db.chapters.bulkAdd(chapters)
+      if (sentences.length) await db.sentences.bulkAdd(sentences)
+      if (tokens.length) await db.tokens.bulkAdd(tokens)
     })
     await persistProjectData()
     setShowImport(false)
@@ -105,7 +122,11 @@ function App() {
     setActiveChapter(chapters[0])
     if (imported.import_report) {
       const report = imported.import_report
-      setNotice(`导入完成：${report.imported_sections} 节、${report.images} 张原图${report.broken_image_references ? `，${report.broken_image_references} 个图片引用失效` : '，图片引用完整'}。`)
+      const segmentation = report.ai_segmented_sections
+        ? `，AI 已审校 ${report.ai_segmented_sections} 节的句子边界`
+        : '，句子已在导入时完成本地切分'
+      const warning = report.segmentation_warnings?.length ? `；${report.segmentation_warnings.length} 节使用本地备用边界` : ''
+      setNotice(`导入完成：${report.imported_sections} 节、${report.images} 张原图${segmentation}${warning}。`)
     }
     await refreshBooks()
   }
@@ -150,18 +171,8 @@ function App() {
       const local = await preprocessChapter(chapter.id, chapter.text, settings)
       await storeChapterResult(chapter, local, 'local-ready')
       localReady = true
-      if (!settings.apiKey.trim() && !settings.hasStoredApiKey) {
-        setNotice(`《${chapter.title}》已完成本地分词；配置 API Key 后可继续语法分析。`)
-        return true
-      }
-      await db.chapters.update(chapter.id, { status: 'processing' })
-      setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'processing' } : current)
-      const knownLexemeKeys = await db.lexemes.toCollection().primaryKeys() as string[]
-      const result = await analyzeChapter(chapter.id, chapter.text, knownLexemeKeys, settings)
-      const status = result.sentences.some((sentence) => sentence.status === 'failed') ? 'partial-failed' : 'complete'
-      await storeChapterResult(chapter, result, status)
-      setNotice(status === 'complete' ? `《${chapter.title}》语法分析完成。` : `《${chapter.title}》部分语法分析失败，可以重试。`)
-      return status === 'complete'
+      setNotice(`《${chapter.title}》已完成句子切分和分词。请选择句子后在右栏按需释义。`)
+      return true
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const fallbackStatus = localReady ? 'local-ready' : 'failed'
@@ -171,22 +182,6 @@ function App() {
       setNotice(message)
       return localReady
     }
-  }
-
-  async function processBook() {
-    if (!activeBook || busy) return
-    setBusy(true)
-    const chapters = await db.chapters.where('bookId').equals(activeBook.id).sortBy('order')
-    for (const chapter of chapters) {
-      if (chapter.status === 'complete') continue
-      setActiveChapter(chapter)
-      const ok = await processChapter(chapter)
-      if (!ok) break
-    }
-    await db.books.update(activeBook.id, { updatedAt: Date.now() })
-    await persistProjectData()
-    await refreshBooks()
-    setBusy(false)
   }
 
   async function deleteBook(book: Book) {
@@ -227,9 +222,9 @@ function App() {
             await db.books.update(activeBook.id, { currentChapterId: chapter.id, updatedAt: Date.now() })
             await persistProjectData()
           }}
-          onProcessChapter={async (chapter) => { setBusy(true); await processChapter(chapter); setBusy(false) }}
-          onProcessBook={processBook}
-          busy={busy}
+          onProcessChapter={processChapter}
+          settings={settings}
+          onNotice={setNotice}
         />
       )}
 
@@ -245,7 +240,7 @@ function App() {
             setShowSettings(false)
             setNotice(saved.hasStoredApiKey
               ? 'AI 设置已保存到本地项目。'
-              : 'Base URL 和模型已保存；处理章节前还需要填写 API Key。')
+              : 'Base URL 和模型已保存；AI 句界审校和逐句释义前还需要填写 API Key。')
           }}
         />
       )}
@@ -269,7 +264,7 @@ function Library({ books, onOpen, onDelete, onImport }: {
         <section className="empty-state">
           <div className="empty-glyph">文</div>
           <h2>导入第一篇日文</h2>
-          <p>支持粘贴文本、UTF-8 TXT 和无 DRM EPUB。本地解析完成后即可阅读，AI 仅补充重点语法与语境注释。</p>
+          <p>支持粘贴文本、UTF-8 TXT 和无 DRM EPUB。导入时完成句子切分，阅读时按需逐句生成句意、词义和注释。</p>
           <button className="button primary" onClick={onImport}>导入内容</button>
         </section>
       ) : (
@@ -290,13 +285,13 @@ function Library({ books, onOpen, onDelete, onImport }: {
   )
 }
 
-function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onProcessBook, busy }: {
+function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, settings, onNotice }: {
   book: Book
   activeChapter: Chapter | null
   onSelectChapter: (chapter: Chapter) => void
   onProcessChapter: (chapter: Chapter) => void
-  onProcessBook: () => void
-  busy: boolean
+  settings: ApiSettings
+  onNotice: (message: string) => void
 }) {
   const [chapters, setChapters] = useState<Chapter[]>([])
   const load = useCallback(async () => {
@@ -308,7 +303,6 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onP
     <div className="workspace">
       <aside className="chapter-nav">
         <div className="book-heading"><small>正在阅读</small><h2>{book.title}</h2>{book.author && <p>{book.author}</p>}</div>
-        <button className="button primary full" disabled={busy} onClick={onProcessBook}>{busy ? '处理中…' : '处理未完成章节'}</button>
         <nav aria-label="章节">
           {chapters.map((chapter) => (
             <button key={chapter.id} className={`chapter-item ${activeChapter?.id === chapter.id ? 'active' : ''}`} onClick={() => onSelectChapter(chapter)}>
@@ -319,7 +313,7 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onP
       </aside>
       <main className="reading-stage">
         {!activeChapter ? null : (
-          <Reader book={book} chapter={activeChapter} onRetry={() => onProcessChapter(activeChapter)} />
+          <Reader book={book} chapter={activeChapter} settings={settings} onNotice={onNotice} onRetry={() => onProcessChapter(activeChapter)} />
         )}
       </main>
     </div>
@@ -328,21 +322,24 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onP
 
 function StatusBadge({ status }: { status: Chapter['status'] }) {
   const labels: Record<Chapter['status'], string> = {
-    pending: '待处理', 'local-ready': '本地可读', processing: '分析中', complete: '已完成', 'partial-failed': '部分失败', failed: '失败',
+    pending: '待切分', 'local-ready': '已切分', processing: '切分中', complete: '已切分', 'partial-failed': '部分失败', failed: '失败',
   }
   return <small className={`status ${status}`}>{labels[status]}</small>
 }
 
-function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRetry: () => void }) {
+function Reader({ book, chapter, settings, onNotice, onRetry }: {
+  book: Book; chapter: Chapter; settings: ApiSettings; onNotice: (message: string) => void; onRetry: () => void
+}) {
   const [sentences, setSentences] = useState<Sentence[]>([])
   const [tokens, setTokens] = useState<Token[]>([])
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [contextSenses, setContextSenses] = useState<ContextSense[]>([])
   const [selectedSentenceId, setSelectedSentenceId] = useState<string | null>(null)
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null)
-  const [lexeme, setLexeme] = useState<Lexeme | null>(null)
+  const [lexemesByToken, setLexemesByToken] = useState<Record<string, Lexeme | null>>({})
+  const [explaining, setExplaining] = useState(false)
+  const [explainError, setExplainError] = useState('')
   const [showFurigana, setShowFurigana] = useState(true)
-  const [showTranslation, setShowTranslation] = useState(false)
   const [showAnnotations, setShowAnnotations] = useState(true)
   const [showImages, setShowImages] = useState(false)
   const [viewMode, setViewMode] = useState<'study' | 'original'>('study')
@@ -362,6 +359,8 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
       const restored = nextSentences.find((sentence) => sentence.id === book.currentSentenceId)?.id
       setSelectedSentenceId(restored ?? nextSentences[0]?.id ?? null)
       setSelectedTokenId(null)
+      setLexemesByToken({})
+      setExplainError('')
     })()
   }, [book.currentSentenceId, chapter.id])
 
@@ -373,23 +372,28 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
   }, [tokens])
   const selectedSentence = sentences.find((sentence) => sentence.id === selectedSentenceId) ?? null
   const selectedToken = tokens.find((token) => token.id === selectedTokenId) ?? null
+  const selectedSentenceTokens = selectedSentenceId ? (tokensBySentence.get(selectedSentenceId) ?? []) : []
+  const selectedContentTokens = selectedSentenceTokens.filter((token) => token.is_content)
+  const lexeme = selectedTokenId ? (lexemesByToken[selectedTokenId] ?? null) : null
   const currentSense = contextSenses.find((sense) => sense.token_id === selectedTokenId)
   const currentNotes = annotations.filter((annotation) => annotation.sentence_id === selectedSentenceId)
-  const hasTranslations = sentences.some((sentence) => Boolean(sentence.translation_zh?.trim()))
+  const sentenceExplained = selectedSentence?.explanation_status === 'complete'
 
   useEffect(() => {
-    if (!selectedToken) { setLexeme(null); return }
-    void db.lexemes.get(selectedToken.lexemeKey).then(async (value) => {
-      if (value) setLexeme(value)
-      else setLexeme(await lookupDictionary(selectedToken.lemma, selectedToken.reading))
-    })
-  }, [selectedToken])
+    if (!selectedSentenceId) return
+    const rows = tokensBySentence.get(selectedSentenceId)?.filter((token) => token.is_content) ?? []
+    void Promise.all(rows.map(async (token) => {
+      const personal = await db.lexemes.get(token.lexemeKey)
+      const value = personal ?? await lookupDictionary(token.lemma, token.reading, token.surface).catch(() => null)
+      return [token.id, value] as const
+    })).then((values) => setLexemesByToken(Object.fromEntries(values)))
+  }, [selectedSentenceId, tokensBySentence, contextSenses])
 
   async function selectSentence(sentence: Sentence) {
     setSelectedSentenceId(sentence.id)
     setSelectedTokenId(null)
     await db.books.update(book.id, { currentChapterId: chapter.id, currentSentenceId: sentence.id, updatedAt: Date.now() })
-            void persistProjectData()
+    void persistProjectData()
   }
 
   async function saveLexeme(senses: string[]) {
@@ -407,7 +411,60 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
     }
     await db.lexemes.put(next)
     void persistProjectData()
-    setLexeme(next)
+    setLexemesByToken((current) => ({ ...current, [selectedToken.id]: next }))
+  }
+
+  async function explainCurrentSentence() {
+    if (!selectedSentence || explaining) return
+    setExplaining(true)
+    setExplainError('')
+    setSentences((current) => current.map((sentence) => sentence.id === selectedSentence.id
+      ? { ...sentence, explanation_status: 'processing', error: null }
+      : sentence))
+    try {
+      const result = await explainSentence(
+        { ...selectedSentence, explanation_status: 'processing' },
+        selectedSentenceTokens.map(({ lexemeKey: _lexemeKey, ...token }) => token),
+        settings,
+      )
+      const nextSentence = result.sentences[0]
+      const tokenIds = selectedSentenceTokens.map((token) => token.id)
+      await db.transaction('rw', [db.sentences, db.annotations, db.contextSenses, db.lexemes], async () => {
+        await db.sentences.put(nextSentence)
+        await db.annotations.where('sentence_id').equals(selectedSentence.id).delete()
+        await db.contextSenses.bulkDelete(tokenIds)
+        if (result.annotations.length) await db.annotations.bulkPut(result.annotations)
+        if (result.context_senses.length) await db.contextSenses.bulkPut(result.context_senses)
+        for (const incoming of result.lexemes) {
+          const existing = await db.lexemes.get(incoming.key)
+          if (!existing?.correctedByUser) {
+            await db.lexemes.put({ ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() })
+          }
+        }
+      })
+      setSentences((current) => current.map((sentence) => sentence.id === nextSentence.id ? nextSentence : sentence))
+      setAnnotations((current) => [...current.filter((note) => note.sentence_id !== selectedSentence.id), ...result.annotations])
+      setContextSenses((current) => [...current.filter((sense) => !tokenIds.includes(sense.token_id)), ...result.context_senses])
+      const nextLexemes = { ...lexemesByToken }
+      for (const token of selectedContentTokens) {
+        const incoming = result.lexemes.find((item) => item.key === token.lexemeKey)
+        const existing = await db.lexemes.get(token.lexemeKey)
+        if (existing) nextLexemes[token.id] = existing
+        else if (incoming) nextLexemes[token.id] = { ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() }
+      }
+      setLexemesByToken(nextLexemes)
+      await persistProjectData()
+      onNotice(result.warnings.length ? `本句释义完成；${result.warnings.join('；')}` : '本句及句内词语释义已保存。')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setExplainError(message)
+      const failed = { ...selectedSentence, explanation_status: 'failed' as const, error: message }
+      await db.sentences.put(failed)
+      setSentences((current) => current.map((sentence) => sentence.id === failed.id ? failed : sentence))
+      void persistProjectData()
+    } finally {
+      setExplaining(false)
+    }
   }
 
   async function addCard() {
@@ -465,13 +522,11 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
             {chapter.originalHtmlUrl && <button className={`mode-button ${viewMode === 'original' ? 'active' : ''}`} onClick={() => setViewMode(viewMode === 'study' ? 'original' : 'study')}>{viewMode === 'study' ? '原书预览' : '精读模式'}</button>}
             <Toggle label="振假名" value={showFurigana} onChange={setShowFurigana} />
             <Toggle label="插图" value={showImages} onChange={setShowImages} />
-            {hasTranslations && <Toggle label="译文" value={showTranslation} onChange={setShowTranslation} />}
             <Toggle label="注释" value={showAnnotations} onChange={setShowAnnotations} />
           </div>
         </div>
-        {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章可预览，尚未完成本地分词和语法分析。<button onClick={onRetry}>{chapter.status === 'failed' ? '重试' : '开始处理'}</button></div>}
-        {chapter.status === 'processing' && <div className="inline-warning">正在进行本地分词与 AI 语法分析，已完成内容会自动保留。</div>}
-        {chapter.status === 'partial-failed' && <div className="inline-warning">本章有句子处理失败。<button onClick={onRetry}>重试</button></div>}
+        {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">这是旧版导入章节，尚未保存句子边界。<button onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
+        {chapter.status === 'processing' && <div className="inline-warning">正在切分本章。</div>}
         {viewMode === 'original' && chapter.originalHtmlUrl
           ? <iframe className="original-preview" sandbox="" src={chapter.originalHtmlUrl} title={`${chapter.title} 原书预览`} />
           : <div className="japanese-text" lang="ja">{chapter.blocks?.length ? chapter.blocks.map(renderBlock) : sentences.length ? sentences.map(renderSentence) : chapter.text}</div>}
@@ -481,13 +536,22 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
         {selectedSentence ? (
           <>
             <p className="panel-original" lang="ja">{selectedSentence.original}</p>
-            {selectedSentence.status === 'failed' ? <div className="error-box">{selectedSentence.error || '本句处理失败'}</div> : (
-              <>
-                {showTranslation && selectedSentence.translation_zh && <section className="panel-section"><h3>AI 参考译文</h3><p>{selectedSentence.translation_zh}</p></section>}
-                {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCard} />}
-                {showAnnotations && <section className="panel-section"><h3>学习注释</h3>{currentNotes.length ? currentNotes.map((note) => <div className="annotation" key={note.id}><span>{ANNOTATION_LABELS[note.type]}</span><strong lang="ja">{note.quote}</strong><p>{note.explanation_zh}</p></div>) : <p className="muted">本句没有需要补充的 N1 级注释。</p>}</section>}
-              </>
-            )}
+            <button className="button primary full explain-button" disabled={explaining} onClick={() => void explainCurrentSentence()}>
+              {explaining ? '正在释义…' : sentenceExplained ? '重新释义本句' : '释义本句'}
+            </button>
+            {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
+            {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
+            {sentenceExplained && <section className="panel-section"><h3>句内词语</h3><div className="sentence-word-list">
+              {selectedContentTokens.map((token) => {
+                const sense = contextSenses.find((item) => item.token_id === token.id)?.gloss_zh
+                const entry = lexemesByToken[token.id]
+                return <button key={token.id} className={selectedTokenId === token.id ? 'active' : ''} onClick={() => setSelectedTokenId(token.id)}>
+                  <span lang="ja">{token.surface}</span><small>{sense || entry?.senses_zh[0] || '未获得释义'}</small>
+                </button>
+              })}
+            </div></section>}
+            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCard} />}
+            {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>学习注释</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>{ANNOTATION_LABELS[note.type]}</span><strong lang="ja">{note.quote}</strong><p>{note.explanation_zh}</p></div>)}</section>}
           </>
         ) : <p className="muted">选择一个句子开始精读。</p>}
       </aside>
@@ -508,7 +572,7 @@ function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
         <div className="section-title"><h3>日中词典</h3><button className="text-button" onClick={() => setEditing(!editing)}>{editing ? '取消' : '修正'}</button></div>
-        {editing ? <><textarea value={value} onChange={(event) => setValue(event.target.value)} rows={4} /><button className="button primary small" onClick={() => { void onSave(value.split('\n').map((x) => x.trim()).filter(Boolean)); setEditing(false) }}>保存到个人词库</button></> : <>{lexeme?.senses_zh.length ? <ol>{lexeme.senses_zh.map((sense, index) => <li key={index}>{sense}</li>)}</ol> : <p className="muted">本地词典未收录。可在“词库与词卡”中导入 Yomitan 格式日中词典。</p>}<small className="source">来源：{lexeme?.source ?? '未收录'}</small></>}
+        {editing ? <><textarea value={value} onChange={(event) => setValue(event.target.value)} rows={4} /><button className="button primary small" onClick={() => { void onSave(value.split('\n').map((x) => x.trim()).filter(Boolean)); setEditing(false) }}>保存到个人词库</button></> : <>{lexeme?.senses_zh.length ? <ol>{lexeme.senses_zh.map((sense, index) => <li key={index}>{sense}</li>)}</ol> : <p className="muted">本地词典未命中。点击“释义本句”后由 AI 补充并保存到个人词库。</p>}<small className="source">来源：{lexeme?.source ?? '等待释义'}</small></>}
       </div>
     </section>
   )
@@ -611,13 +675,13 @@ function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported
   }
   return (
     <Modal title="导入日文内容" onClose={onClose}>
-      <p className="muted">支持无 DRM EPUB、UTF-8 TXT，或直接粘贴日文。EPUB 会保留段落结构和原图位置；精读模式默认隐藏插图，可随时开启。</p>
+      <p className="muted">导入时会完成全书句子切分与分词，并用 AI 审校句子边界。阅读时再按需逐句释义。EPUB 保留段落结构和原图位置。</p>
       <label className="field"><span>标题</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="可选" /></label>
       <label className="drop-zone"><input type="file" accept=".epub,.txt,text/plain,application/epub+zip" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><strong>{file ? file.name : '选择 EPUB 或 TXT'}</strong><small>也可以把文件拖到这里</small></label>
       <div className="divider"><span>或者粘贴文本</span></div>
       <label className="field"><textarea value={text} onChange={(event) => setText(event.target.value)} rows={9} placeholder="ここに日本語の文章を貼り付けてください。" /></label>
       {error && <div className="error-box">{error}</div>}
-      <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={busy || (!file && !text.trim())} onClick={() => void submit()}>{busy ? '导入中…' : '导入并预览'}</button></div>
+      <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={busy || (!file && !text.trim())} onClick={() => void submit()}>{busy ? '正在导入并切分…' : '导入并切分'}</button></div>
     </Modal>
   )
 }
@@ -634,7 +698,7 @@ function SettingsDialog({ value, onClose, onSave }: { value: ApiSettings; onClos
   return (
     <Modal title="AI 设置" onClose={onClose}>
       <div className="privacy-note"><strong>配置保存在本地项目</strong><p>API Key 写入被 Git 忽略的 data/settings.json，仅在调用所配置的 AI 接口时发送。</p></div>
-      <label className="field"><span>API Key（处理章节时必填）</span><input type="password" autoComplete="off" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder={draft.hasStoredApiKey ? '已保存；留空保持不变' : 'sk-…'} /></label>
+      <label className="field"><span>API Key（AI 句界审校和逐句释义使用）</span><input type="password" autoComplete="off" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder={draft.hasStoredApiKey ? '已保存；留空保持不变' : 'sk-…'} /></label>
       <label className="field"><span>OpenAI 兼容 Base URL</span><input value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} /></label>
       <label className="field"><span>模型</span><input value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} /></label>
       <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={!canSave} onClick={save}>应用</button></div>

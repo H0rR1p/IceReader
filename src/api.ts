@@ -61,8 +61,8 @@ export async function importYomitanDictionary(file: File): Promise<{ source: str
   return parseResponse(await fetch('/api/dictionary/import', { method: 'POST', body: form }))
 }
 
-export async function lookupDictionary(lemma: string, reading: string): Promise<Lexeme | null> {
-  const params = new URLSearchParams({ lemma, reading })
+export async function lookupDictionary(lemma: string, reading: string, surface = ''): Promise<Lexeme | null> {
+  const params = new URLSearchParams({ lemma, reading, surface })
   const response = await parseResponse<{ entry: { lemma: string; reading: string; senses_zh: string[]; source: string } | null }>(await fetch(`/api/dictionary/lookup?${params}`))
   return response.entry ? {
     key: `${response.entry.lemma}|${response.entry.reading}|词典`,
@@ -76,23 +76,19 @@ export async function lookupDictionary(lemma: string, reading: string): Promise<
   } : null
 }
 
-export async function analyzeChapter(
-  chapterId: string,
-  text: string,
-  knownLexemeKeys: string[],
+export async function explainSentence(
+  sentence: AnalyzeResponse['sentences'][number],
+  tokens: AnalyzeResponse['tokens'],
   settings: ApiSettings,
-  onlySentenceIds: string[] = [],
 ): Promise<AnalyzeResponse> {
-  const response = await fetch('/api/analyze', {
+  const response = await fetch('/api/sentences/explain', {
     method: 'POST',
     headers: settings.apiKey
       ? { 'Content-Type': 'application/json', 'X-API-Key': settings.apiKey }
       : { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      chapter_id: chapterId,
-      text,
-      only_sentence_ids: onlySentenceIds,
-      known_lexeme_keys: knownLexemeKeys,
+      sentence,
+      tokens,
       settings: { base_url: settings.baseUrl, model: settings.model },
     }),
   })

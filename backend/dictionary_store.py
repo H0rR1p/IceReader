@@ -1,6 +1,7 @@
 import io
 import json
 import sqlite3
+import unicodedata
 import zipfile
 from pathlib import Path
 
@@ -65,22 +66,36 @@ def import_yomitan(payload: bytes, filename: str) -> dict:
     return {"source": source, "entries": len(rows)}
 
 
-def lookup(lemma: str, reading: str) -> dict | None:
+def _forms(lemma: str, surface: str = "") -> list[str]:
+    values = [unicodedata.normalize("NFKC", value).strip() for value in (lemma, surface) if value.strip()]
+    expanded: list[str] = []
+    for value in values:
+        expanded.extend((value, value.replace("着く", "付く"), value.replace("付く", "つく"), value.replace("つく", "付く")))
+    return list(dict.fromkeys(value for value in expanded if value))
+
+
+def lookup(lemma: str, reading: str, surface: str = "") -> dict | None:
     if not DICTIONARY_PATH.exists():
         return None
     normalized = kata(reading)
+    forms = _forms(lemma, surface)
+    placeholders = ",".join("?" for _ in forms)
     with _connect() as connection:
         rows = connection.execute(
-            "SELECT senses, source FROM entries WHERE lemma = ? AND (reading = ? OR reading = lemma) LIMIT 20",
-            (lemma, normalized),
+            f"SELECT lemma, reading, senses, source FROM entries WHERE lemma IN ({placeholders}) AND (reading = ? OR reading = lemma) LIMIT 30",
+            (*forms, normalized),
         ).fetchall()
         if not rows:
-            rows = connection.execute("SELECT senses, source FROM entries WHERE lemma = ? LIMIT 20", (lemma,)).fetchall()
+            rows = connection.execute(
+                f"SELECT lemma, reading, senses, source FROM entries WHERE lemma IN ({placeholders}) OR reading = ? LIMIT 30",
+                (*forms, normalized),
+            ).fetchall()
     if not rows:
         return None
     senses: list[str] = []
     sources: list[str] = []
-    for encoded, source in rows:
+    matched_lemma, matched_reading = rows[0][0], rows[0][1]
+    for _, _, encoded, source in rows:
         senses.extend(json.loads(encoded))
         sources.append(source)
-    return {"lemma": lemma, "reading": normalized, "senses_zh": list(dict.fromkeys(senses)), "source": " / ".join(dict.fromkeys(sources))}
+    return {"lemma": matched_lemma, "reading": matched_reading or normalized, "senses_zh": list(dict.fromkeys(senses)), "source": " / ".join(dict.fromkeys(sources))}
