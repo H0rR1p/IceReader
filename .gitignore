@@ -8,6 +8,7 @@ __pycache__/
 .env
 data/*.sqlite3
 data/*.db
+data/*.json
 .pytest_cache/
 *.tsbuildinfo
 vite.config.js

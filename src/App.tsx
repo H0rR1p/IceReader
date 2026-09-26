@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { analyzeChapter, checkHealth, importEpub, importPlainText } from './api'
-import { db, removeBook } from './db'
+import { analyzeChapter, checkHealth, importEpub, importPlainText, loadApiSettings, saveApiSettings } from './api'
+import { db, persistProjectData, removeBook, restoreProjectData } from './db'
 import type {
   Annotation,
   ApiSettings,
@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: ApiSettings = {
   apiKey: '',
   baseUrl: 'https://api.deepseek.com',
   model: 'deepseek-chat',
+  hasStoredApiKey: false,
 }
 
 const ANNOTATION_LABELS: Record<Annotation['type'], string> = {
@@ -60,8 +61,9 @@ function App() {
   }, [activeBook])
 
   useEffect(() => {
-    void refreshBooks()
+    void restoreProjectData().then(refreshBooks).catch((error) => setNotice(error instanceof Error ? error.message : String(error)))
     void checkHealth().then(setServerReady)
+    void loadApiSettings().then(setSettings).catch(() => undefined)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveImportedBook(imported: ImportedBook) {
@@ -86,6 +88,7 @@ function App() {
       await db.books.add(book)
       await db.chapters.bulkAdd(chapters)
     })
+    await persistProjectData()
     setShowImport(false)
     setActiveBook(book)
     setActiveChapter(chapters[0])
@@ -101,9 +104,9 @@ function App() {
   }
 
   async function processChapter(chapter: Chapter): Promise<boolean> {
-    if (!settings.apiKey.trim()) {
+    if (!settings.apiKey.trim() && !settings.hasStoredApiKey) {
       setShowSettings(true)
-      setNotice('请先输入自己的 API Key。密钥只保留在当前页面内存中。')
+      setNotice('请先在 AI 设置中输入自己的 API Key。')
       return false
     }
     await db.chapters.update(chapter.id, { status: 'processing', error: undefined })
@@ -141,6 +144,7 @@ function App() {
           error: result.warnings.length ? result.warnings.join('\n') : undefined,
         })
       })
+      await persistProjectData()
       const updated = { ...chapter, status, error: result.warnings.join('\n') || undefined } as Chapter
       setActiveChapter((current) => current?.id === chapter.id ? updated : current)
       setNotice(status === 'complete' ? `《${chapter.title}》处理完成。` : `《${chapter.title}》部分句子处理失败，可以重试。`)
@@ -148,6 +152,7 @@ function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       await db.chapters.update(chapter.id, { status: 'failed', error: message })
+      await persistProjectData()
       setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'failed', error: message } : current)
       setNotice(message)
       return false
@@ -156,9 +161,9 @@ function App() {
 
   async function processBook() {
     if (!activeBook || busy) return
-    if (!settings.apiKey.trim()) {
+    if (!settings.apiKey.trim() && !settings.hasStoredApiKey) {
       setShowSettings(true)
-      setNotice('请先输入自己的 API Key。密钥只保留在当前页面内存中。')
+      setNotice('请先在 AI 设置中输入自己的 API Key。')
       return
     }
     setBusy(true)
@@ -170,12 +175,14 @@ function App() {
       if (!ok) break
     }
     await db.books.update(activeBook.id, { updatedAt: Date.now() })
+    await persistProjectData()
     await refreshBooks()
     setBusy(false)
   }
 
   async function deleteBook(book: Book) {
     await removeBook(book.id)
+    await persistProjectData()
     if (activeBook?.id === book.id) {
       setActiveBook(null)
       setActiveChapter(null)
@@ -209,6 +216,7 @@ function App() {
           onSelectChapter={async (chapter) => {
             setActiveChapter(chapter)
             await db.books.update(activeBook.id, { currentChapterId: chapter.id, updatedAt: Date.now() })
+            await persistProjectData()
           }}
           onProcessChapter={async (chapter) => { setBusy(true); await processChapter(chapter); setBusy(false) }}
           onProcessBook={processBook}
@@ -222,12 +230,13 @@ function App() {
         <SettingsDialog
           value={settings}
           onClose={() => setShowSettings(false)}
-          onSave={(next) => {
-            setSettings(next)
+          onSave={async (next) => {
+            const saved = await saveApiSettings(next)
+            setSettings(saved)
             setShowSettings(false)
-            setNotice(next.apiKey
-              ? 'AI 设置已应用到当前页面，会在关闭页面后清除密钥。'
-              : 'Base URL 和模型已应用；处理章节前还需要填写 API Key。')
+            setNotice(saved.hasStoredApiKey
+              ? 'AI 设置已保存到本地项目。'
+              : 'Base URL 和模型已保存；处理章节前还需要填写 API Key。')
           }}
         />
       )}
@@ -245,7 +254,7 @@ function Library({ books, onOpen, onDelete, onImport }: {
     <main className="library page-width">
       <div className="page-heading">
         <div><p className="eyebrow">我的书架</p><h1>继续精读</h1></div>
-        <p>电子书与学习数据只保存在当前浏览器。</p>
+        <p>电子书、学习数据和阅读进度保存在本地项目中。</p>
       </div>
       {books.length === 0 ? (
         <section className="empty-state">
@@ -375,6 +384,7 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
     setSelectedSentenceId(sentence.id)
     setSelectedTokenId(null)
     await db.books.update(book.id, { currentChapterId: chapter.id, currentSentenceId: sentence.id, updatedAt: Date.now() })
+    await persistProjectData()
   }
 
   async function saveLexeme(senses: string[]) {
@@ -391,6 +401,7 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
       updatedAt: Date.now(),
     }
     await db.lexemes.put(next)
+    await persistProjectData()
     setLexeme(next)
   }
 
@@ -405,6 +416,7 @@ function Reader({ book, chapter, onRetry }: { book: Book; chapter: Chapter; onRe
       sourceLabel: `${book.title} · ${chapter.title}`, createdAt: Date.now(),
     }
     await db.cards.put(card)
+    await persistProjectData()
   }
 
   return (
@@ -572,18 +584,19 @@ function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported
   )
 }
 
-function SettingsDialog({ value, onClose, onSave }: { value: ApiSettings; onClose: () => void; onSave: (next: ApiSettings) => void }) {
+function SettingsDialog({ value, onClose, onSave }: { value: ApiSettings; onClose: () => void; onSave: (next: ApiSettings) => void | Promise<void> }) {
   const [draft, setDraft] = useState(value)
   const canSave = Boolean(draft.baseUrl.trim() && draft.model.trim())
   const save = () => onSave({
     apiKey: draft.apiKey.trim(),
     baseUrl: draft.baseUrl.trim().replace(/\/$/, ''),
     model: draft.model.trim(),
+    hasStoredApiKey: draft.hasStoredApiKey,
   })
   return (
     <Modal title="AI 设置" onClose={onClose}>
-      <div className="privacy-note"><strong>密钥只在当前页面内存中使用</strong><p>不会写入 IndexedDB、localStorage、项目文件或后端日志。关闭或刷新页面后需要重新输入。</p></div>
-      <label className="field"><span>API Key（处理章节时必填）</span><input type="password" autoComplete="off" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder="sk-…" /></label>
+      <div className="privacy-note"><strong>配置保存在本地项目</strong><p>API Key 写入被 Git 忽略的 data/settings.json，仅在调用所配置的 AI 接口时发送。</p></div>
+      <label className="field"><span>API Key（处理章节时必填）</span><input type="password" autoComplete="off" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder={draft.hasStoredApiKey ? '已保存；留空保持不变' : 'sk-…'} /></label>
       <label className="field"><span>OpenAI 兼容 Base URL</span><input value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} /></label>
       <label className="field"><span>模型</span><input value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} /></label>
       <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={!canSave} onClick={save}>应用</button></div>

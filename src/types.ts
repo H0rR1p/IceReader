@@ -107,4 +107,5 @@ export interface ApiSettings {
   apiKey: string
   baseUrl: string
   model: string
+  hasStoredApiKey: boolean
 }

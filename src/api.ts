@@ -23,6 +23,22 @@ export async function checkHealth(): Promise<boolean> {
   }
 }
 
+export async function loadApiSettings(): Promise<ApiSettings> {
+  const response = await fetch('/api/settings')
+  const data = await parseResponse<{ base_url: string; model: string; has_api_key: boolean }>(response)
+  return { apiKey: '', baseUrl: data.base_url, model: data.model, hasStoredApiKey: data.has_api_key }
+}
+
+export async function saveApiSettings(settings: ApiSettings): Promise<ApiSettings> {
+  const response = await fetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: settings.apiKey || null, base_url: settings.baseUrl, model: settings.model }),
+  })
+  const data = await parseResponse<{ base_url: string; model: string; has_api_key: boolean }>(response)
+  return { apiKey: '', baseUrl: data.base_url, model: data.model, hasStoredApiKey: data.has_api_key }
+}
+
 export async function importPlainText(title: string, text: string): Promise<ImportedBook> {
   const response = await fetch('/api/import/text', {
     method: 'POST',
@@ -48,10 +64,9 @@ export async function analyzeChapter(
 ): Promise<AnalyzeResponse> {
   const response = await fetch('/api/analyze', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': settings.apiKey,
-    },
+    headers: settings.apiKey
+      ? { 'Content-Type': 'application/json', 'X-API-Key': settings.apiKey }
+      : { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chapter_id: chapterId,
       text,

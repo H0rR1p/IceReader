@@ -42,6 +42,37 @@ class ReaderDatabase extends Dexie {
 
 export const db = new ReaderDatabase()
 
+const DATA_TABLES = ['books', 'chapters', 'sentences', 'tokens', 'annotations', 'contextSenses', 'lexemes', 'cards'] as const
+
+export async function persistProjectData() {
+  const snapshot: Record<string, unknown[]> = {}
+  for (const name of DATA_TABLES) snapshot[name] = await db.table(name).toArray()
+  const response = await fetch('/api/library', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(snapshot),
+  })
+  if (!response.ok) throw new Error(`无法保存项目数据（${response.status}）`)
+}
+
+export async function restoreProjectData() {
+  const response = await fetch('/api/library')
+  if (!response.ok) throw new Error(`无法读取项目数据（${response.status}）`)
+  const snapshot = await response.json() as Record<string, unknown[]> | null
+  if (!snapshot) {
+    if (await db.books.count()) await persistProjectData()
+    return
+  }
+  await db.transaction('rw', DATA_TABLES.map((name) => db.table(name)), async () => {
+    for (const name of DATA_TABLES) {
+      const table = db.table(name)
+      await table.clear()
+      const rows = snapshot[name] ?? []
+      if (rows.length) await table.bulkPut(rows)
+    }
+  })
+}
+
 export async function removeBook(bookId: string) {
   const chapters = await db.chapters.where('bookId').equals(bookId).toArray()
   const chapterIds = chapters.map((chapter) => chapter.id)

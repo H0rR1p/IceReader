@@ -15,11 +15,16 @@ from .models import (
     ImportedBook,
     ImportedChapter,
     LexemeOut,
+    LibrarySnapshot,
+    LocalAiSettingsInput,
+    LocalAiSettingsStatus,
     SentenceOut,
     TextImportRequest,
     TokenOut,
 )
 from .nlp import split_sentences, stable_id, tokenize_sentence
+from .library_store import load_library, save_library
+from .settings_store import get_settings_status, resolve_settings, save_settings
 
 
 app = FastAPI(title="日读本地 API", version="0.1.0")
@@ -35,6 +40,26 @@ app.add_middleware(
 @app.get("/api/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/api/settings", response_model=LocalAiSettingsStatus)
+async def read_settings() -> LocalAiSettingsStatus:
+    return get_settings_status()
+
+
+@app.put("/api/settings", response_model=LocalAiSettingsStatus)
+async def update_settings(settings: LocalAiSettingsInput) -> LocalAiSettingsStatus:
+    return save_settings(settings)
+
+
+@app.get("/api/library", response_model=LibrarySnapshot | None)
+async def read_library() -> LibrarySnapshot | None:
+    return load_library()
+
+
+@app.put("/api/library", response_model=LibrarySnapshot)
+async def update_library(snapshot: LibrarySnapshot) -> LibrarySnapshot:
+    return save_library(snapshot)
 
 
 @app.post("/api/import/text", response_model=ImportedBook)
@@ -68,7 +93,12 @@ async def analyze(
     request: AnalyzeRequest,
     x_api_key: str | None = Header(default=None),
 ) -> AnalyzeResponse:
-    if not x_api_key:
+    api_key, base_url, model = resolve_settings(
+        x_api_key,
+        str(request.settings.base_url),
+        request.settings.model,
+    )
+    if not api_key:
         raise HTTPException(401, "请在设置中输入 API Key")
     spans = split_sentences(request.text)
     if not spans:
@@ -110,9 +140,9 @@ async def analyze(
             enriched = await enrich_batch(
                 batch,
                 tokens_by_sentence,
-                x_api_key,
-                str(request.settings.base_url),
-                request.settings.model,
+                api_key,
+                base_url,
+                model,
                 set(request.known_lexeme_keys),
             )
             for item in enriched.get("sentences", []):

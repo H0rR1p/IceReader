@@ -8,6 +8,29 @@ class AiSettings(BaseModel):
     model: str = "deepseek-chat"
 
 
+class LocalAiSettingsInput(BaseModel):
+    api_key: str | None = None
+    base_url: HttpUrl = "https://api.deepseek.com"
+    model: str = Field(default="deepseek-chat", min_length=1, max_length=100)
+
+
+class LocalAiSettingsStatus(BaseModel):
+    base_url: str
+    model: str
+    has_api_key: bool
+
+
+class LibrarySnapshot(BaseModel):
+    books: list[dict] = Field(default_factory=list)
+    chapters: list[dict] = Field(default_factory=list)
+    sentences: list[dict] = Field(default_factory=list)
+    tokens: list[dict] = Field(default_factory=list)
+    annotations: list[dict] = Field(default_factory=list)
+    contextSenses: list[dict] = Field(default_factory=list)
+    lexemes: list[dict] = Field(default_factory=list)
+    cards: list[dict] = Field(default_factory=list)
+
+
 class AnalyzeRequest(BaseModel):
     chapter_id: str
     text: str = Field(min_length=1, max_length=120_000)
