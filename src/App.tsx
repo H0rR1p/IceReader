@@ -30,6 +30,16 @@ const ANNOTATION_LABELS: Record<Annotation['type'], string> = {
   culture: '文化背景',
 }
 
+type BackgroundJob = {
+  kind: 'segment' | 'translate'
+  scope: 'book' | 'chapter'
+  label: string
+  completed: number
+  total: number
+  failed: number
+  running: boolean
+}
+
 function makeLexemeKey(token: Pick<Token, 'lemma' | 'reading' | 'part_of_speech'>) {
   return `${token.lemma}|${token.reading}|${token.part_of_speech}`
 }
@@ -59,6 +69,8 @@ function App() {
   const [settings, setSettings] = useState<ApiSettings>(DEFAULT_SETTINGS)
   const [serverReady, setServerReady] = useState<boolean | null>(null)
   const [notice, setNotice] = useState('')
+  const [backgroundJob, setBackgroundJob] = useState<BackgroundJob | null>(null)
+  const [dataRevision, setDataRevision] = useState(0)
 
   const refreshBooks = useCallback(async () => {
     const rows = await db.books.orderBy('updatedAt').reverse().toArray()
@@ -135,7 +147,7 @@ function App() {
     setNotice('')
   }
 
-  async function storeChapterResult(chapter: Chapter, result: AnalyzeResponse, status: Chapter['status']) {
+  async function storeChapterResult(chapter: Chapter, result: AnalyzeResponse, status: Chapter['status'], persist = true) {
     const oldSentences = await db.sentences.where('chapter_id').equals(chapter.id).toArray()
     const oldSentenceIds = oldSentences.map((sentence) => sentence.id)
     const oldTokens = await db.tokens.where('sentence_id').anyOf(oldSentenceIds).toArray()
@@ -155,30 +167,120 @@ function App() {
       }
       await db.chapters.update(chapter.id, { status, error: result.warnings.join('\n') || undefined })
     })
-    await persistProjectData()
+    if (persist) await persistProjectData()
     setActiveChapter((current) => current?.id === chapter.id ? { ...current, status, error: result.warnings.join('\n') || undefined } : current)
   }
 
-  async function processChapter(chapter: Chapter): Promise<boolean> {
+  async function processChapter(chapter: Chapter, options: { quiet?: boolean; persist?: boolean } = {}): Promise<boolean> {
     await db.chapters.update(chapter.id, { status: 'processing', error: undefined })
     setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: 'processing' } : current)
     let localReady = false
     try {
       const segmented = await segmentChapter(chapter.id, chapter.text, chapter.blocks ?? [], settings)
-      await storeChapterResult(chapter, segmented, 'local-ready')
+      await storeChapterResult(chapter, segmented, 'local-ready', options.persist ?? true)
       localReady = true
-      setNotice(segmented.warnings.length
-        ? `《${chapter.title}》已使用本地备用边界完成切分：${segmented.warnings.join('；')}`
-        : `《${chapter.title}》已完成 AI 句界审校和分词。请选择句子后在右栏按需释义。`)
+      if (!options.quiet) {
+        setNotice(segmented.warnings.length
+          ? `《${chapter.title}》已使用本地备用边界完成切分：${segmented.warnings.join('；')}`
+          : `《${chapter.title}》已完成 AI 句界审校和分词。请选择句子后在右栏按需释义。`)
+      }
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const fallbackStatus = localReady ? 'local-ready' : 'failed'
       await db.chapters.update(chapter.id, { status: fallbackStatus, error: message })
-      await persistProjectData()
+      if (options.persist ?? true) await persistProjectData()
       setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: fallbackStatus, error: message } : current)
-      setNotice(message)
+      if (!options.quiet) setNotice(message)
       return localReady
+    }
+  }
+
+  async function explainAndStoreSentence(sentence: Sentence, tokens: Token[], persist = true) {
+    const result = await explainSentence(
+      { ...sentence, explanation_status: 'processing' },
+      tokens.map(({ lexemeKey: _lexemeKey, ...token }) => token),
+      settings,
+    )
+    const nextSentence = result.sentences[0]
+    const tokenIds = tokens.map((token) => token.id)
+    await db.transaction('rw', [db.sentences, db.annotations, db.contextSenses, db.lexemes], async () => {
+      await db.sentences.put(nextSentence)
+      await db.annotations.where('sentence_id').equals(sentence.id).delete()
+      await db.contextSenses.bulkDelete(tokenIds)
+      if (result.annotations.length) await db.annotations.bulkPut(result.annotations)
+      if (result.context_senses.length) await db.contextSenses.bulkPut(result.context_senses)
+      for (const incoming of result.lexemes) {
+        const existing = await db.lexemes.get(incoming.key)
+        if (!existing?.correctedByUser) {
+          await db.lexemes.put({ ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() })
+        }
+      }
+    })
+    if (persist) await persistProjectData()
+    return result
+  }
+
+  async function runBackground(kind: BackgroundJob['kind'], scope: BackgroundJob['scope'], chapter?: Chapter) {
+    if (backgroundJob?.running || !activeBook) return
+    const targets = chapter
+      ? [chapter]
+      : await db.chapters.where('bookId').equals(activeBook.id).sortBy('order')
+    const jobName = kind === 'segment' ? '切分' : '翻译'
+    let failed = 0
+    setBackgroundJob({ kind, scope, label: `准备后台${jobName}`, completed: 0, total: targets.length, failed: 0, running: true })
+
+    try {
+      const readyChapters: Chapter[] = []
+      for (let index = 0; index < targets.length; index += 1) {
+        const target = (await db.chapters.get(targets[index].id)) ?? targets[index]
+        const sentenceCount = await db.sentences.where('chapter_id').equals(target.id).count()
+        let ready = sentenceCount > 0 && target.status !== 'pending' && target.status !== 'failed'
+        if (!ready && target.text.trim()) {
+          setBackgroundJob((current) => current && ({ ...current, label: `后台切分：${target.title}`, completed: index, total: targets.length, failed }))
+          ready = await processChapter(target, { quiet: true, persist: false })
+          if (!ready) failed += 1
+        }
+        if (ready) readyChapters.push(target)
+        setBackgroundJob((current) => current && ({ ...current, completed: index + 1, failed }))
+        if ((index + 1) % 5 === 0) await persistProjectData()
+      }
+
+      if (kind === 'translate') {
+        const pendingSentences: Sentence[] = []
+        for (const target of readyChapters) {
+          const rows = await db.sentences.where('chapter_id').equals(target.id).sortBy('start')
+          pendingSentences.push(...rows.filter((sentence) => sentence.explanation_status !== 'complete'))
+        }
+        setBackgroundJob((current) => current && ({ ...current, label: '准备后台逐句翻译', completed: 0, total: pendingSentences.length, failed }))
+        for (let index = 0; index < pendingSentences.length; index += 1) {
+          const sentence = pendingSentences[index]
+          const target = targets.find((item) => item.id === sentence.chapter_id)
+          setBackgroundJob((current) => current && ({ ...current, label: `后台翻译：${target?.title ?? '当前章节'}`, completed: index, failed }))
+          const sentenceTokens = await db.tokens.where('sentence_id').equals(sentence.id).toArray()
+          try {
+            await db.sentences.update(sentence.id, { explanation_status: 'processing', error: null })
+            await explainAndStoreSentence(sentence, sentenceTokens, false)
+          } catch (error) {
+            failed += 1
+            const message = error instanceof Error ? error.message : String(error)
+            await db.sentences.update(sentence.id, { explanation_status: 'failed', error: message })
+          }
+          setBackgroundJob((current) => current && ({ ...current, completed: index + 1, failed }))
+          if ((index + 1) % 5 === 0) await persistProjectData()
+        }
+      }
+
+      await persistProjectData()
+      setDataRevision((value) => value + 1)
+      setBackgroundJob((current) => current && ({ ...current, label: `后台${jobName}完成`, running: false, failed }))
+      setNotice(failed ? `后台${jobName}完成，${failed} 项失败，可稍后重试。` : `后台${jobName}完成。`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      await persistProjectData().catch(() => undefined)
+      setDataRevision((value) => value + 1)
+      setBackgroundJob((current) => current && ({ ...current, label: `后台${jobName}已停止`, running: false, failed: current.failed + 1 }))
+      setNotice(message)
     }
   }
 
@@ -221,7 +323,11 @@ function App() {
             await persistProjectData()
           }}
           onProcessChapter={processChapter}
-          settings={settings}
+          onExplainSentence={explainAndStoreSentence}
+          backgroundJob={backgroundJob}
+          dataRevision={dataRevision}
+          onBackgroundBook={(kind) => void runBackground(kind, 'book')}
+          onBackgroundChapter={(kind, chapter) => void runBackground(kind, 'chapter', chapter)}
           onNotice={setNotice}
         />
       )}
@@ -283,24 +389,33 @@ function Library({ books, onOpen, onDelete, onImport }: {
   )
 }
 
-function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, settings, onNotice }: {
+function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onNotice }: {
   book: Book
   activeChapter: Chapter | null
   onSelectChapter: (chapter: Chapter) => void
   onProcessChapter: (chapter: Chapter) => void
-  settings: ApiSettings
+  onExplainSentence: (sentence: Sentence, tokens: Token[]) => Promise<AnalyzeResponse>
+  backgroundJob: BackgroundJob | null
+  dataRevision: number
+  onBackgroundBook: (kind: BackgroundJob['kind']) => void
+  onBackgroundChapter: (kind: BackgroundJob['kind'], chapter: Chapter) => void
   onNotice: (message: string) => void
 }) {
   const [chapters, setChapters] = useState<Chapter[]>([])
   const load = useCallback(async () => {
     setChapters(await db.chapters.where('bookId').equals(book.id).sortBy('order'))
-  }, [book.id, activeChapter?.status])
+  }, [book.id, activeChapter?.status, backgroundJob?.completed, dataRevision])
   useEffect(() => { void load() }, [load])
 
   return (
     <div className="workspace">
       <aside className="chapter-nav">
         <div className="book-heading"><small>正在阅读</small><h2>{book.title}</h2>{book.author && <p>{book.author}</p>}</div>
+        <div className="book-background-actions">
+          <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('segment')}>后台切分全书</button>
+          <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('translate')}>后台翻译全书</button>
+        </div>
+        {backgroundJob && <BackgroundProgress job={backgroundJob} />}
         <nav aria-label="章节">
           {chapters.map((chapter) => (
             <button key={chapter.id} className={`chapter-item ${activeChapter?.id === chapter.id ? 'active' : ''}`} onClick={() => onSelectChapter(chapter)}>
@@ -311,11 +426,29 @@ function Workspace({ book, activeChapter, onSelectChapter, onProcessChapter, set
       </aside>
       <main className="reading-stage">
         {!activeChapter ? null : (
-          <Reader book={book} chapter={activeChapter} settings={settings} onNotice={onNotice} onRetry={() => onProcessChapter(activeChapter)} />
+          <Reader
+            book={book}
+            chapter={activeChapter}
+            onNotice={onNotice}
+            onRetry={() => onProcessChapter(activeChapter)}
+            onExplainSentence={onExplainSentence}
+            backgroundJob={backgroundJob}
+            dataRevision={dataRevision}
+            onBackground={(kind) => onBackgroundChapter(kind, activeChapter)}
+          />
         )}
       </main>
     </div>
   )
+}
+
+function BackgroundProgress({ job }: { job: BackgroundJob }) {
+  const value = job.total ? Math.round((job.completed / job.total) * 100) : (job.running ? 0 : 100)
+  return <div className={`background-progress ${job.running ? 'running' : 'done'}`} role="status">
+    <div><span>{job.label}</span><small>{job.total ? `${job.completed}/${job.total}` : '无待处理内容'}</small></div>
+    <progress max="100" value={value} />
+    {job.failed > 0 && <small>{job.failed} 项失败</small>}
+  </div>
 }
 
 function StatusBadge({ status }: { status: Chapter['status'] }) {
@@ -325,8 +458,15 @@ function StatusBadge({ status }: { status: Chapter['status'] }) {
   return <small className={`status ${status}`}>{labels[status]}</small>
 }
 
-function Reader({ book, chapter, settings, onNotice, onRetry }: {
-  book: Book; chapter: Chapter; settings: ApiSettings; onNotice: (message: string) => void; onRetry: () => void
+function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground }: {
+  book: Book
+  chapter: Chapter
+  onNotice: (message: string) => void
+  onRetry: () => void
+  onExplainSentence: (sentence: Sentence, tokens: Token[]) => Promise<AnalyzeResponse>
+  backgroundJob: BackgroundJob | null
+  dataRevision: number
+  onBackground: (kind: BackgroundJob['kind']) => void
 }) {
   const [sentences, setSentences] = useState<Sentence[]>([])
   const [tokens, setTokens] = useState<Token[]>([])
@@ -360,7 +500,7 @@ function Reader({ book, chapter, settings, onNotice, onRetry }: {
       setLexemesByToken({})
       setExplainError('')
     })()
-  }, [book.currentSentenceId, chapter.id])
+  }, [book.currentSentenceId, chapter.id, chapter.status, dataRevision])
 
   const tokensBySentence = useMemo(() => {
     const map = new Map<string, Token[]>()
@@ -420,26 +560,9 @@ function Reader({ book, chapter, settings, onNotice, onRetry }: {
       ? { ...sentence, explanation_status: 'processing', error: null }
       : sentence))
     try {
-      const result = await explainSentence(
-        { ...selectedSentence, explanation_status: 'processing' },
-        selectedSentenceTokens.map(({ lexemeKey: _lexemeKey, ...token }) => token),
-        settings,
-      )
+      const result = await onExplainSentence(selectedSentence, selectedSentenceTokens)
       const nextSentence = result.sentences[0]
       const tokenIds = selectedSentenceTokens.map((token) => token.id)
-      await db.transaction('rw', [db.sentences, db.annotations, db.contextSenses, db.lexemes], async () => {
-        await db.sentences.put(nextSentence)
-        await db.annotations.where('sentence_id').equals(selectedSentence.id).delete()
-        await db.contextSenses.bulkDelete(tokenIds)
-        if (result.annotations.length) await db.annotations.bulkPut(result.annotations)
-        if (result.context_senses.length) await db.contextSenses.bulkPut(result.context_senses)
-        for (const incoming of result.lexemes) {
-          const existing = await db.lexemes.get(incoming.key)
-          if (!existing?.correctedByUser) {
-            await db.lexemes.put({ ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() })
-          }
-        }
-      })
       setSentences((current) => current.map((sentence) => sentence.id === nextSentence.id ? nextSentence : sentence))
       setAnnotations((current) => [...current.filter((note) => note.sentence_id !== selectedSentence.id), ...result.annotations])
       setContextSenses((current) => [...current.filter((sense) => !tokenIds.includes(sense.token_id)), ...result.context_senses])
@@ -451,8 +574,7 @@ function Reader({ book, chapter, settings, onNotice, onRetry }: {
         else if (incoming) nextLexemes[token.id] = { ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() }
       }
       setLexemesByToken(nextLexemes)
-      await persistProjectData()
-      onNotice(result.warnings.length ? `本句释义完成；${result.warnings.join('；')}` : '本句及句内词语释义已保存。')
+      onNotice(result.warnings.length ? `本句释义完成；${result.warnings.join('；')}` : '本句释义、词典结果与学习注释已保存。')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setExplainError(message)
@@ -523,7 +645,11 @@ function Reader({ book, chapter, settings, onNotice, onRetry }: {
             <Toggle label="注释" value={showAnnotations} onChange={setShowAnnotations} />
           </div>
         </div>
-        {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章尚未切分。只会处理当前章节，不会等待整本书。<button onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
+        <div className="chapter-background-actions" aria-label="本章后台处理">
+          <button className="button small" disabled={backgroundJob?.running || chapter.status === 'processing'} onClick={() => onBackground('segment')}>后台切分本章</button>
+          <button className="button small" disabled={backgroundJob?.running || chapter.status === 'processing'} onClick={() => onBackground('translate')}>后台翻译本章</button>
+        </div>
+        {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章尚未切分。只会处理当前章节，不会等待整本书。<button disabled={backgroundJob?.running} onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
         {chapter.status === 'processing' && <div className="inline-warning">正在切分本章。</div>}
         {viewMode === 'original' && chapter.originalHtmlUrl
           ? <iframe className="original-preview" sandbox="" src={chapter.originalHtmlUrl} title={`${chapter.title} 原书预览`} />
@@ -539,15 +665,6 @@ function Reader({ book, chapter, settings, onNotice, onRetry }: {
             </button>
             {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
             {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
-            {sentenceExplained && <section className="panel-section"><h3>句内词语</h3><div className="sentence-word-list">
-              {selectedContentTokens.map((token) => {
-                const sense = contextSenses.find((item) => item.token_id === token.id)?.gloss_zh
-                const entry = lexemesByToken[token.id]
-                return <button key={token.id} className={selectedTokenId === token.id ? 'active' : ''} onClick={() => setSelectedTokenId(token.id)}>
-                  <span lang="ja">{token.surface}</span><small>{sense || entry?.senses_zh[0] || '未获得释义'}</small>
-                </button>
-              })}
-            </div></section>}
             {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCard} />}
             {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>学习注释</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>{ANNOTATION_LABELS[note.type]}</span><strong lang="ja">{note.quote}</strong><p>{note.explanation_zh}</p></div>)}</section>}
           </>

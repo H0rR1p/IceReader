@@ -64,6 +64,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .book-heading small { color: var(--muted); }
 .book-heading h2 { font: 600 21px "Yu Mincho", serif; margin: 7px 0 5px; }
 .book-heading p { margin: 0; color: var(--muted); font-size: 12px; }
+.book-background-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 0 7px; }
+.book-background-actions .button, .chapter-background-actions .button { border-color: #70aeb1; color: #176b70; background: #f6fbfb; }
+.book-background-actions .button:hover, .chapter-background-actions .button:hover { border-color: var(--accent); background: var(--accent-soft); }
+.book-background-actions .button:disabled, .chapter-background-actions .button:disabled { cursor: not-allowed; opacity: .48; }
+.background-progress { margin: 12px 7px 4px; padding: 10px; border: 1px solid #b7d6d8; border-radius: 9px; background: #f5fbfb; color: #245f63; }
+.background-progress > div { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; }
+.background-progress small { color: var(--muted); font-size: 10px; }
+.background-progress progress { display: block; width: 100%; height: 5px; margin: 8px 0 2px; accent-color: var(--accent); }
 .chapter-nav nav { display: grid; gap: 5px; margin-top: 18px; }
 .chapter-item { border: 0; background: transparent; border-radius: 8px; padding: 10px; cursor: pointer; text-align: left; display: grid; gap: 5px; }
 .chapter-item:hover, .chapter-item.active { background: var(--paper); }
@@ -75,13 +83,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .processing-panel { width: min(620px, calc(100% - 48px)); margin: 13vh auto; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 40px; }
 .processing-panel h1 { font: 600 30px "Yu Mincho", serif; margin: 8px 0; }
 .processing-panel > p:not(.eyebrow) { color: var(--muted); line-height: 1.8; }
-.error-box, .inline-warning { background: #faece9; color: #843d32; border: 1px solid #edc9c1; border-radius: 9px; padding: 11px 13px; margin: 14px 0; font-size: 13px; white-space: pre-wrap; }
-.inline-warning button { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; }
+.error-box { background: #faece9; color: #843d32; border: 1px solid #edc9c1; border-radius: 9px; padding: 11px 13px; margin: 14px 0; font-size: 13px; white-space: pre-wrap; }
+.inline-warning { background: #dceff0; color: #155f65; border: 1px solid #a7ced0; border-radius: 9px; padding: 11px 13px; margin: 14px 0; font-size: 13px; white-space: pre-wrap; }
+.inline-warning button { border: 0; background: none; color: #0d6c72; font-weight: 800; cursor: pointer; }
+.inline-warning button:disabled { cursor: not-allowed; opacity: .48; }
 .reader-layout { display: grid; grid-template-columns: minmax(430px, 1fr) 360px; min-height: calc(100vh - 68px); }
 .reader-pane { background: var(--paper); padding: 38px clamp(28px, 5vw, 76px) 90px; min-width: 0; }
 .reader-toolbar { display: flex; justify-content: space-between; align-items: end; gap: 24px; border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 34px; }
 .reader-toolbar h1 { margin: 6px 0 0; font: 600 28px "Yu Mincho", serif; }
 .display-toggles { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.chapter-background-actions { display: flex; justify-content: flex-end; gap: 7px; margin: -20px 0 18px; }
 .toggle { cursor: pointer; }
 .toggle input { position: absolute; opacity: 0; pointer-events: none; }
 .toggle span { display: block; padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: 11px; }
@@ -115,12 +126,6 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .panel-section h3, .dictionary-senses h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .panel-section > p { font-size: 14px; line-height: 1.75; }
 .explain-button { margin: 16px 0 6px; }
-.sentence-word-list { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.sentence-word-list button { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); padding: 8px 9px; text-align: left; cursor: pointer; }
-.sentence-word-list button:hover, .sentence-word-list button.active { border-color: #77b9bc; background: var(--accent-soft); }
-.sentence-word-list span, .sentence-word-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sentence-word-list span { font: 600 15px "Yu Mincho", serif; }
-.sentence-word-list small { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .annotation { border-left: 2px solid #69aeb1; padding-left: 12px; margin: 16px 0; }
 .annotation span { display: block; color: var(--accent); font-size: 10px; font-weight: 800; margin-bottom: 5px; }
 .annotation strong { font: 600 15px "Yu Mincho", serif; }
