@@ -1,5 +1,5 @@
-import io
 import re
+import tempfile
 from pathlib import Path
 
 import ebooklib
@@ -27,7 +27,18 @@ def clean_text(html: bytes) -> str:
 
 
 def parse_epub(payload: bytes, filename: str) -> ImportedBook:
-    book = epub.read_epub(io.BytesIO(payload), options={"ignore_ncx": False})
+    # EbookLib 0.20 resolves companion files relative to a filesystem path and
+    # no longer accepts BytesIO here. Keep uploads in memory at the API edge,
+    # then expose one short-lived file only for the parser.
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as temp_file:
+            temp_file.write(payload)
+            temp_path = Path(temp_file.name)
+        book = epub.read_epub(str(temp_path), options={"ignore_ncx": False})
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
     metadata_title = book.get_metadata("DC", "title")
     metadata_author = book.get_metadata("DC", "creator")
     title = metadata_title[0][0] if metadata_title else Path(filename).stem
@@ -51,4 +62,3 @@ def parse_epub(payload: bytes, filename: str) -> ImportedBook:
     if not chapters:
         raise ValueError("EPUB 中没有可读取的正文")
     return ImportedBook(title=title, author=author, chapters=chapters)
-
