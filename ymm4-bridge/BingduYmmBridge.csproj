@@ -16,5 +16,9 @@
       <Private>false</Private>
     </Reference>
     <Reference Include="$(YmmDir)/NAudio*.dll"><Private>false</Private></Reference>
+    <Reference Include="SoundTouch.Net">
+      <HintPath>$(YmmDir)/SoundTouch.Net.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 </Project>

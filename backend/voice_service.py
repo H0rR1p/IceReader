@@ -126,7 +126,7 @@ def get_voice_settings() -> VoiceSettingsStatus:
         ymm_found=bool(ymm),
         template_found=template_found,
         character_name=character,
-        playback_rate=int(data.get("playback_rate") or 80),
+        playback_rate=int(data.get("playback_rate") or 85),
         volume=int(data.get("volume") if data.get("volume") is not None else 50),
         ready=bool(ymm and template_found),
     )
@@ -286,6 +286,10 @@ def _ensure_bridge(settings: VoiceSettingsStatus) -> None:
     try:
         for name in ("BingduYmmBridge.dll", "BingduYmmBridge.deps.json"):
             shutil.copy2(source / name, target / name)
+        soundtouch = Path(settings.ymm_path).parent / "SoundTouch.Net.dll"
+        if not soundtouch.is_file():
+            raise RuntimeError("当前 YMM4 目录缺少 SoundTouch.Net.dll，无法进行恒定音高的语速调整")
+        shutil.copy2(soundtouch, target / soundtouch.name)
     except PermissionError as exc:
         raise RuntimeError("配音桥需要更新，请先保存项目并完全退出 YMM4 后重试") from exc
     subprocess.Popen(

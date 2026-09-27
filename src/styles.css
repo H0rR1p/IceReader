@@ -158,6 +158,8 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .voice-status.complete { color: var(--accent-deep); }
 .voice-status.failed { color: #8b5365; }
 .dictionary-actions { display: flex; align-items: center; gap: 6px; }
+.card-voice-actions { display: flex; align-items: center; gap: 6px; }
+.fixed-setting strong { min-height: 38px; display: flex; align-items: center; color: var(--text); font-size: 13px; }
 .annotation { border-left: 2px solid #76add3; padding-left: 12px; margin: 16px 0; }
 .annotation span { display: block; color: var(--accent); font-size: 10px; font-weight: 800; margin-bottom: 5px; }
 .annotation strong { font: 600 15px "Yu Mincho", serif; }

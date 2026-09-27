@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: ApiSettings = {
 
 const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   ymmPath: '', ymmFound: false, templateFound: false, characterName: '',
-  playbackRate: 80, volume: 50, ready: false,
+  playbackRate: 85, volume: 50, ready: false,
 }
 
 const ANNOTATION_LABELS: Record<Annotation['type'], string> = {
@@ -1093,13 +1093,13 @@ function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
     void audio.play()
   }
 
-  async function voiceWord() {
-    if (wordVoice?.status === 'complete' && wordVoice.audioUrl) {
+  async function voiceWord(force = false) {
+    if (!force && wordVoice?.status === 'complete' && wordVoice.audioUrl) {
       playWord(wordVoice.audioUrl)
       return
     }
     try {
-      let job = await startVoiceJob(token.surface)
+      let job = await startVoiceJob(token.surface, force)
       setWordVoice(job)
       wordVoiceJobIdRef.current = job.status === 'complete' ? null : job.id
       if (job.status === 'complete' && job.audioUrl) {
@@ -1125,7 +1125,7 @@ function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
   }
   return (
     <section className="dictionary-card">
-      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button><button className="button small" onClick={() => void onAddCard()}>加入词卡</button></div></div>
+      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}<button className="button small" onClick={() => void onAddCard()}>加入词卡</button></div></div>
       {wordVoice?.status === 'failed' && <small className="voice-status failed">{wordVoice.message}</small>}
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
@@ -1169,8 +1169,8 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
     void audio.play()
   }
 
-  async function voiceCard(card: StudyCard) {
-    if (cardVoice?.cardId === card.id && cardVoice.job.status === 'complete' && cardVoice.job.audioUrl) {
+  async function voiceCard(card: StudyCard, force = false) {
+    if (!force && cardVoice?.cardId === card.id && cardVoice.job.status === 'complete' && cardVoice.job.audioUrl) {
       playCardAudio(cardVoice.job.audioUrl)
       return
     }
@@ -1178,7 +1178,7 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
     const previousJobId = cardVoiceJobIdRef.current
     if (previousJobId) void cancelVoiceJob(previousJobId).catch(() => undefined)
     try {
-      let job = await startVoiceJob(card.surface)
+      let job = await startVoiceJob(card.surface, force)
       setCardVoice({ cardId: card.id, job })
       cardVoiceJobIdRef.current = job.status === 'complete' ? null : job.id
       if (job.status === 'complete' && job.audioUrl) {
@@ -1259,7 +1259,7 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
           <button className="button small" onClick={() => downloadJson(`冰读上下文词卡-${new Date().toISOString().slice(0, 10)}.json`, { format: 'nichidoku-cards-v1', exportedAt: new Date().toISOString(), cards })}>导出词卡</button>
         </div>
         <div className="data-list cards">{cards.length ? cards.map((card) => <article key={card.id}>
-          <div className="card-title-row"><div className="card-word"><strong lang="ja">{card.surface}</strong><span>{toHiragana(card.reading)}</span></div><button className="button small" disabled={cardVoice?.cardId === card.id && (cardVoice.job.status === 'queued' || cardVoice.job.status === 'running')} onClick={() => void voiceCard(card)}>{cardVoice?.cardId === card.id && (cardVoice.job.status === 'queued' || cardVoice.job.status === 'running') ? '配音中…' : cardVoice?.cardId === card.id && cardVoice.job.status === 'complete' ? '再次播放' : '播放读音'}</button></div><p>{card.glossZh}</p>
+          <div className="card-title-row"><div className="card-word"><strong lang="ja">{card.surface}</strong><span>{toHiragana(card.reading)}</span></div><div className="card-voice-actions"><button className="button small" disabled={cardVoice?.cardId === card.id && (cardVoice.job.status === 'queued' || cardVoice.job.status === 'running')} onClick={() => void voiceCard(card)}>{cardVoice?.cardId === card.id && (cardVoice.job.status === 'queued' || cardVoice.job.status === 'running') ? '配音中…' : cardVoice?.cardId === card.id && cardVoice.job.status === 'complete' ? '再次播放' : '播放读音'}</button>{cardVoice?.cardId === card.id && cardVoice.job.status === 'complete' && <button className="text-button" onClick={() => void voiceCard(card, true)}>重新生成</button>}</div></div><p>{card.glossZh}</p>
           <blockquote lang="ja">{card.sentence}</blockquote><small>{card.sourceLabel}</small>
           {cardVoice?.cardId === card.id && cardVoice.job.status === 'failed' && <small className="voice-status failed">{cardVoice.job.message}</small>}
         </article>) : <p className="muted">还没有词卡。阅读时点击词语即可收藏。</p>}</div>
@@ -1340,13 +1340,14 @@ function VoiceSettingsDialog({ value, onClose, onSave }: {
   }
   return (
     <Modal title="YMM4 配音设置" onClose={onClose}>
-      <div className="privacy-note"><strong>本机后台配音</strong><p>冰读调用 YMM4 官方命令行，并沿用 YMM4 已保存的“PNG + WAV 序列导出”设置。模板中的角色和音色会被保留。</p></div>
+      <div className="privacy-note"><strong>本机后台配音</strong><p>冰读通过本机配音桥调用 YMM4 中已获许可的语音角色。模板中的角色和音色会被保留，生成结果只写入本地缓存。</p></div>
       <label className="field"><span>YukkuriMovieMaker.exe 路径</span><input value={draft.ymmPath} onChange={(event) => setDraft({ ...draft, ymmPath: event.target.value })} placeholder="留空时自动查找工作区内的幻想乡口音剪辑器" /></label>
       <label className="field"><span>配音模板（.ymmp）</span><input type="file" accept=".ymmp" onChange={(event) => setTemplate(event.target.files?.[0] ?? null)} /></label>
       <label className="field"><span>配音角色</span><input value={draft.characterName} onChange={(event) => setDraft({ ...draft, characterName: event.target.value })} placeholder="例如：琪露诺；留空时使用模板角色" /></label>
       <p className="setting-status">YMM4：{value.ymmFound ? '已找到' : '未找到'}　模板：{value.templateFound ? `已导入${value.characterName ? `（${value.characterName}）` : ''}` : '未导入'}</p>
       <div className="voice-setting-grid">
-        <label className="field"><span>播放速度：{draft.playbackRate}%</span><input type="range" min="50" max="200" value={draft.playbackRate} onChange={(event) => setDraft({ ...draft, playbackRate: Number(event.target.value) })} /></label>
+        <label className="field"><span>语速：{(draft.playbackRate / 100).toFixed(2)}×</span><input type="range" min="50" max="150" step="5" value={draft.playbackRate} onChange={(event) => setDraft({ ...draft, playbackRate: Number(event.target.value) })} /></label>
+        <div className="field fixed-setting"><span>音高</span><strong>1.00×（固定）</strong></div>
         <label className="field"><span>音量：{draft.volume}</span><input type="range" min="0" max="100" value={draft.volume} onChange={(event) => setDraft({ ...draft, volume: Number(event.target.value) })} /></label>
       </div>
       {error && <div className="error-box">{error}</div>}

@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using NAudio.Wave;
+using SoundTouch;
 
 namespace BingduYmmBridge;
 
@@ -161,7 +162,6 @@ internal static class BridgeServer
                     ?? current.Where(IsMatchingVoice).OrderByDescending(item => Convert.ToInt32(Member(item, "Frame") ?? 0)).FirstOrDefault()
                     ?? current.OrderByDescending(item => Convert.ToInt32(Member(item, "Frame") ?? 0)).FirstOrDefault(item => Convert.ToInt32(Member(item, "Frame") ?? -1) == frame)
                     ?? throw new InvalidOperationException("YMM4 未生成语音项目");
-                SetAnimatedValue(added, "PlaybackRate2", playbackRate);
                 SetAnimatedValue(added, "Volume", volume);
                 var length = Convert.ToInt32(Member(added, "Length") ?? 0);
                 if (length <= 1) throw new InvalidOperationException("YMM4 返回的语音长度无效");
@@ -273,20 +273,22 @@ internal static class BridgeServer
         var channels = provider.WaveFormat.Channels;
         var sourceFrames = samples.Count / channels;
         if (sourceFrames < 2) throw new InvalidOperationException("YMM4 生成的语音缓存过短");
-        var outputFrames = Math.Max(1, (int)Math.Floor((sourceFrames - 1) / speed));
-        using var writer = new WaveFileWriter(outputPath, WaveFormat.CreateIeeeFloatWaveFormat(provider.WaveFormat.SampleRate, channels));
-        for (var outputFrame = 0; outputFrame < outputFrames; outputFrame++)
+        var processor = new SoundTouchProcessor
         {
-            var sourcePosition = outputFrame * speed;
-            var leftFrame = Math.Min((int)sourcePosition, sourceFrames - 1);
-            var rightFrame = Math.Min(leftFrame + 1, sourceFrames - 1);
-            var fraction = (float)(sourcePosition - leftFrame);
-            for (var channel = 0; channel < channels; channel++)
-            {
-                var left = samples[leftFrame * channels + channel];
-                var right = samples[rightFrame * channels + channel];
-                writer.WriteSample((left + (right - left) * fraction) * volume);
-            }
+            Channels = channels,
+            SampleRate = provider.WaveFormat.SampleRate,
+            Tempo = speed,
+            Pitch = 1.0,
+            Rate = 1.0,
+        };
+        processor.PutSamples(samples.ToArray().AsSpan(), sourceFrames);
+        processor.Flush();
+        using var writer = new WaveFileWriter(outputPath, WaveFormat.CreateIeeeFloatWaveFormat(provider.WaveFormat.SampleRate, channels));
+        var output = new float[8192 * channels];
+        while (processor.AvailableSamples > 0)
+        {
+            var receivedFrames = processor.ReceiveSamples(output.AsSpan(), Math.Min(8192, processor.AvailableSamples));
+            for (var index = 0; index < receivedFrames * channels; index++) writer.WriteSample(output[index] * volume);
         }
     }
 

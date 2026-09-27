@@ -51,7 +51,7 @@ def test_voice_character_can_override_template_character(tmp_path, monkeypatch):
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
     fake_ymm.write_bytes(b"exe")
     voice_service.install_template(_template())
-    status = voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm), character_name="灵梦", playback_rate=80))
+    status = voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm), character_name="灵梦", playback_rate=85))
 
     assert status.character_name == "灵梦"
 
@@ -72,6 +72,32 @@ def test_cached_voice_does_not_start_ymm(tmp_path, monkeypatch):
     assert job.status == "complete"
     assert job.cached is True
     assert job.audio_url == f"/api/voice/audio/{key}.wav"
+
+
+def test_bridge_install_copies_soundtouch_next_to_plugin(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    ymm_dir = tmp_path / "ymm"
+    fake_ymm = ymm_dir / "YukkuriMovieMaker.exe"
+    ymm_dir.mkdir()
+    fake_ymm.write_bytes(b"exe")
+    (ymm_dir / "SoundTouch.Net.dll").write_bytes(b"soundtouch")
+    voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm)))
+    voice_service.install_template(_template())
+
+    bridge_source = tmp_path / "bridge-source"
+    bridge_source.mkdir()
+    (bridge_source / "BingduYmmBridge.dll").write_bytes(b"bridge")
+    (bridge_source / "BingduYmmBridge.deps.json").write_text("{}", encoding="utf-8")
+    readiness = iter((False, True))
+    monkeypatch.setattr(voice_service, "resource_path", lambda _: bridge_source)
+    monkeypatch.setattr(voice_service, "_bridge_ready", lambda: next(readiness))
+    monkeypatch.setattr(voice_service.subprocess, "Popen", lambda *args, **kwargs: object())
+
+    voice_service._ensure_bridge(voice_service.get_voice_settings())
+
+    plugin_dir = ymm_dir / "user" / "plugin" / "BingduYmmBridge"
+    assert (plugin_dir / "BingduYmmBridge.dll").read_bytes() == b"bridge"
+    assert (plugin_dir / "SoundTouch.Net.dll").read_bytes() == b"soundtouch"
 
 
 def test_trim_float_wave_removes_trailing_silence(tmp_path):
@@ -99,7 +125,7 @@ def test_bridge_voice_job_completes_and_caches_real_audio(tmp_path, monkeypatch)
 
     def fake_synthesis(text, character, output, settings):
         assert text == "きょうははれです。"
-        assert settings.playback_rate == 80
+        assert settings.playback_rate == 85
         assert character == "琪露诺"
         sample_rate = 1000
         samples = [1200] * 700 + [0] * 300
