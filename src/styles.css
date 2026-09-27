@@ -57,6 +57,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .page-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 32px; }
 .page-heading h1 { margin: 5px 0 0; font-family: "Yu Mincho", "Noto Serif SC", serif; font-size: 34px; font-weight: 600; }
 .page-heading > p { color: var(--muted); max-width: 360px; text-align: right; font-size: 13px; }
+.library-heading-side { display: grid; justify-items: end; gap: 10px; }
+.library-heading-side p { color: var(--muted); max-width: 360px; margin: 0; text-align: right; font-size: 13px; }
+.cover-visibility-toggle { min-width: 92px; padding: 7px 12px; color: var(--accent-deep); background: #f8fcff; }
 .eyebrow, .panel-kicker { text-transform: uppercase; letter-spacing: .13em; color: var(--accent); font-size: 11px; font-weight: 800; margin: 0; }
 .empty-state { margin-top: 40px; text-align: center; padding: 52px 24px; border: 1px solid #d0e3f2; border-radius: 20px; background: linear-gradient(145deg, #fbfdff, #eaf5fe); box-shadow: 0 18px 45px #376f9810; }
 .empty-glyph { width: 72px; height: 72px; margin: 0 auto 16px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font: 32px "Yu Mincho", serif; }
@@ -237,6 +240,8 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
   .study-panel { position: static; height: auto; border-left: 0; border-top: 1px solid var(--line); }
   .reader-toolbar, .page-heading { align-items: start; flex-direction: column; }
   .page-heading > p { text-align: left; }
+  .library-heading-side { justify-items: start; }
+  .library-heading-side p { text-align: left; }
   .reader-pane { padding: 28px 20px 60px; }
   .japanese-text { font-size: 18px; }
   .page-width { width: min(100% - 28px, 1120px); }

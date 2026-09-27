@@ -556,6 +556,7 @@ function Library({ books, loading, loadingBookId, onOpen, onDelete, onChangeCove
   const [pendingDelete, setPendingDelete] = useState<Book | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [changingCoverId, setChangingCoverId] = useState<string | null>(null)
+  const [showCovers, setShowCovers] = useState(false)
 
   async function changeCover(book: Book, file: File | null) {
     if (!file) return
@@ -576,7 +577,10 @@ function Library({ books, loading, loadingBookId, onOpen, onDelete, onChangeCove
     <><main className="library page-width">
       <div className="page-heading">
         <div><p className="eyebrow">我的书架</p><h1>继续冰读</h1></div>
-        <p>电子书、学习数据和阅读进度保存在本地项目中。</p>
+        <div className="library-heading-side">
+          <p>电子书、学习数据和阅读进度保存在本地项目中。</p>
+          {books.length > 0 && <button className="button ghost cover-visibility-toggle" aria-pressed={showCovers} onClick={() => setShowCovers((visible) => !visible)}>{showCovers ? '隐藏封面' : '显示封面'}</button>}
+        </div>
       </div>
       {loading ? (
         <section className="empty-state loading-state" aria-live="polite">
@@ -597,7 +601,7 @@ function Library({ books, loading, loadingBookId, onOpen, onDelete, onChangeCove
             <article className="book-card" key={book.id}>
               <button className="book-cover" disabled={Boolean(loadingBookId)} aria-label={`打开《${book.title}》`} onClick={() => onOpen(book)}>
                 <span aria-hidden="true">読む</span>
-                {book.coverUrl && <img src={book.coverUrl} alt="" onError={(event) => { event.currentTarget.hidden = true }} />}
+                {showCovers && book.coverUrl && <img src={book.coverUrl} alt="" onError={(event) => { event.currentTarget.hidden = true }} />}
               </button>
               <div className="book-meta">
                 <button className="book-title" disabled={Boolean(loadingBookId)} onClick={() => onOpen(book)}>{book.title}</button>
