@@ -118,7 +118,7 @@ def get_voice_settings() -> VoiceSettingsStatus:
     template_found = TEMPLATE_PATH.is_file()
     if template_found:
         try:
-            character = _template_character(_read_template())
+            character = str(data.get("character_name") or "").strip() or _template_character(_read_template())
         except ValueError:
             template_found = False
     return VoiceSettingsStatus(
@@ -126,7 +126,7 @@ def get_voice_settings() -> VoiceSettingsStatus:
         ymm_found=bool(ymm),
         template_found=template_found,
         character_name=character,
-        playback_rate=int(data.get("playback_rate") or 90),
+        playback_rate=int(data.get("playback_rate") or 80),
         volume=int(data.get("volume") if data.get("volume") is not None else 50),
         ready=bool(ymm and template_found),
     )
@@ -139,6 +139,7 @@ def save_voice_settings(incoming: VoiceSettingsInput) -> VoiceSettingsStatus:
     VOICE_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
         "ymm_path": str(Path(requested).expanduser().resolve()) if requested else "",
+        "character_name": incoming.character_name.strip(),
         "playback_rate": incoming.playback_rate,
         "volume": incoming.volume,
     }
@@ -294,7 +295,7 @@ def _ensure_bridge(settings: VoiceSettingsStatus) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         if _bridge_ready():
             return

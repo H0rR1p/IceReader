@@ -58,11 +58,11 @@ export async function loadVoiceSettings(): Promise<VoiceSettings> {
   return mapVoiceSettings(await parseResponse(await fetch('/api/voice/settings')))
 }
 
-export async function saveVoiceSettings(settings: Pick<VoiceSettings, 'ymmPath' | 'playbackRate' | 'volume'>): Promise<VoiceSettings> {
+export async function saveVoiceSettings(settings: Pick<VoiceSettings, 'ymmPath' | 'characterName' | 'playbackRate' | 'volume'>): Promise<VoiceSettings> {
   const response = await fetch('/api/voice/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ymm_path: settings.ymmPath, playback_rate: settings.playbackRate, volume: settings.volume }),
+    body: JSON.stringify({ ymm_path: settings.ymmPath, character_name: settings.characterName, playback_rate: settings.playbackRate, volume: settings.volume }),
   })
   return mapVoiceSettings(await parseResponse(response))
 }

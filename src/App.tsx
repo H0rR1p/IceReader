@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: ApiSettings = {
 
 const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   ymmPath: '', ymmFound: false, templateFound: false, characterName: '',
-  playbackRate: 90, volume: 50, ready: false,
+  playbackRate: 80, volume: 50, ready: false,
 }
 
 const ANNOTATION_LABELS: Record<Annotation['type'], string> = {
@@ -1104,6 +1104,51 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [dictionaryNotice, setDictionaryNotice] = useState('')
   const [importingDictionary, setImportingDictionary] = useState(false)
+  const [cardVoice, setCardVoice] = useState<{ cardId: string; job: VoiceJob } | null>(null)
+  const cardVoiceAbortRef = useRef<AbortController | null>(null)
+  const cardVoiceJobIdRef = useRef<string | null>(null)
+  const cardAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  function playCardAudio(url: string) {
+    cardAudioRef.current?.pause()
+    const audio = new Audio(url)
+    cardAudioRef.current = audio
+    void audio.play()
+  }
+
+  async function voiceCard(card: StudyCard) {
+    if (cardVoice?.cardId === card.id && cardVoice.job.status === 'complete' && cardVoice.job.audioUrl) {
+      playCardAudio(cardVoice.job.audioUrl)
+      return
+    }
+    cardVoiceAbortRef.current?.abort()
+    const previousJobId = cardVoiceJobIdRef.current
+    if (previousJobId) void cancelVoiceJob(previousJobId).catch(() => undefined)
+    try {
+      let job = await startVoiceJob(card.surface)
+      setCardVoice({ cardId: card.id, job })
+      cardVoiceJobIdRef.current = job.status === 'complete' ? null : job.id
+      if (job.status === 'complete' && job.audioUrl) {
+        playCardAudio(job.audioUrl)
+        return
+      }
+      const controller = new AbortController()
+      cardVoiceAbortRef.current = controller
+      while (!controller.signal.aborted && (job.status === 'queued' || job.status === 'running')) {
+        await new Promise((resolve) => window.setTimeout(resolve, 500))
+        job = await loadVoiceJob(job.id, controller.signal)
+        setCardVoice({ cardId: card.id, job })
+      }
+      if (job.status === 'complete' && job.audioUrl) {
+        cardVoiceJobIdRef.current = null
+        playCardAudio(job.audioUrl)
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      setCardVoice({ cardId: card.id, job: { id: '', status: 'failed', message: error instanceof Error ? error.message : String(error), cached: false } })
+      cardVoiceJobIdRef.current = null
+    }
+  }
 
   async function importDictionary(file: File | null) {
     if (!file) return
@@ -1126,6 +1171,12 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
       if (!controller.signal.aborted) setDictionaryNotice(error instanceof Error ? error.message : String(error))
     })
     return () => controller.abort()
+  }, [])
+
+  useEffect(() => () => {
+    cardVoiceAbortRef.current?.abort()
+    cardAudioRef.current?.pause()
+    if (cardVoiceJobIdRef.current) void cancelVoiceJob(cardVoiceJobIdRef.current).catch(() => undefined)
   }, [])
 
   const filteredLexemes = lexemes.filter((item) =>
@@ -1155,8 +1206,9 @@ function StudyDataDialog({ onClose }: { onClose: () => void }) {
           <button className="button small" onClick={() => downloadJson(`冰读上下文词卡-${new Date().toISOString().slice(0, 10)}.json`, { format: 'nichidoku-cards-v1', exportedAt: new Date().toISOString(), cards })}>导出词卡</button>
         </div>
         <div className="data-list cards">{cards.length ? cards.map((card) => <article key={card.id}>
-          <div><strong lang="ja">{card.surface}</strong><span>{toHiragana(card.reading)}</span></div><p>{card.glossZh}</p>
+          <div className="card-title-row"><div className="card-word"><strong lang="ja">{card.surface}</strong><span>{toHiragana(card.reading)}</span></div><button className="button small" disabled={cardVoice?.cardId === card.id && (cardVoice.job.status === 'queued' || cardVoice.job.status === 'running')} onClick={() => void voiceCard(card)}>{cardVoice?.cardId === card.id && (cardVoice.job.status === 'queued' || cardVoice.job.status === 'running') ? '配音中…' : cardVoice?.cardId === card.id && cardVoice.job.status === 'complete' ? '再次播放' : '播放读音'}</button></div><p>{card.glossZh}</p>
           <blockquote lang="ja">{card.sentence}</blockquote><small>{card.sourceLabel}</small>
+          {cardVoice?.cardId === card.id && cardVoice.job.status === 'failed' && <small className="voice-status failed">{cardVoice.job.message}</small>}
         </article>) : <p className="muted">还没有词卡。阅读时点击词语即可收藏。</p>}</div>
       </>}
     </Modal>
@@ -1216,7 +1268,7 @@ function SettingsDialog({ value, onClose, onSave }: { value: ApiSettings; onClos
 function VoiceSettingsDialog({ value, onClose, onSave }: {
   value: VoiceSettings
   onClose: () => void
-  onSave: (next: Pick<VoiceSettings, 'ymmPath' | 'playbackRate' | 'volume'>, template: File | null) => void | Promise<void>
+  onSave: (next: Pick<VoiceSettings, 'ymmPath' | 'characterName' | 'playbackRate' | 'volume'>, template: File | null) => void | Promise<void>
 }) {
   const [draft, setDraft] = useState(value)
   const [template, setTemplate] = useState<File | null>(null)
@@ -1238,6 +1290,7 @@ function VoiceSettingsDialog({ value, onClose, onSave }: {
       <div className="privacy-note"><strong>本机后台配音</strong><p>冰读调用 YMM4 官方命令行，并沿用 YMM4 已保存的“PNG + WAV 序列导出”设置。模板中的角色和音色会被保留。</p></div>
       <label className="field"><span>YukkuriMovieMaker.exe 路径</span><input value={draft.ymmPath} onChange={(event) => setDraft({ ...draft, ymmPath: event.target.value })} placeholder="留空时自动查找工作区内的幻想乡口音剪辑器" /></label>
       <label className="field"><span>配音模板（.ymmp）</span><input type="file" accept=".ymmp" onChange={(event) => setTemplate(event.target.files?.[0] ?? null)} /></label>
+      <label className="field"><span>配音角色</span><input value={draft.characterName} onChange={(event) => setDraft({ ...draft, characterName: event.target.value })} placeholder="例如：琪露诺；留空时使用模板角色" /></label>
       <p className="setting-status">YMM4：{value.ymmFound ? '已找到' : '未找到'}　模板：{value.templateFound ? `已导入${value.characterName ? `（${value.characterName}）` : ''}` : '未导入'}</p>
       <div className="voice-setting-grid">
         <label className="field"><span>播放速度：{draft.playbackRate}%</span><input type="range" min="50" max="200" value={draft.playbackRate} onChange={(event) => setDraft({ ...draft, playbackRate: Number(event.target.value) })} /></label>

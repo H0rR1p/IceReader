@@ -22,7 +22,8 @@ class LocalAiSettingsStatus(BaseModel):
 
 class VoiceSettingsInput(BaseModel):
     ymm_path: str = ""
-    playback_rate: int = Field(default=90, ge=50, le=200)
+    character_name: str = Field(default="", max_length=100)
+    playback_rate: int = Field(default=80, ge=50, le=200)
     volume: int = Field(default=50, ge=0, le=100)
 
 

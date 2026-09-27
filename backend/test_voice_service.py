@@ -46,6 +46,16 @@ def test_template_install_reads_character_and_settings(tmp_path, monkeypatch):
     assert status.volume == 72
 
 
+def test_voice_character_can_override_template_character(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
+    fake_ymm.write_bytes(b"exe")
+    voice_service.install_template(_template())
+    status = voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm), character_name="灵梦", playback_rate=80))
+
+    assert status.character_name == "灵梦"
+
+
 def test_cached_voice_does_not_start_ymm(tmp_path, monkeypatch):
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
@@ -89,7 +99,7 @@ def test_bridge_voice_job_completes_and_caches_real_audio(tmp_path, monkeypatch)
 
     def fake_synthesis(text, character, output, settings):
         assert text == "きょうははれです。"
-        assert settings.playback_rate == 90
+        assert settings.playback_rate == 80
         assert character == "琪露诺"
         sample_rate = 1000
         samples = [1200] * 700 + [0] * 300

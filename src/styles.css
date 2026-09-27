@@ -215,6 +215,8 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .data-list article span, .data-list article small { color: var(--muted); font-size: 11px; }
 .data-list article p { margin: 6px 0; font-size: 13px; line-height: 1.55; }
 .data-list blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid #76add3; font: 13px/1.6 "Yu Mincho", serif; }
+.data-list article > .card-title-row { align-items: center; justify-content: space-between; }
+.card-word { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 
 @media (max-width: 980px) {
   .reader-layout { grid-template-columns: minmax(0, 1fr) 320px; }
