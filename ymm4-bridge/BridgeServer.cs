@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
 namespace BingduYmmBridge;
 
@@ -128,6 +129,7 @@ internal static class BridgeServer
     private static async Task<object> Synthesize(string text, string characterName, string output, int playbackRate, int volume)
     {
         await SynthesisGate.WaitAsync();
+        var synthesisStarted = DateTime.UtcNow;
         object? model = null;
         object? added = null;
         try
@@ -149,15 +151,42 @@ internal static class BridgeServer
                     .FirstOrDefault() ?? throw new MissingMethodException("当前 YMM4 版本没有 AddVoiceItemAsync");
                 var pending = method.Invoke(model, BuildAddArguments(method, frame, layer, character, text));
                 if (pending is Task task) await task;
-                var newcomers = Enumerable(Member(timeline, "Items")).Select(UnwrapItem).Where(item => !before.Contains(item)).ToArray();
-                added = newcomers.SingleOrDefault(item => item.GetType().Name.Contains("Voice", StringComparison.OrdinalIgnoreCase))
+                var returned = pending == null ? null : pending.GetType().GetProperty("Result")?.GetValue(pending);
+                await Task.Delay(250);
+                var current = Enumerable(Member(timeline, "Items")).Select(UnwrapItem).ToArray();
+                var newcomers = current.Where(item => !before.Contains(item)).ToArray();
+                added = returned == null ? null : UnwrapItem(returned);
+                added = (added != null && Convert.ToInt32(Member(added, "Length") ?? 0) > 0 ? added : null)
+                    ?? newcomers.FirstOrDefault(item => Convert.ToInt32(Member(item, "Frame") ?? -1) == frame)
+                    ?? newcomers.FirstOrDefault(IsVoice)
+                    ?? current.Where(IsMatchingVoice).OrderByDescending(item => Convert.ToInt32(Member(item, "Frame") ?? 0)).FirstOrDefault()
+                    ?? current.OrderByDescending(item => Convert.ToInt32(Member(item, "Frame") ?? 0)).FirstOrDefault(item => Convert.ToInt32(Member(item, "Frame") ?? -1) == frame)
                     ?? throw new InvalidOperationException("YMM4 未生成语音项目");
                 SetAnimatedValue(added, "PlaybackRate2", playbackRate);
                 SetAnimatedValue(added, "Volume", volume);
                 var length = Convert.ToInt32(Member(added, "Length") ?? 0);
                 if (length <= 1) throw new InvalidOperationException("YMM4 返回的语音长度无效");
                 return (main, frame, length);
+
+                bool IsMatchingVoice(object item)
+                {
+                    if (!IsVoice(item)) return false;
+                    var serif = Member(item, "Serif")?.ToString() ?? Member(item, "Text")?.ToString() ?? "";
+                    return serif == text;
+                }
+
+                static bool IsVoice(object item) => item.GetType().Name.Contains("Voice", StringComparison.OrdinalIgnoreCase);
             });
+
+            var generatedWave = await FindGeneratedWave(synthesisStarted, add.length / 60d);
+            if (generatedWave != null && playbackRate == 100)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+                using var source = new WaveFileReader(generatedWave);
+                var adjusted = new VolumeSampleProvider(source.ToSampleProvider()) { Volume = volume / 100f };
+                WaveFileWriter.CreateWaveFile16(output, adjusted);
+                return new { success = true, output, frames = add.length, bytes = new FileInfo(output).Length };
+            }
 
             var preview = await OnUi(() => Task.FromResult(FindPreview(add.main)
                 ?? throw new InvalidOperationException("YMM4 预览播放器不可用")));
@@ -206,6 +235,34 @@ internal static class BridgeServer
         }
     }
 
+    private static async Task<string?> FindGeneratedWave(DateTime startedAt, double expectedSeconds)
+    {
+        var tempRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YukkuriMovieMaker", "v4", "temp");
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var candidates = new List<(string Path, double Difference)>();
+            try
+            {
+                foreach (var path in Directory.EnumerateFiles(tempRoot, "*", SearchOption.AllDirectories))
+                {
+                    var info = new FileInfo(path);
+                    if (info.LastWriteTimeUtc < startedAt.AddSeconds(-1) || info.Length < 44) continue;
+                    try
+                    {
+                        using var reader = new WaveFileReader(path);
+                        candidates.Add((path, Math.Abs(reader.TotalTime.TotalSeconds - expectedSeconds)));
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            var best = candidates.OrderBy(value => value.Difference).FirstOrDefault();
+            if (best.Path != null && best.Difference <= 0.35) return best.Path;
+            await Task.Delay(100);
+        }
+        return null;
+    }
+
     private static object?[] BuildAddArguments(MethodInfo method, int frame, int layer, object character, string text)
     {
         var parameters = method.GetParameters();
@@ -227,9 +284,13 @@ internal static class BridgeServer
 
     private static async Task InvokeAsync(object target, string name, params object[] arguments)
     {
-        var method = target.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            .FirstOrDefault(value => value.Name == name && value.GetParameters().Length == arguments.Length)
-            ?? throw new MissingMethodException(target.GetType().Name, name);
+        var candidates = target.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Where(value => value.Name == name && value.GetParameters().Length == arguments.Length)
+            .ToArray();
+        var method = candidates.FirstOrDefault(value => value.GetParameters().Select(parameter => parameter.ParameterType)
+                .Zip(arguments, (type, argument) => argument == null ? !type.IsValueType : type.IsInstanceOfType(argument))
+                .All(matches => matches))
+            ?? throw new MissingMethodException(target.GetType().Name, $"{name}({string.Join(",", arguments.Select(value => value?.GetType().Name ?? "null"))})");
         var result = await OnUi(() => Task.FromResult(method.Invoke(target, arguments)));
         if (result is Task task) await task;
     }
