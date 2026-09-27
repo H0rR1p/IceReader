@@ -185,7 +185,7 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .modal-head button { border: 0; background: none; cursor: pointer; font-size: 24px; }
 .field { display: grid; gap: 6px; margin: 15px 0; }
 .field > span { color: var(--muted); font-size: 12px; font-weight: 700; }
-.field input, .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: white; padding: 10px 11px; }
+.field input, .field textarea, .field select { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: white; padding: 10px 11px; }
 .drop-zone { min-height: 110px; border: 1px dashed #9fc7e3; border-radius: 11px; display: grid; place-items: center; align-content: center; gap: 4px; position: relative; background: #f1f8fe; }
 .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .drop-zone small { color: var(--muted); }

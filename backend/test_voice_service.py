@@ -8,6 +8,10 @@ from .models import VoiceSettingsInput
 
 def _template() -> bytes:
     return json.dumps({
+        "Characters": [
+            {"Name": "琪露诺", "GroupName": "幻想乡口音"},
+            {"Name": "博丽灵梦", "GroupName": "幻想乡口音"},
+        ],
         "Timelines": [{
             "Items": [{
                 "$type": "YukkuriMovieMaker.Project.Items.VoiceItem, YukkuriMovieMaker",
@@ -42,6 +46,7 @@ def test_template_install_reads_character_and_settings(tmp_path, monkeypatch):
 
     assert status.ready is True
     assert status.character_name == "琪露诺"
+    assert status.character_names == ["琪露诺", "博丽灵梦"]
     assert status.playback_rate == 125
     assert status.volume == 72
 

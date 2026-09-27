@@ -141,6 +141,7 @@ export interface VoiceSettings {
   ymmFound: boolean
   templateFound: boolean
   characterName: string
+  characterNames: string[]
   playbackRate: number
   volume: number
   ready: boolean

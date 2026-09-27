@@ -41,13 +41,14 @@ export async function saveApiSettings(settings: ApiSettings): Promise<ApiSetting
 
 function mapVoiceSettings(data: {
   ymm_path: string; ymm_found: boolean; template_found: boolean; character_name: string
-  playback_rate: number; volume: number; ready: boolean
+  character_names?: string[]; playback_rate: number; volume: number; ready: boolean
 }): VoiceSettings {
   return {
     ymmPath: data.ymm_path,
     ymmFound: data.ymm_found,
     templateFound: data.template_found,
     characterName: data.character_name,
+    characterNames: data.character_names ?? (data.character_name ? [data.character_name] : []),
     playbackRate: data.playback_rate,
     volume: data.volume,
     ready: data.ready,

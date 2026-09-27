@@ -98,6 +98,23 @@ def _template_character(project: dict) -> str:
     return str(item.get("CharacterName") or "")
 
 
+def _template_characters(project: dict) -> list[str]:
+    names: list[str] = []
+    for character in project.get("Characters", []):
+        if isinstance(character, dict):
+            name = str(character.get("Name") or "").strip()
+            if name and name not in names:
+                names.append(name)
+    for timeline in project.get("Timelines", []):
+        for item in timeline.get("Items", []):
+            if "VoiceItem" not in str(item.get("$type", "")):
+                continue
+            name = str(item.get("CharacterName") or "").strip()
+            if name and name not in names:
+                names.append(name)
+    return names
+
+
 def _read_template() -> dict:
     try:
         value = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8-sig"))
@@ -115,10 +132,15 @@ def get_voice_settings() -> VoiceSettingsStatus:
     data = _read_settings()
     ymm = _detect_ymm()
     character = ""
+    characters: list[str] = []
     template_found = TEMPLATE_PATH.is_file()
     if template_found:
         try:
-            character = str(data.get("character_name") or "").strip() or _template_character(_read_template())
+            project = _read_template()
+            characters = _template_characters(project)
+            character = str(data.get("character_name") or "").strip() or _template_character(project)
+            if character and character not in characters:
+                characters.insert(0, character)
         except ValueError:
             template_found = False
     return VoiceSettingsStatus(
@@ -126,6 +148,7 @@ def get_voice_settings() -> VoiceSettingsStatus:
         ymm_found=bool(ymm),
         template_found=template_found,
         character_name=character,
+        character_names=characters,
         playback_rate=int(data.get("playback_rate") or 85),
         volume=int(data.get("volume") if data.get("volume") is not None else 50),
         ready=bool(ymm and template_found),

@@ -32,6 +32,7 @@ class VoiceSettingsStatus(BaseModel):
     ymm_found: bool
     template_found: bool
     character_name: str = ""
+    character_names: list[str] = Field(default_factory=list)
     playback_rate: int
     volume: int
     ready: bool

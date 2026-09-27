@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: ApiSettings = {
 
 const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   ymmPath: '', ymmFound: false, templateFound: false, characterName: '',
-  playbackRate: 85, volume: 50, ready: false,
+  characterNames: [], playbackRate: 85, volume: 50, ready: false,
 }
 
 const ANNOTATION_LABELS: Record<Annotation['type'], string> = {
@@ -516,8 +516,8 @@ function App() {
           value={voiceSettings}
           onClose={() => setShowVoiceSettings(false)}
           onSave={async (next, template) => {
-            let saved = await saveVoiceSettings(next)
-            if (template) saved = await uploadVoiceTemplate(template)
+            if (template) await uploadVoiceTemplate(template)
+            const saved = await saveVoiceSettings(next)
             setVoiceSettings(saved)
             setShowVoiceSettings(false)
             setNotice(saved.ready
@@ -1327,6 +1327,30 @@ function VoiceSettingsDialog({ value, onClose, onSave }: {
   const [template, setTemplate] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  async function chooseTemplate(file: File | null) {
+    setTemplate(file)
+    if (!file) return
+    try {
+      const project = JSON.parse(await file.text()) as {
+        Characters?: Array<{ Name?: string }>
+        Timelines?: Array<{ Items?: Array<{ $type?: string; CharacterName?: string }> }>
+      }
+      const names = [
+        ...(project.Characters ?? []).map((item) => item.Name?.trim() ?? ''),
+        ...(project.Timelines ?? []).flatMap((timeline) => (timeline.Items ?? [])
+          .filter((item) => item.$type?.includes('VoiceItem'))
+          .map((item) => item.CharacterName?.trim() ?? '')),
+      ].filter((name, index, all) => name && all.indexOf(name) === index)
+      setDraft((current) => ({
+        ...current,
+        characterNames: names,
+        characterName: names.includes(current.characterName) ? current.characterName : (names[0] ?? ''),
+      }))
+      setError(names.length ? '' : '这个模板中没有可选择的配音角色')
+    } catch {
+      setError('无法读取这个配音模板')
+    }
+  }
   async function save() {
     setSaving(true)
     setError('')
@@ -1342,8 +1366,8 @@ function VoiceSettingsDialog({ value, onClose, onSave }: {
     <Modal title="YMM4 配音设置" onClose={onClose}>
       <div className="privacy-note"><strong>本机后台配音</strong><p>冰读通过本机配音桥调用 YMM4 中已获许可的语音角色。模板中的角色和音色会被保留，生成结果只写入本地缓存。</p></div>
       <label className="field"><span>YukkuriMovieMaker.exe 路径</span><input value={draft.ymmPath} onChange={(event) => setDraft({ ...draft, ymmPath: event.target.value })} placeholder="留空时自动查找工作区内的幻想乡口音剪辑器" /></label>
-      <label className="field"><span>配音模板（.ymmp）</span><input type="file" accept=".ymmp" onChange={(event) => setTemplate(event.target.files?.[0] ?? null)} /></label>
-      <label className="field"><span>配音角色</span><input value={draft.characterName} onChange={(event) => setDraft({ ...draft, characterName: event.target.value })} placeholder="例如：琪露诺；留空时使用模板角色" /></label>
+      <label className="field"><span>配音模板（.ymmp）</span><input type="file" accept=".ymmp" onChange={(event) => void chooseTemplate(event.target.files?.[0] ?? null)} /></label>
+      <label className="field"><span>配音角色</span><select value={draft.characterName} disabled={draft.characterNames.length === 0} onChange={(event) => setDraft({ ...draft, characterName: event.target.value })}>{draft.characterNames.length === 0 ? <option value="">请先导入包含角色的配音模板</option> : draft.characterNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
       <p className="setting-status">YMM4：{value.ymmFound ? '已找到' : '未找到'}　模板：{value.templateFound ? `已导入${value.characterName ? `（${value.characterName}）` : ''}` : '未导入'}</p>
       <div className="voice-setting-grid">
         <label className="field"><span>语速：{(draft.playbackRate / 100).toFixed(2)}×</span><input type="range" min="50" max="150" step="5" value={draft.playbackRate} onChange={(event) => setDraft({ ...draft, playbackRate: Number(event.target.value) })} /></label>
