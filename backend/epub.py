@@ -46,6 +46,10 @@ def _integer_attr(tag: Tag, name: str) -> int | None:
 
 def _text_content(tag: Tag) -> str:
     fragment = BeautifulSoup(str(tag), "html.parser")
+    # Ruby readings are rendered above the base text. Including <rt> in the
+    # plain text duplicates every annotated word and breaks sentence offsets.
+    for reading in fragment.find_all(["rt", "rp"]):
+        reading.decompose()
     for line_break in fragment.find_all("br"):
         line_break.replace_with("\n")
     value = fragment.get_text("", strip=True)
@@ -80,7 +84,13 @@ def _extract_blocks(soup: BeautifulSoup, document_name: str, asset_urls: dict[st
             blocks.append(ContentBlock(id=stable_id("block", f"{document_name}:{len(blocks)}:hr"), type="separator", start=len(plain_text), end=len(plain_text)))
             continue
         if name not in TEXT_TAGS:
-            continue
+            # Some Aozora/Kobo EPUBs store each visual line in a top-level
+            # span instead of a paragraph. Nested spans remain inline content
+            # and are collected with their outer span.
+            if name != "span":
+                continue
+            if any(parent.name in {"span", "ruby", "rt", "rp"} | TEXT_TAGS for parent in node.parents if isinstance(parent, Tag)):
+                continue
         if name == "blockquote" and node.find(TEXT_TAGS - {"blockquote"}):
             continue
         if any(parent.name in TEXT_TAGS - {"blockquote"} for parent in node.parents if isinstance(parent, Tag)):
