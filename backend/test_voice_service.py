@@ -88,7 +88,8 @@ def test_bridge_voice_job_completes_and_caches_real_audio(tmp_path, monkeypatch)
     voice_service.install_template(_template())
 
     def fake_synthesis(text, character, output, settings):
-        assert text == "今日は晴れです。"
+        assert text == "きょうははれです。"
+        assert settings.playback_rate == 90
         assert character == "琪露诺"
         sample_rate = 1000
         samples = [1200] * 700 + [0] * 300

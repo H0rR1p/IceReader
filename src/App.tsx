@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: ApiSettings = {
 
 const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   ymmPath: '', ymmFound: false, templateFound: false, characterName: '',
-  playbackRate: 100, volume: 50, ready: false,
+  playbackRate: 90, volume: 50, ready: false,
 }
 
 const ANNOTATION_LABELS: Record<Annotation['type'], string> = {

@@ -67,6 +67,29 @@ def kata(text: str) -> str:
     return "".join(result)
 
 
+def hira(text: str) -> str:
+    result = []
+    for char in unicodedata.normalize("NFKC", text):
+        code = ord(char)
+        if 0x30A1 <= code <= 0x30F6:
+            result.append(chr(code - 0x60))
+        else:
+            result.append(char)
+    return "".join(result)
+
+
+def pronunciation_text(text: str) -> str:
+    """Convert Japanese text to a hiragana pronunciation while preserving symbols."""
+    output: list[str] = []
+    for morpheme in _tokenizer.tokenize(text, _mode):
+        if morpheme.part_of_speech()[0] in {"補助記号", "空白", "記号"}:
+            output.append(morpheme.surface())
+            continue
+        reading = morpheme.reading_form()
+        output.append(hira(reading) if reading and reading != "*" else morpheme.surface())
+    return "".join(output)
+
+
 def lexeme_key(lemma: str, reading: str, part_of_speech: str) -> str:
     return "|".join((unicodedata.normalize("NFKC", lemma), kata(reading), part_of_speech))
 

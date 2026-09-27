@@ -7,7 +7,6 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
 
 namespace BingduYmmBridge;
 
@@ -179,12 +178,10 @@ internal static class BridgeServer
             });
 
             var generatedWave = await FindGeneratedWave(synthesisStarted, add.length / 60d);
-            if (generatedWave != null && playbackRate == 100)
+            if (generatedWave != null)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-                using var source = new WaveFileReader(generatedWave);
-                var adjusted = new VolumeSampleProvider(source.ToSampleProvider()) { Volume = volume / 100f };
-                WaveFileWriter.CreateWaveFile16(output, adjusted);
+                WriteAdjustedWave(generatedWave, output, playbackRate / 100d, volume / 100f);
                 return new { success = true, output, frames = add.length, bytes = new FileInfo(output).Length };
             }
 
@@ -261,6 +258,36 @@ internal static class BridgeServer
             await Task.Delay(100);
         }
         return null;
+    }
+
+    private static void WriteAdjustedWave(string sourcePath, string outputPath, double speed, float volume)
+    {
+        using var source = new WaveFileReader(sourcePath);
+        var provider = source.ToSampleProvider();
+        var samples = new List<float>();
+        var buffer = new float[8192];
+        int read;
+        while ((read = provider.Read(buffer.AsSpan())) > 0)
+            samples.AddRange(buffer.AsSpan(0, read).ToArray());
+
+        var channels = provider.WaveFormat.Channels;
+        var sourceFrames = samples.Count / channels;
+        if (sourceFrames < 2) throw new InvalidOperationException("YMM4 生成的语音缓存过短");
+        var outputFrames = Math.Max(1, (int)Math.Floor((sourceFrames - 1) / speed));
+        using var writer = new WaveFileWriter(outputPath, WaveFormat.CreateIeeeFloatWaveFormat(provider.WaveFormat.SampleRate, channels));
+        for (var outputFrame = 0; outputFrame < outputFrames; outputFrame++)
+        {
+            var sourcePosition = outputFrame * speed;
+            var leftFrame = Math.Min((int)sourcePosition, sourceFrames - 1);
+            var rightFrame = Math.Min(leftFrame + 1, sourceFrames - 1);
+            var fraction = (float)(sourcePosition - leftFrame);
+            for (var channel = 0; channel < channels; channel++)
+            {
+                var left = samples[leftFrame * channels + channel];
+                var right = samples[rightFrame * channels + channel];
+                writer.WriteSample((left + (right - left) * fraction) * volume);
+            }
+        }
     }
 
     private static object?[] BuildAddArguments(MethodInfo method, int frame, int layer, object character, string text)

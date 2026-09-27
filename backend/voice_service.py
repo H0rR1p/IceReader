@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .models import VoiceJobStatus, VoiceSettingsInput, VoiceSettingsStatus
+from .nlp import pronunciation_text
 from .paths import DATA_DIR, PROJECT_ROOT, resource_path
 
 
@@ -23,7 +24,7 @@ JOBS_DIR = VOICE_DIR / "jobs"
 SETTINGS_PATH = VOICE_DIR / "settings.json"
 TEMPLATE_PATH = VOICE_DIR / "template.ymmp"
 YMM_DIRECTORY_NAME = "幻想乡口音剪辑器"
-CACHE_VERSION = b"voice-v3-ymm-bridge"
+CACHE_VERSION = b"voice-v4-hiragana"
 BRIDGE_CONNECTION_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "BingduYmmBridge" / "connection.json"
 
 
@@ -125,7 +126,7 @@ def get_voice_settings() -> VoiceSettingsStatus:
         ymm_found=bool(ymm),
         template_found=template_found,
         character_name=character,
-        playback_rate=int(data.get("playback_rate") or 100),
+        playback_rate=int(data.get("playback_rate") or 90),
         volume=int(data.get("volume") if data.get("volume") is not None else 50),
         ready=bool(ymm and template_found),
     )
@@ -358,7 +359,7 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
             character = settings.character_name or ""
             if not character:
                 raise RuntimeError("配音模板缺少角色名称，请重新导入有效的 YMM4 项目")
-            await asyncio.to_thread(_synthesize_with_bridge, text, character, output_file, settings)
+            await asyncio.to_thread(_synthesize_with_bridge, pronunciation_text(text), character, output_file, settings)
             if job.cancel_requested:
                 job.status, job.message = "canceled", "配音任务已取消"
                 return
