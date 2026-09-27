@@ -56,7 +56,7 @@ def _open_when_ready(port: int) -> None:
                 payload = json.loads(response.read().decode("utf-8"))
                 if response.status == 200 and payload.get("app") == "bingdu":
                     if OPEN_BROWSER:
-                        webbrowser.open(url)
+                        webbrowser.open(f"{url}?v={int(time.time())}")
                     return
         except (OSError, ValueError, json.JSONDecodeError):
             time.sleep(0.2)
@@ -74,7 +74,7 @@ def main() -> None:
     url = f"http://{HOST}:{port}/"
     if already_running:
         if OPEN_BROWSER:
-            webbrowser.open(url)
+            webbrowser.open(f"{url}?v={int(time.time())}")
         return
     logging.info("Selected local port %s", port)
     threading.Thread(target=_open_when_ready, args=(port,), daemon=True).start()

@@ -72,6 +72,15 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def disable_shell_cache(request, call_next):
+    response = await call_next(request)
+    if request.url.path in {"/", "/index.html"}:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 def _local_analysis(chapter_id: str, text: str, spans=None) -> tuple[list[SentenceOut], list[TokenOut]]:
     sentences: list[SentenceOut] = []
     tokens: list[TokenOut] = []

@@ -1070,10 +1070,63 @@ function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
 }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
+  const [wordVoice, setWordVoice] = useState<VoiceJob | null>(null)
+  const wordVoiceAbortRef = useRef<AbortController | null>(null)
+  const wordVoiceJobIdRef = useRef<string | null>(null)
+  const wordAudioRef = useRef<HTMLAudioElement | null>(null)
   useEffect(() => { setValue(lexeme?.senses_zh.join('\n') ?? '') }, [lexeme])
+  useEffect(() => {
+    wordVoiceAbortRef.current?.abort()
+    wordAudioRef.current?.pause()
+    setWordVoice(null)
+  }, [token.id])
+  useEffect(() => () => {
+    wordVoiceAbortRef.current?.abort()
+    wordAudioRef.current?.pause()
+    if (wordVoiceJobIdRef.current) void cancelVoiceJob(wordVoiceJobIdRef.current).catch(() => undefined)
+  }, [])
+
+  function playWord(url: string) {
+    wordAudioRef.current?.pause()
+    const audio = new Audio(url)
+    wordAudioRef.current = audio
+    void audio.play()
+  }
+
+  async function voiceWord() {
+    if (wordVoice?.status === 'complete' && wordVoice.audioUrl) {
+      playWord(wordVoice.audioUrl)
+      return
+    }
+    try {
+      let job = await startVoiceJob(token.surface)
+      setWordVoice(job)
+      wordVoiceJobIdRef.current = job.status === 'complete' ? null : job.id
+      if (job.status === 'complete' && job.audioUrl) {
+        playWord(job.audioUrl)
+        return
+      }
+      const controller = new AbortController()
+      wordVoiceAbortRef.current = controller
+      while (!controller.signal.aborted && (job.status === 'queued' || job.status === 'running')) {
+        await new Promise((resolve) => window.setTimeout(resolve, 500))
+        job = await loadVoiceJob(job.id, controller.signal)
+        setWordVoice(job)
+      }
+      if (job.status === 'complete' && job.audioUrl) {
+        wordVoiceJobIdRef.current = null
+        playWord(job.audioUrl)
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      setWordVoice({ id: '', status: 'failed', message: error instanceof Error ? error.message : String(error), cached: false })
+      wordVoiceJobIdRef.current = null
+    }
+  }
   return (
     <section className="dictionary-card">
-      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><button className="button small" onClick={() => void onAddCard()}>加入词卡</button></div>
+      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button><button className="button small" onClick={() => void onAddCard()}>加入词卡</button></div></div>
+      {wordVoice?.status === 'failed' && <small className="voice-status failed">{wordVoice.message}</small>}
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
         <div className="section-title"><h3>日中词典</h3><button className="text-button" onClick={() => setEditing(!editing)}>{editing ? '取消' : '修正'}</button></div>
