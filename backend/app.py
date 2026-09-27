@@ -41,14 +41,28 @@ from .models import (
     TokenOut,
     ChapterSnapshot,
     StudyDataSnapshot,
+    VoiceJobStatus,
+    VoiceSettingsInput,
+    VoiceSettingsStatus,
+    VoiceSynthesisRequest,
 )
 from .nlp import lexeme_key, split_sentences, stable_id, tokenize_sentence
 from .paths import DIST_DIR
 from .settings_store import get_settings_status, resolve_settings, save_settings
+from .voice_service import (
+    CACHE_DIR,
+    cancel_voice_job,
+    get_voice_job,
+    get_voice_settings,
+    install_template,
+    save_voice_settings,
+    start_voice_job,
+)
 
 
 app = FastAPI(title="冰读本地 API", version="0.2.0")
 app.mount("/api/assets", StaticFiles(directory=BOOK_DATA_DIR, check_dir=False), name="book-assets")
+app.mount("/api/voice/audio", StaticFiles(directory=CACHE_DIR, check_dir=False), name="voice-audio")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -156,6 +170,53 @@ async def read_settings() -> LocalAiSettingsStatus:
 @app.put("/api/settings", response_model=LocalAiSettingsStatus)
 async def update_settings(settings: LocalAiSettingsInput) -> LocalAiSettingsStatus:
     return save_settings(settings)
+
+
+@app.get("/api/voice/settings", response_model=VoiceSettingsStatus)
+async def read_voice_settings() -> VoiceSettingsStatus:
+    return get_voice_settings()
+
+
+@app.put("/api/voice/settings", response_model=VoiceSettingsStatus)
+async def update_voice_settings(settings: VoiceSettingsInput) -> VoiceSettingsStatus:
+    try:
+        return save_voice_settings(settings)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/voice/template", response_model=VoiceSettingsStatus)
+async def upload_voice_template(file: UploadFile = File(...)) -> VoiceSettingsStatus:
+    if not (file.filename or "").lower().endswith(".ymmp"):
+        raise HTTPException(400, "请选择 .ymmp 配音模板")
+    try:
+        return install_template(await file.read())
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/voice/jobs", response_model=VoiceJobStatus)
+async def create_voice_job(request: VoiceSynthesisRequest) -> VoiceJobStatus:
+    try:
+        return await start_voice_job(request.text, request.force)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/api/voice/jobs/{job_id}", response_model=VoiceJobStatus)
+async def read_voice_job(job_id: str) -> VoiceJobStatus:
+    try:
+        return get_voice_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(404, "配音任务不存在") from exc
+
+
+@app.delete("/api/voice/jobs/{job_id}", response_model=VoiceJobStatus)
+async def delete_voice_job(job_id: str) -> VoiceJobStatus:
+    try:
+        return await cancel_voice_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(404, "配音任务不存在") from exc
 
 
 @app.get("/api/library", response_model=LibrarySnapshot | None)

@@ -135,3 +135,21 @@ export interface ApiSettings {
   model: string
   hasStoredApiKey: boolean
 }
+
+export interface VoiceSettings {
+  ymmPath: string
+  ymmFound: boolean
+  templateFound: boolean
+  characterName: string
+  playbackRate: number
+  volume: number
+  ready: boolean
+}
+
+export interface VoiceJob {
+  id: string
+  status: 'queued' | 'running' | 'complete' | 'failed' | 'canceled'
+  message: string
+  audioUrl?: string | null
+  cached: boolean
+}

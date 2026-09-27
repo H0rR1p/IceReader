@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme } from './types'
+import type { AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme, VoiceJob, VoiceSettings } from './types'
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -37,6 +37,69 @@ export async function saveApiSettings(settings: ApiSettings): Promise<ApiSetting
   })
   const data = await parseResponse<{ base_url: string; model: string; has_api_key: boolean }>(response)
   return { apiKey: '', baseUrl: data.base_url, model: data.model, hasStoredApiKey: data.has_api_key }
+}
+
+function mapVoiceSettings(data: {
+  ymm_path: string; ymm_found: boolean; template_found: boolean; character_name: string
+  playback_rate: number; volume: number; ready: boolean
+}): VoiceSettings {
+  return {
+    ymmPath: data.ymm_path,
+    ymmFound: data.ymm_found,
+    templateFound: data.template_found,
+    characterName: data.character_name,
+    playbackRate: data.playback_rate,
+    volume: data.volume,
+    ready: data.ready,
+  }
+}
+
+export async function loadVoiceSettings(): Promise<VoiceSettings> {
+  return mapVoiceSettings(await parseResponse(await fetch('/api/voice/settings')))
+}
+
+export async function saveVoiceSettings(settings: Pick<VoiceSettings, 'ymmPath' | 'playbackRate' | 'volume'>): Promise<VoiceSettings> {
+  const response = await fetch('/api/voice/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ymm_path: settings.ymmPath, playback_rate: settings.playbackRate, volume: settings.volume }),
+  })
+  return mapVoiceSettings(await parseResponse(response))
+}
+
+export async function uploadVoiceTemplate(file: File): Promise<VoiceSettings> {
+  const form = new FormData()
+  form.append('file', file)
+  return mapVoiceSettings(await parseResponse(await fetch('/api/voice/template', { method: 'POST', body: form })))
+}
+
+function mapVoiceJob(data: {
+  id: string; status: VoiceJob['status']; message: string
+  audio_url?: string | null; cached: boolean
+}): VoiceJob {
+  return {
+    id: data.id,
+    status: data.status,
+    message: data.message,
+    audioUrl: data.audio_url,
+    cached: data.cached,
+  }
+}
+
+export async function startVoiceJob(text: string, force = false): Promise<VoiceJob> {
+  return mapVoiceJob(await parseResponse(await fetch('/api/voice/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, force }),
+  })))
+}
+
+export async function loadVoiceJob(jobId: string, signal?: AbortSignal): Promise<VoiceJob> {
+  return mapVoiceJob(await parseResponse(await fetch(`/api/voice/jobs/${encodeURIComponent(jobId)}`, { signal })))
+}
+
+export async function cancelVoiceJob(jobId: string): Promise<VoiceJob> {
+  return mapVoiceJob(await parseResponse(await fetch(`/api/voice/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' })))
 }
 
 export async function importPlainText(title: string, text: string): Promise<ImportedBook> {

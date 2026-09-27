@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { checkHealth, deleteBookCover, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, lookupDictionary, saveApiSettings, segmentChapter, uploadBookCover } from './api'
+import { cancelVoiceJob, checkHealth, deleteBookCover, explainSentence, importEpub, importPlainText, importYomitanDictionary, loadApiSettings, loadVoiceJob, loadVoiceSettings, lookupDictionary, saveApiSettings, saveVoiceSettings, segmentChapter, startVoiceJob, uploadBookCover, uploadVoiceTemplate } from './api'
 import { db, loadChapterData, loadStudyData, removeBook, restoreProjectIndex, syncRecords } from './db'
 import type {
   Annotation,
@@ -14,6 +14,8 @@ import type {
   Sentence,
   StudyCard,
   Token,
+  VoiceJob,
+  VoiceSettings,
 } from './types'
 
 const DEFAULT_SETTINGS: ApiSettings = {
@@ -21,6 +23,11 @@ const DEFAULT_SETTINGS: ApiSettings = {
   baseUrl: 'https://api.deepseek.com',
   model: 'deepseek-chat',
   hasStoredApiKey: false,
+}
+
+const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
+  ymmPath: '', ymmFound: false, templateFound: false, characterName: '',
+  playbackRate: 100, volume: 50, ready: false,
 }
 
 const ANNOTATION_LABELS: Record<Annotation['type'], string> = {
@@ -65,8 +72,10 @@ function App() {
   const [activeChapter, setActiveChapter] = useState<Chapter | null>(null)
   const [showImport, setShowImport] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [showStudyData, setShowStudyData] = useState(false)
   const [settings, setSettings] = useState<ApiSettings>(DEFAULT_SETTINGS)
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS)
   const [serverReady, setServerReady] = useState<boolean | null>(null)
   const [notice, setNotice] = useState('')
   const [backgroundJob, setBackgroundJob] = useState<BackgroundJob | null>(null)
@@ -108,6 +117,7 @@ function App() {
       .finally(() => { if (!controller.signal.aborted) setLibraryLoading(false) })
     void checkHealth().then(setServerReady)
     void loadApiSettings().then(setSettings).catch(() => undefined)
+    void loadVoiceSettings().then(setVoiceSettings).catch(() => undefined)
     return () => controller.abort()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -472,6 +482,7 @@ function App() {
         <div className="top-actions">
           <span className={`server-dot ${serverReady ? 'ready' : 'down'}`} title={serverReady ? '本地服务正常' : '本地服务未连接'} />
           <button className="button ghost" onClick={() => setShowStudyData(true)}>词库与词卡</button>
+          <button className="button ghost" onClick={() => setShowVoiceSettings(true)}>配音设置</button>
           <button className="button ghost" onClick={() => setShowSettings(true)}>AI 设置</button>
           <button className="button primary" onClick={() => setShowImport(true)}>导入书籍</button>
         </div>
@@ -500,6 +511,21 @@ function App() {
 
       {showImport && <ImportDialog onClose={() => setShowImport(false)} onImported={saveImportedBook} />}
       {showStudyData && <StudyDataDialog onClose={() => setShowStudyData(false)} />}
+      {showVoiceSettings && (
+        <VoiceSettingsDialog
+          value={voiceSettings}
+          onClose={() => setShowVoiceSettings(false)}
+          onSave={async (next, template) => {
+            let saved = await saveVoiceSettings(next)
+            if (template) saved = await uploadVoiceTemplate(template)
+            setVoiceSettings(saved)
+            setShowVoiceSettings(false)
+            setNotice(saved.ready
+              ? `配音设置已保存${saved.characterName ? `，当前角色：${saved.characterName}` : ''}。`
+              : '设置已保存；还需要有效的 YMM4 路径和配音模板。')
+          }}
+        />
+      )}
       {showSettings && (
         <SettingsDialog
           value={settings}
@@ -704,7 +730,12 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
   const [viewMode, setViewMode] = useState<'study' | 'original'>('study')
   const [readerLoading, setReaderLoading] = useState(true)
   const [visibleSentenceCount, setVisibleSentenceCount] = useState(120)
+  const [voiceJob, setVoiceJob] = useState<VoiceJob | null>(null)
+  const [voicePlaying, setVoicePlaying] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const voiceJobIdRef = useRef<string | null>(null)
+  const voicePollAbortRef = useRef<AbortController | null>(null)
+  const sentenceAudioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     let canceled = false
@@ -737,6 +768,12 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
     })
     return () => { canceled = true }
   }, [book.currentSentenceId, chapter.id, chapter.status, dataRevision])
+
+  useEffect(() => () => {
+    voicePollAbortRef.current?.abort()
+    sentenceAudioRef.current?.pause()
+    if (voiceJobIdRef.current) void cancelVoiceJob(voiceJobIdRef.current).catch(() => undefined)
+  }, [])
 
   const tokensBySentence = useMemo(() => {
     const map = new Map<string, Token[]>()
@@ -786,6 +823,82 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
     })).then((values) => { if (!controller.signal.aborted) setLexemesByToken(Object.fromEntries(values)) })
     return () => controller.abort()
   }, [selectedSentenceId, tokensBySentence, contextSenses])
+
+  useEffect(() => {
+    voicePollAbortRef.current?.abort()
+    voicePollAbortRef.current = null
+    sentenceAudioRef.current?.pause()
+    sentenceAudioRef.current = null
+    setVoicePlaying(false)
+    setVoiceJob(null)
+    const runningId = voiceJobIdRef.current
+    voiceJobIdRef.current = null
+    if (runningId) void cancelVoiceJob(runningId).catch(() => undefined)
+  }, [selectedSentenceId])
+
+  function playVoiceAudio(url: string) {
+    sentenceAudioRef.current?.pause()
+    const audio = new Audio(`${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`)
+    sentenceAudioRef.current = audio
+    audio.addEventListener('play', () => setVoicePlaying(true))
+    audio.addEventListener('pause', () => setVoicePlaying(false))
+    audio.addEventListener('ended', () => setVoicePlaying(false))
+    void audio.play().catch((error) => onNotice(error instanceof Error ? error.message : String(error)))
+  }
+
+  async function waitForVoice(initial: VoiceJob) {
+    let current = initial
+    setVoiceJob(current)
+    if (current.status === 'complete' && current.audioUrl) {
+      voiceJobIdRef.current = null
+      playVoiceAudio(current.audioUrl)
+      return
+    }
+    const controller = new AbortController()
+    voicePollAbortRef.current?.abort()
+    voicePollAbortRef.current = controller
+    while (!controller.signal.aborted && (current.status === 'queued' || current.status === 'running')) {
+      await new Promise((resolve) => window.setTimeout(resolve, 500))
+      current = await loadVoiceJob(current.id, controller.signal)
+      setVoiceJob(current)
+    }
+    if (current.status === 'complete' && current.audioUrl) {
+      voiceJobIdRef.current = null
+      playVoiceAudio(current.audioUrl)
+    }
+  }
+
+  async function synthesizeVoice(force = false) {
+    if (!selectedSentence || voiceJob?.status === 'queued' || voiceJob?.status === 'running') return
+    try {
+      const job = await startVoiceJob(selectedSentence.original, force)
+      voiceJobIdRef.current = job.status === 'complete' ? null : job.id
+      await waitForVoice(job)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      const message = error instanceof Error ? error.message : String(error)
+      setVoiceJob({ id: '', status: 'failed', message, cached: false })
+    }
+  }
+
+  async function cancelCurrentVoice() {
+    voicePollAbortRef.current?.abort()
+    const jobId = voiceJobIdRef.current
+    if (!jobId) return
+    try {
+      const canceled = await cancelVoiceJob(jobId)
+      setVoiceJob(canceled)
+    } finally {
+      voiceJobIdRef.current = null
+    }
+  }
+
+  function toggleVoicePlayback() {
+    const audio = sentenceAudioRef.current
+    if (!audio) return
+    if (audio.paused) void audio.play()
+    else audio.pause()
+  }
 
   async function selectSentence(sentence: Sentence) {
     setSelectedSentenceId(sentence.id)
@@ -929,6 +1042,17 @@ function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroun
             <button className="button primary full explain-button" disabled={explaining} onClick={() => void explainCurrentSentence()}>
               {explaining ? '正在释义…' : sentenceExplained ? '重新释义本句' : '释义本句'}
             </button>
+            <div className="voice-controls" aria-live="polite">
+              <div className="voice-actions">
+                <button className="button full" disabled={voiceJob?.status === 'queued' || voiceJob?.status === 'running'} onClick={() => void synthesizeVoice(false)}>
+                  {voiceJob?.status === 'queued' ? '等待配音…' : voiceJob?.status === 'running' ? '正在配音…' : voiceJob?.status === 'complete' ? '再次播放' : '配音本句'}
+                </button>
+                {voiceJob?.status === 'complete' && <button className="button small" onClick={toggleVoicePlayback}>{voicePlaying ? '暂停' : '播放'}</button>}
+                {(voiceJob?.status === 'queued' || voiceJob?.status === 'running') && <button className="button small" onClick={() => void cancelCurrentVoice()}>取消</button>}
+                {voiceJob?.status === 'complete' && <button className="text-button" onClick={() => void synthesizeVoice(true)}>重新生成</button>}
+              </div>
+              {voiceJob && <small className={`voice-status ${voiceJob.status}`}>{voiceJob.message}{voiceJob.cached ? ' · 缓存' : ''}</small>}
+            </div>
             {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
             {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
             {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCard} />}
@@ -1085,6 +1209,42 @@ function SettingsDialog({ value, onClose, onSave }: { value: ApiSettings; onClos
       <label className="field"><span>OpenAI 兼容 Base URL</span><input value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} /></label>
       <label className="field"><span>模型</span><input value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} /></label>
       <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={!canSave} onClick={save}>应用</button></div>
+    </Modal>
+  )
+}
+
+function VoiceSettingsDialog({ value, onClose, onSave }: {
+  value: VoiceSettings
+  onClose: () => void
+  onSave: (next: Pick<VoiceSettings, 'ymmPath' | 'playbackRate' | 'volume'>, template: File | null) => void | Promise<void>
+}) {
+  const [draft, setDraft] = useState(value)
+  const [template, setTemplate] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  async function save() {
+    setSaving(true)
+    setError('')
+    try {
+      await onSave(draft, template)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <Modal title="YMM4 配音设置" onClose={onClose}>
+      <div className="privacy-note"><strong>本机后台配音</strong><p>冰读调用 YMM4 官方命令行，并沿用 YMM4 已保存的“PNG + WAV 序列导出”设置。模板中的角色和音色会被保留。</p></div>
+      <label className="field"><span>YukkuriMovieMaker.exe 路径</span><input value={draft.ymmPath} onChange={(event) => setDraft({ ...draft, ymmPath: event.target.value })} placeholder="留空时自动查找工作区内的幻想乡口音剪辑器" /></label>
+      <label className="field"><span>配音模板（.ymmp）</span><input type="file" accept=".ymmp" onChange={(event) => setTemplate(event.target.files?.[0] ?? null)} /></label>
+      <p className="setting-status">YMM4：{value.ymmFound ? '已找到' : '未找到'}　模板：{value.templateFound ? `已导入${value.characterName ? `（${value.characterName}）` : ''}` : '未导入'}</p>
+      <div className="voice-setting-grid">
+        <label className="field"><span>播放速度：{draft.playbackRate}%</span><input type="range" min="50" max="200" value={draft.playbackRate} onChange={(event) => setDraft({ ...draft, playbackRate: Number(event.target.value) })} /></label>
+        <label className="field"><span>音量：{draft.volume}</span><input type="range" min="0" max="100" value={draft.volume} onChange={(event) => setDraft({ ...draft, volume: Number(event.target.value) })} /></label>
+      </div>
+      {error && <div className="error-box">{error}</div>}
+      <div className="modal-actions"><button className="button ghost" onClick={onClose}>取消</button><button className="button primary" disabled={saving} onClick={() => void save()}>{saving ? '正在保存…' : '应用'}</button></div>
     </Modal>
   )
 }

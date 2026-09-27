@@ -20,6 +20,35 @@ class LocalAiSettingsStatus(BaseModel):
     has_api_key: bool
 
 
+class VoiceSettingsInput(BaseModel):
+    ymm_path: str = ""
+    playback_rate: int = Field(default=100, ge=50, le=200)
+    volume: int = Field(default=50, ge=0, le=100)
+
+
+class VoiceSettingsStatus(BaseModel):
+    ymm_path: str
+    ymm_found: bool
+    template_found: bool
+    character_name: str = ""
+    playback_rate: int
+    volume: int
+    ready: bool
+
+
+class VoiceSynthesisRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    force: bool = False
+
+
+class VoiceJobStatus(BaseModel):
+    id: str
+    status: Literal["queued", "running", "complete", "failed", "canceled"]
+    message: str = ""
+    audio_url: str | None = None
+    cached: bool = False
+
+
 class LibrarySnapshot(BaseModel):
     books: list[dict] = Field(default_factory=list)
     chapters: list[dict] = Field(default_factory=list)

@@ -151,6 +151,12 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .panel-section h3, .dictionary-senses h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .panel-section > p { font-size: 14px; line-height: 1.75; }
 .explain-button { margin: 16px 0 6px; }
+.voice-controls { margin: 8px 0 6px; padding: 10px; border: 1px solid #c4dff1; border-radius: 10px; background: #f8fcff; }
+.voice-actions { display: flex; align-items: center; gap: 7px; }
+.voice-actions .button.full { flex: 1; width: auto; }
+.voice-status { display: block; margin-top: 7px; color: var(--muted); font-size: 10px; }
+.voice-status.complete { color: var(--accent-deep); }
+.voice-status.failed { color: #8b5365; }
 .annotation { border-left: 2px solid #76add3; padding-left: 12px; margin: 16px 0; }
 .annotation span { display: block; color: var(--accent); font-size: 10px; font-weight: 800; margin-bottom: 5px; }
 .annotation strong { font: 600 15px "Yu Mincho", serif; }
@@ -192,6 +198,8 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .button.danger-solid { border-color: var(--accent-deep); background: var(--accent-deep); color: white; }
 .privacy-note { padding: 12px 14px; border-radius: 9px; background: #e2f1fd; color: #426e90; }
 .privacy-note p { margin: 4px 0 0; line-height: 1.5; font-size: 12px; }
+.setting-status { margin: 12px 0; color: var(--muted); font-size: 12px; }
+.voice-setting-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .tab-row { display: flex; gap: 5px; border-bottom: 1px solid var(--line); margin-bottom: 15px; }
 .tab-row button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 9px 12px; color: var(--muted); cursor: pointer; }
 .tab-row button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 750; }
