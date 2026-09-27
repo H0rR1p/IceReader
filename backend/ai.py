@@ -1,5 +1,11 @@
 import json
+import asyncio
+import logging
+import ssl
+import urllib.error
+import urllib.request
 
+import certifi
 import httpx
 
 
@@ -9,24 +15,53 @@ SYSTEM_PROMPT = """你是一名严谨的日语 N1 精读编辑。输出必须是
 """
 
 
+def _urllib_chat(url: str, api_key: str, payload: dict, timeout: float) -> dict:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    context = ssl.create_default_context(cafile=certifi.where())
+    try:
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[-800:]
+        if exc.code == 401:
+            raise RuntimeError("DeepSeek 拒绝了 API Key（401），请检查密钥是否有效或是否已失效") from exc
+        raise RuntimeError(f"AI 服务返回 {exc.code}：{detail}") from exc
+    return json.loads(body["choices"][0]["message"]["content"])
+
+
 async def _chat_json(api_key: str, base_url: str, model: str, system: str, prompt: str, timeout: float = 120.0) -> dict:
     url = base_url.rstrip("/") + "/chat/completions"
-    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
-        response = await client.post(
-            url,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": model,
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.1,
-            },
-        )
-        if response.status_code == 401:
-            raise RuntimeError("DeepSeek 拒绝了 API Key（401），请检查密钥是否有效或是否已失效")
-        response.raise_for_status()
-        body = response.json()
-    return json.loads(body["choices"][0]["message"]["content"])
+    payload = {
+        "model": model,
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.1,
+    }
+    transport = httpx.AsyncHTTPTransport(retries=2, local_address="0.0.0.0")
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), transport=transport, trust_env=False) as client:
+            response = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=payload,
+            )
+            if response.status_code == 401:
+                raise RuntimeError("DeepSeek 拒绝了 API Key（401），请检查密钥是否有效或是否已失效")
+            response.raise_for_status()
+            body = response.json()
+        return json.loads(body["choices"][0]["message"]["content"])
+    except (httpx.ConnectError, httpx.ConnectTimeout) as primary_error:
+        logging.getLogger(__name__).warning("httpx AI connection failed; trying urllib fallback: %r", primary_error)
+        try:
+            return await asyncio.to_thread(_urllib_chat, url, api_key, payload, timeout)
+        except Exception as fallback_error:
+            logging.getLogger(__name__).exception("Both AI connection paths failed")
+            raise RuntimeError(f"无法连接 AI 服务：{fallback_error}") from fallback_error
 
 
 async def review_sentence_boundaries(

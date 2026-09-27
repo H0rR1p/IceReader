@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>x64</Platforms>
+    <AssemblyName>BingduYmmBridge</AssemblyName>
+    <Version>0.1.0</Version>
+    <YmmDir Condition="'$(YmmDir)' == ''">$(MSBuildProjectDirectory)/../幻想乡口音剪辑器</YmmDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="YukkuriMovieMaker.Plugin">
+      <HintPath>$(YmmDir)/YukkuriMovieMaker.Plugin.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="$(YmmDir)/NAudio*.dll"><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

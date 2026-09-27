@@ -12,6 +12,7 @@ npm run build
     --name "bingdu" `
     --icon "$root\assets\bingdu.ico" `
     --add-data "$root\dist;dist" `
+    --add-data "$root\assets\ymm4-bridge;ymm4-bridge" `
     --collect-all sudachidict_core `
     --collect-all sudachipy `
     --distpath ".\build\release" `

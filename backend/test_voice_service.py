@@ -1,5 +1,6 @@
 import asyncio
 import json
+import struct
 
 from . import voice_service
 from .models import VoiceSettingsInput
@@ -32,7 +33,7 @@ def _paths(tmp_path, monkeypatch):
     monkeypatch.setattr(voice_service, "TEMPLATE_PATH", voice_dir / "template.ymmp")
 
 
-def test_template_install_and_sentence_replacement(tmp_path, monkeypatch):
+def test_template_install_reads_character_and_settings(tmp_path, monkeypatch):
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
     fake_ymm.write_bytes(b"exe")
@@ -41,13 +42,8 @@ def test_template_install_and_sentence_replacement(tmp_path, monkeypatch):
 
     assert status.ready is True
     assert status.character_name == "琪露诺"
-    project = voice_service.render_project("今日は晴れです。", 125, 72)
-    item = project["Timelines"][0]["Items"][0]
-    assert item["Serif"] == "今日は晴れです。"
-    assert item["Hatsuon"] == "今日は晴れです。"
-    assert item["VoiceCache"] == ""
-    assert item["PlaybackRate2"]["Values"][0]["Value"] == 125.0
-    assert item["Volume"]["Values"][0]["Value"] == 72.0
+    assert status.playback_rate == 125
+    assert status.volume == 72
 
 
 def test_cached_voice_does_not_start_ymm(tmp_path, monkeypatch):
@@ -66,3 +62,50 @@ def test_cached_voice_does_not_start_ymm(tmp_path, monkeypatch):
     assert job.status == "complete"
     assert job.cached is True
     assert job.audio_url == f"/api/voice/audio/{key}.wav"
+
+
+def test_trim_float_wave_removes_trailing_silence(tmp_path):
+    sample_rate = 1000
+    active = [0.1] * 1000
+    silence = [0.0] * 2000
+    payload = struct.pack("<" + "f" * len(active + silence), *(active + silence))
+    fmt = struct.pack("<HHIIHH", 3, 1, sample_rate, sample_rate * 4, 4, 32)
+    raw = b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt + b"data" + struct.pack("<I", len(payload)) + payload
+    path = tmp_path / "voice.wav"
+    path.write_bytes(b"RIFF" + struct.pack("<I", len(raw)) + raw)
+
+    duration = voice_service._trim_wave(path, tail_seconds=0.25)
+
+    assert 1.24 <= duration <= 1.26
+    assert len(path.read_bytes()) < len(raw) + 8
+
+
+def test_bridge_voice_job_completes_and_caches_real_audio(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
+    fake_ymm.write_bytes(b"exe")
+    voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm)))
+    voice_service.install_template(_template())
+
+    def fake_synthesis(text, character, output, settings):
+        assert text == "今日は晴れです。"
+        assert character == "琪露诺"
+        sample_rate = 1000
+        samples = [1200] * 700 + [0] * 300
+        payload = struct.pack("<" + "h" * len(samples), *samples)
+        fmt = struct.pack("<HHIIHH", 1, 1, sample_rate, sample_rate * 2, 2, 16)
+        raw = b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt + b"data" + struct.pack("<I", len(payload)) + payload
+        output.write_bytes(b"RIFF" + struct.pack("<I", len(raw)) + raw)
+
+    monkeypatch.setattr(voice_service, "_synthesize_with_bridge", fake_synthesis)
+
+    async def run_job():
+        started = await voice_service.start_voice_job("今日は晴れです。")
+        await voice_service._jobs[started.id].task
+        return voice_service.get_voice_job(started.id)
+
+    result = asyncio.run(run_job())
+
+    assert result.status == "complete"
+    assert result.audio_url and result.audio_url.endswith(".wav")
+    assert result.cached is False

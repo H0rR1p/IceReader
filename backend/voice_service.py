@@ -3,13 +3,18 @@ import hashlib
 import json
 import os
 import shutil
+import struct
+import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
 from .models import VoiceJobStatus, VoiceSettingsInput, VoiceSettingsStatus
-from .paths import DATA_DIR, PROJECT_ROOT
+from .paths import DATA_DIR, PROJECT_ROOT, resource_path
 
 
 VOICE_DIR = DATA_DIR / "voice"
@@ -18,6 +23,8 @@ JOBS_DIR = VOICE_DIR / "jobs"
 SETTINGS_PATH = VOICE_DIR / "settings.json"
 TEMPLATE_PATH = VOICE_DIR / "template.ymmp"
 YMM_DIRECTORY_NAME = "幻想乡口音剪辑器"
+CACHE_VERSION = b"voice-v3-ymm-bridge"
+BRIDGE_CONNECTION_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "BingduYmmBridge" / "connection.json"
 
 
 @dataclass
@@ -157,36 +164,156 @@ def install_template(payload: bytes) -> VoiceSettingsStatus:
     return get_voice_settings()
 
 
-def _set_animated_value(container: dict | None, value: float) -> None:
-    if not isinstance(container, dict):
-        return
-    values = container.get("Values")
-    if isinstance(values, list) and values and isinstance(values[0], dict):
-        values[0]["Value"] = value
-
-
-def render_project(text: str, playback_rate: int, volume: int) -> dict:
-    project = _read_template()
-    item = _voice_item(project)
-    item["Serif"] = text
-    item["Hatsuon"] = text
-    item["VoiceCache"] = ""
-    item["VoiceLength"] = "00:00:00"
-    item["Length"] = 1
-    _set_animated_value(item.get("PlaybackRate2"), float(playback_rate))
-    _set_animated_value(item.get("Volume"), float(volume))
-    for timeline in project.get("Timelines", []):
-        timeline["CurrentFrame"] = 0
-        timeline["Length"] = 1
-    return project
-
-
 def _cache_key(text: str, settings: VoiceSettingsStatus) -> str:
     digest = hashlib.sha256()
+    digest.update(CACHE_VERSION)
     digest.update(text.strip().encode("utf-8"))
     digest.update(TEMPLATE_PATH.read_bytes())
     digest.update(f"{settings.playback_rate}:{settings.volume}".encode("ascii"))
     return digest.hexdigest()
+
+
+def _trim_wave(path: Path, tail_seconds: float = 0.25) -> float:
+    """Trim trailing digital silence from PCM/float WAV and return duration."""
+    raw = path.read_bytes()
+    if len(raw) < 44 or raw[:4] != b"RIFF" or raw[8:12] != b"WAVE":
+        raise RuntimeError("YMM4 输出的 WAV 格式不正确")
+    offset = 12
+    fmt: tuple[int, int, int, int, int] | None = None
+    data_chunk: tuple[int, int, int] | None = None
+    while offset + 8 <= len(raw):
+        chunk_id = raw[offset:offset + 4]
+        size = struct.unpack_from("<I", raw, offset + 4)[0]
+        start = offset + 8
+        end = min(start + size, len(raw))
+        if chunk_id == b"fmt " and size >= 16:
+            audio_format, channels, sample_rate, _, block_align, bits = struct.unpack_from("<HHIIHH", raw, start)
+            fmt = (audio_format, channels, sample_rate, block_align, bits)
+        elif chunk_id == b"data":
+            data_chunk = (offset, start, end)
+            break
+        offset = start + size + (size & 1)
+    if not fmt or not data_chunk:
+        raise RuntimeError("YMM4 输出的 WAV 缺少音频数据")
+    audio_format, channels, sample_rate, block_align, bits = fmt
+    chunk_offset, data_start, data_end = data_chunk
+    if channels <= 0 or sample_rate <= 0 or block_align <= 0:
+        raise RuntimeError("YMM4 输出的 WAV 参数不正确")
+    payload = raw[data_start:data_end]
+    frame_count = len(payload) // block_align
+    if frame_count <= 0:
+        raise RuntimeError("YMM4 输出了空 WAV")
+
+    last_active = -1
+    if audio_format == 3 and bits == 32:
+        for frame in range(frame_count - 1, -1, -1):
+            values = struct.unpack_from("<" + "f" * channels, payload, frame * block_align)
+            if any(abs(value) > 0.0005 for value in values):
+                last_active = frame
+                break
+    elif audio_format == 1 and bits == 16:
+        for frame in range(frame_count - 1, -1, -1):
+            values = struct.unpack_from("<" + "h" * channels, payload, frame * block_align)
+            if any(abs(value) > 24 for value in values):
+                last_active = frame
+                break
+    else:
+        return frame_count / sample_rate
+    if last_active < 0:
+        raise RuntimeError("YMM4 输出的 WAV 中没有可播放声音")
+
+    keep_frames = min(frame_count, last_active + 1 + int(sample_rate * tail_seconds))
+    keep_size = keep_frames * block_align
+    suffix_start = data_end + ((data_end - data_start) & 1)
+    trimmed_payload = payload[:keep_size]
+    padded_payload = trimmed_payload + (b"\0" if keep_size & 1 else b"")
+    rebuilt = bytearray(raw[:chunk_offset])
+    rebuilt.extend(b"data")
+    rebuilt.extend(struct.pack("<I", keep_size))
+    rebuilt.extend(padded_payload)
+    rebuilt.extend(raw[suffix_start:])
+    struct.pack_into("<I", rebuilt, 4, len(rebuilt) - 8)
+    temporary = path.with_suffix(".trim.tmp")
+    temporary.write_bytes(rebuilt)
+    temporary.replace(path)
+    return keep_frames / sample_rate
+
+
+def _bridge_request(method: str, path: str, payload: dict | None = None, timeout: float = 5.0) -> dict:
+    connection = json.loads(BRIDGE_CONNECTION_PATH.read_text(encoding="utf-8"))
+    base = str(connection["api_base"]).rstrip("/")
+    body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        base + path,
+        data=body,
+        method=method,
+        headers={
+            "X-Bingdu-Token": str(connection["token"]),
+            "Content-Type": "application/json; charset=utf-8",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = json.loads(exc.read().decode("utf-8")).get("error")
+        except (ValueError, AttributeError):
+            detail = None
+        raise RuntimeError(str(detail or f"YMM4 配音桥返回 {exc.code}")) from exc
+
+
+def _bridge_ready() -> bool:
+    try:
+        status = _bridge_request("GET", "/status")
+        return status.get("success") is True and status.get("app") == "bingdu-ymm-bridge"
+    except (OSError, ValueError, KeyError, RuntimeError, json.JSONDecodeError, urllib.error.URLError):
+        return False
+
+
+def _ensure_bridge(settings: VoiceSettingsStatus) -> None:
+    if _bridge_ready():
+        return
+    source = resource_path("ymm4-bridge")
+    if not (source / "BingduYmmBridge.dll").is_file():
+        source = PROJECT_ROOT / "assets" / "ymm4-bridge"
+    target = Path(settings.ymm_path).parent / "user" / "plugin" / "BingduYmmBridge"
+    if not source.is_dir():
+        raise RuntimeError("冰读安装包缺少 YMM4 配音桥")
+    target.mkdir(parents=True, exist_ok=True)
+    try:
+        for name in ("BingduYmmBridge.dll", "BingduYmmBridge.deps.json"):
+            shutil.copy2(source / name, target / name)
+    except PermissionError as exc:
+        raise RuntimeError("配音桥需要更新，请先保存项目并完全退出 YMM4 后重试") from exc
+    subprocess.Popen(
+        [settings.ymm_path, str(TEMPLATE_PATH)],
+        cwd=str(Path(settings.ymm_path).parent),
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if _bridge_ready():
+            return
+        time.sleep(0.5)
+    raise RuntimeError("无法连接冰读 YMM4 配音桥，请保存并重启 YMM4 后重试")
+
+
+def _synthesize_with_bridge(text: str, character: str, output: Path, settings: VoiceSettingsStatus) -> None:
+    _ensure_bridge(settings)
+    result = _bridge_request("POST", "/synthesize", {
+        "text": text,
+        "character": character,
+        "output": str(output.resolve()),
+        "playback_rate": settings.playback_rate,
+        "volume": settings.volume,
+    }, timeout=140)
+    if result.get("success") is not True:
+        raise RuntimeError(str(result.get("error") or "YMM4 配音桥合成失败"))
+    if not output.is_file():
+        raise RuntimeError("YMM4 配音桥未输出 WAV 文件")
 
 
 def _status(job: _VoiceJob) -> VoiceJobStatus:
@@ -227,40 +354,21 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
                 return
             job.status, job.message = "running", "YMM4 正在生成语音"
             job_dir.mkdir(parents=True, exist_ok=True)
-            project_path = job_dir / "sentence.ymmp"
-            output_dir = job_dir / "output"
-            output_dir.mkdir()
-            project = render_project(text, settings.playback_rate, settings.volume)
-            project_path.write_text(json.dumps(project, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-            creation_flags = 0x08000000 if os.name == "nt" else 0
-            job.process = await asyncio.create_subprocess_exec(
-                settings.ymm_path,
-                "--encode", str(project_path),
-                "--output", str(output_dir),
-                cwd=str(Path(settings.ymm_path).parent),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                creationflags=creation_flags,
-            )
-            try:
-                output, _ = await asyncio.wait_for(job.process.communicate(), timeout=120)
-            except asyncio.TimeoutError as exc:
-                job.process.kill()
-                await job.process.wait()
-                raise RuntimeError("YMM4 配音超过 120 秒，任务已停止") from exc
+            output_file = job_dir / "voice.wav"
+            character = settings.character_name or ""
+            if not character:
+                raise RuntimeError("配音模板缺少角色名称，请重新导入有效的 YMM4 项目")
+            await asyncio.to_thread(_synthesize_with_bridge, text, character, output_file, settings)
             if job.cancel_requested:
                 job.status, job.message = "canceled", "配音任务已取消"
                 return
-            if job.process.returncode != 0:
-                detail = output.decode("utf-8", errors="replace").strip()[-600:]
-                raise RuntimeError(detail or f"YMM4 返回错误代码 {job.process.returncode}")
-            wav_files = sorted(output_dir.rglob("*.wav"))
-            if not wav_files:
-                raise RuntimeError("YMM4 已结束，但输出目录中没有 WAV 文件")
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             cache_file = CACHE_DIR / f"{cache_key}.wav"
             temporary = cache_file.with_suffix(".tmp")
-            shutil.copyfile(wav_files[0], temporary)
+            shutil.copyfile(output_file, temporary)
+            duration = _trim_wave(temporary)
+            if duration < 0.2:
+                raise RuntimeError("YMM4 配音桥生成的语音过短，请检查系统输出设备和 YMM4 预览音量")
             temporary.replace(cache_file)
             job.status = "complete"
             job.message = "配音已生成并保存到本地缓存"

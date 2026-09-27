@@ -14,3 +14,5 @@ vite.config.js
 vite.config.d.ts
 /冰读.exe
 /build/
+ymm4-bridge/bin/
+ymm4-bridge/obj/
