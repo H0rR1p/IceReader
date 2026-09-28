@@ -1,8 +1,28 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { Book } from '../../types'
 
 type Collection = { id: string; name: string; books: Book[] }
+
+function CoverArtwork({ src, className = '' }: { src?: string; className?: string }) {
+  const [attempt, setAttempt] = useState(0)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    setAttempt(0)
+    setFailed(false)
+  }, [src])
+  if (!src || failed) return null
+  const separator = src.includes('?') ? '&' : '?'
+  return <img
+    className={className}
+    src={attempt ? `${src}${separator}cover_retry=${attempt}` : src}
+    alt=""
+    onError={() => {
+      if (attempt === 0) window.setTimeout(() => setAttempt(1), 250)
+      else setFailed(true)
+    }}
+  />
+}
 
 export default function Library({
   books, loading, loadingBookId, onOpen, onDelete, onChangeCover, onImport,
@@ -129,7 +149,7 @@ export default function Library({
                   <span className="collection-previews" aria-hidden="true">
                     {collection.books.slice(0, 3).map((book, index) => (
                       <span className="collection-preview" style={{ '--preview-index': index } as CSSProperties} key={book.id}>
-                        {showCovers && book.coverUrl ? <img src={book.coverUrl} alt="" /> : <span />}
+                        {showCovers && book.coverUrl ? <CoverArtwork src={book.coverUrl} /> : <span />}
                       </span>
                     ))}
                   </span>
@@ -146,7 +166,7 @@ export default function Library({
               <article className="book-card" key={book.id}>
                 <button className="book-cover" disabled={Boolean(loadingBookId)} aria-label={`打开《${book.title}》`} onClick={() => onOpen(book)}>
                   <span className="book-cover-default" aria-hidden="true"><img src="/bingdu-logo.png" alt="" /></span>
-                  {showCovers && book.coverUrl && <img className="book-cover-image" src={book.coverUrl} alt="" onError={(event) => { event.currentTarget.hidden = true }} />}
+                  {showCovers && <CoverArtwork className="book-cover-image" src={book.coverUrl} />}
                 </button>
                 <div className="book-meta">
                   <button className="book-title" disabled={Boolean(loadingBookId)} onClick={() => onOpen(book)}>{book.title}</button>
