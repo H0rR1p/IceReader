@@ -27,6 +27,7 @@ export interface Book {
   collectionId?: string
   collectionName?: string
   translationComplete?: boolean
+  showImages?: boolean
 }
 
 export interface Chapter {

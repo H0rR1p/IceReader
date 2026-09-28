@@ -771,6 +771,14 @@ function App() {
     }
   }
 
+  async function setBookImageVisibility(book: Book, showImages: boolean) {
+    const next = { ...book, showImages, updatedAt: Date.now() }
+    await db.books.put(next)
+    await syncRecords({ books: [next] })
+    setBooks((current) => current.map((item) => item.id === book.id ? next : item))
+    setActiveBook((current) => current?.id === book.id ? next : current)
+  }
+
   async function saveBookCollection(collectionId: string, collectionName: string, bookIds: string[]) {
     const selected = new Set(bookIds)
     const affected = books.filter((book) => selected.has(book.id) || book.collectionId === collectionId)
@@ -874,6 +882,7 @@ function App() {
             setTranslationConcurrency(value)
             localStorage.setItem('bingdu-translation-concurrency', String(value))
           }}
+          onBookImageVisibility={(visible) => setBookImageVisibility(activeBook, visible)}
           onNotice={setNotice}
         />
       )}
@@ -913,7 +922,7 @@ function App() {
   )
 }
 
-function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onCancelBackground, translationMode, translationConcurrency, onTranslationModeChange, onTranslationConcurrencyChange, onNotice }: {
+function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onCancelBackground, translationMode, translationConcurrency, onTranslationModeChange, onTranslationConcurrencyChange, onBookImageVisibility, onNotice }: {
   book: Book
   activeChapter: Chapter | null
   loadingChapterId: string | null
@@ -929,20 +938,21 @@ function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onP
   translationConcurrency: number
   onTranslationModeChange: (mode: TranslationMode) => void
   onTranslationConcurrencyChange: (value: number) => void
+  onBookImageVisibility: (visible: boolean) => Promise<void>
   onNotice: (message: string) => void
 }) {
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [bookmarks, setBookmarks] = useState<SentenceBookmark[]>([])
   const [navMode, setNavMode] = useState<'chapters' | 'bookmarks'>('chapters')
   const [leftCollapsed, setLeftCollapsed] = useState(false)
-  const [showBookImages, setShowBookImages] = useState(() => localStorage.getItem(`bingdu-book-images:${book.id}`) === 'true')
+  const [showBookImages, setShowBookImages] = useState(() => book.showImages !== false)
   const load = useCallback(async () => {
     setChapters(await db.chapters.where('bookId').equals(book.id).sortBy('order'))
   }, [book.id, activeChapter?.status, backgroundJob?.completed, dataRevision])
   useEffect(() => { void load() }, [load])
   useEffect(() => {
-    setShowBookImages(localStorage.getItem(`bingdu-book-images:${book.id}`) === 'true')
-  }, [book.id])
+    setShowBookImages(book.showImages !== false)
+  }, [book.id, book.showImages])
   useEffect(() => {
     const controller = new AbortController()
     void loadBookBookmarks(book.id, controller.signal)
@@ -1004,7 +1014,10 @@ function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onP
             <input type="checkbox" checked={showBookImages} onChange={(event) => {
               const visible = event.target.checked
               setShowBookImages(visible)
-              localStorage.setItem(`bingdu-book-images:${book.id}`, String(visible))
+              void onBookImageVisibility(visible).catch((error) => {
+                setShowBookImages(!visible)
+                onNotice(error instanceof Error ? error.message : String(error))
+              })
             }} />
             <span><strong>显示全书插图</strong><small>{showBookImages ? '换节后继续显示' : '当前全书隐藏'}</small></span>
           </label>
