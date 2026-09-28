@@ -906,6 +906,10 @@ function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onP
     if (target) onSelectChapter(target, bookmark.sentenceId)
   }
 
+  const activeChapterIndex = activeChapter ? chapters.findIndex((chapter) => chapter.id === activeChapter.id) : -1
+  const previousChapter = activeChapterIndex > 0 ? chapters[activeChapterIndex - 1] : null
+  const nextChapter = activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1 ? chapters[activeChapterIndex + 1] : null
+
   return (
     <div className={`workspace ${leftCollapsed ? 'left-collapsed' : ''}`}>
       <aside className="chapter-nav">
@@ -947,6 +951,10 @@ function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onP
           <Reader
             book={book}
             chapter={activeChapter}
+            previousChapter={previousChapter}
+            nextChapter={nextChapter}
+            chapterNavigationLoading={Boolean(loadingChapterId)}
+            onNavigateChapter={onSelectChapter}
             onNotice={onNotice}
             onRetry={() => onProcessChapter(activeChapter)}
             onExplainSentence={onExplainSentence}

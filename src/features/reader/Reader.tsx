@@ -25,9 +25,13 @@ function containsKanji(value: string) {
   return /[一-龯々]/.test(value)
 }
 
-export default function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground, bookmarks, onToggleBookmark }: {
+export default function Reader({ book, chapter, previousChapter, nextChapter, chapterNavigationLoading, onNavigateChapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground, bookmarks, onToggleBookmark }: {
   book: Book
   chapter: Chapter
+  previousChapter: Chapter | null
+  nextChapter: Chapter | null
+  chapterNavigationLoading: boolean
+  onNavigateChapter: (chapter: Chapter) => void
   onNotice: (message: string) => void
   onRetry: () => void
   onExplainSentence: (sentence: Sentence, tokens: Token[], persist?: boolean, signal?: AbortSignal, annotationMode?: 'none' | 'grammar') => Promise<AnalyzeResponse>
@@ -387,6 +391,12 @@ export default function Reader({ book, chapter, onNotice, onRetry, onExplainSent
     return <p key={block.id} className="book-block paragraph">{content}</p>
   }
 
+  function navigateChapter(target: Chapter | null) {
+    if (!target || chapterNavigationLoading) return
+    window.scrollTo({ top: 0 })
+    onNavigateChapter(target)
+  }
+
   return (
     <div className={`reader-layout ${rightCollapsed ? 'right-collapsed' : ''}`}>
       <article className="reader-pane">
@@ -411,6 +421,14 @@ export default function Reader({ book, chapter, onNotice, onRetry, onExplainSent
               {chapter.blocks?.length ? chapter.blocks.map(renderBlock) : sentences.length ? visibleSentences.map(renderSentence) : chapter.text}
               {visibleSentenceCount < sentences.length && <div ref={loadMoreRef} className="load-more-sentinel">继续加载 · {visibleSentenceCount}/{sentences.length}</div>}
             </div>}
+        {!readerLoading && <nav className="chapter-page-navigation" aria-label="章节翻页">
+          <button type="button" disabled={!previousChapter || chapterNavigationLoading} onClick={() => navigateChapter(previousChapter)}>
+            <span>← 上一节</span><small>{previousChapter?.title ?? '已经是第一节'}</small>
+          </button>
+          <button type="button" disabled={!nextChapter || chapterNavigationLoading} onClick={() => navigateChapter(nextChapter)}>
+            <span>下一节 →</span><small>{nextChapter?.title ?? '已经是最后一节'}</small>
+          </button>
+        </nav>}
       </article>
       <aside className="study-panel">
         <button className="sidebar-collapse right" type="button" aria-label={rightCollapsed ? '展开右侧栏' : '收起右侧栏'} title={rightCollapsed ? '展开右侧栏' : '收起右侧栏'} onClick={() => setRightCollapsed((value) => !value)}>{rightCollapsed ? '‹' : '›'}</button>
