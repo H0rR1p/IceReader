@@ -82,8 +82,38 @@ def load_library_index() -> LibraryIndex:
     _migrate_legacy()
     with _connect() as connection:
         chapters = _load_rows(connection, "chapters")
+        translation_rows = connection.execute(
+            """
+            SELECT json_extract(payload, '$.chapter_id') AS chapter_id,
+                   COUNT(*) AS sentence_count,
+                   SUM(CASE
+                         WHEN TRIM(COALESCE(json_extract(payload, '$.translation_zh'), '')) != ''
+                          AND COALESCE(json_extract(payload, '$.explanation_status'), 'idle') = 'complete'
+                         THEN 1 ELSE 0 END) AS translated_count
+            FROM records
+            WHERE table_name = 'sentences'
+            GROUP BY chapter_id
+            """
+        ).fetchall()
+        progress_by_chapter = {
+            str(chapter_id): (int(sentence_count), int(translated_count or 0))
+            for chapter_id, sentence_count, translated_count in translation_rows
+        }
+        chapters_by_book: dict[str, list[dict]] = {}
+        for chapter in chapters:
+            if str(chapter.get("text", "")).strip():
+                chapters_by_book.setdefault(str(chapter.get("bookId", "")), []).append(chapter)
+        books = _load_rows(connection, "books")
+        for book in books:
+            text_chapters = chapters_by_book.get(str(book.get("id", "")), [])
+            book["translationComplete"] = bool(text_chapters) and all(
+                progress_by_chapter.get(str(chapter.get("id", "")), (0, 0))[0] > 0
+                and progress_by_chapter.get(str(chapter.get("id", "")), (0, 0))[0]
+                == progress_by_chapter.get(str(chapter.get("id", "")), (0, 0))[1]
+                for chapter in text_chapters
+            )
         return LibraryIndex(
-            books=_load_rows(connection, "books"),
+            books=books,
             chapters=[{
                 key: row[key] for key in ("id", "bookId", "title", "order", "status", "error") if key in row
             } for row in chapters],

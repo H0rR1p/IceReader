@@ -25,12 +25,13 @@ function containsKanji(value: string) {
   return /[一-龯々]/.test(value)
 }
 
-export default function Reader({ book, chapter, previousChapter, nextChapter, chapterNavigationLoading, onNavigateChapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground, bookmarks, onToggleBookmark }: {
+export default function Reader({ book, chapter, previousChapter, nextChapter, chapterNavigationLoading, showImages, onNavigateChapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground, bookmarks, onToggleBookmark }: {
   book: Book
   chapter: Chapter
   previousChapter: Chapter | null
   nextChapter: Chapter | null
   chapterNavigationLoading: boolean
+  showImages: boolean
   onNavigateChapter: (chapter: Chapter) => void
   onNotice: (message: string) => void
   onRetry: () => void
@@ -52,7 +53,6 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
   const [explainError, setExplainError] = useState('')
   const [showFurigana, setShowFurigana] = useState(true)
   const [showAnnotations, setShowAnnotations] = useState(true)
-  const [showImages, setShowImages] = useState(false)
   const [viewMode, setViewMode] = useState<'study' | 'original'>('study')
   const [readerLoading, setReaderLoading] = useState(true)
   const [visibleSentenceCount, setVisibleSentenceCount] = useState(120)
@@ -405,7 +405,6 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
           <div className="display-toggles">
             {chapter.originalHtmlUrl && <button className={`mode-button ${viewMode === 'original' ? 'active' : ''}`} onClick={() => setViewMode(viewMode === 'study' ? 'original' : 'study')}>{viewMode === 'study' ? '原书预览' : '冰读模式'}</button>}
             <Toggle label="振假名" value={showFurigana} onChange={setShowFurigana} />
-            <Toggle label="插图" value={showImages} onChange={setShowImages} />
             <Toggle label="语法" value={showAnnotations} onChange={setShowAnnotations} />
           </div>
         </div>

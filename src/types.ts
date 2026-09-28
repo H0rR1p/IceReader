@@ -24,6 +24,9 @@ export interface Book {
   updatedAt: number
   currentChapterId?: string
   currentSentenceId?: string
+  collectionId?: string
+  collectionName?: string
+  translationComplete?: boolean
 }
 
 export interface Chapter {

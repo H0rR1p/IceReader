@@ -236,8 +236,12 @@ function App() {
     })
     await syncRecords({ books: [book], chapters, sentences, tokens })
     setShowImport(false)
-    setActiveBook(book)
-    setActiveChapter(chapters[0])
+    navigationAbortRef.current?.abort()
+    navigationAbortRef.current = null
+    setLoadingBookId(null)
+    setLoadingChapterId(null)
+    setActiveBook(null)
+    setActiveChapter(null)
     if (imported.import_report) {
       const report = imported.import_report
       setNotice(`导入完成：${report.imported_sections} 节、${report.images} 张原图。打开需要阅读的章节后再单独切分。`)
@@ -458,6 +462,27 @@ function App() {
       result, items.flatMap((item) => item.tokens), persist, signal, false,
       detailMode === 'full', onDeferred,
     )
+  }
+
+  async function updateBookTranslationStatus(bookId: string) {
+    const textChapters = (await db.chapters.where('bookId').equals(bookId).toArray())
+      .filter((chapter) => chapter.text.trim())
+    let complete = textChapters.length > 0
+    for (const chapter of textChapters) {
+      const sentences = await db.sentences.where('chapter_id').equals(chapter.id).toArray()
+      if (!sentences.length || sentences.some((sentence) =>
+        !sentence.translation_zh.trim() || sentence.explanation_status !== 'complete')) {
+        complete = false
+        break
+      }
+    }
+    const stored = await db.books.get(bookId)
+    if (!stored || stored.translationComplete === complete) return
+    const next = { ...stored, translationComplete: complete, updatedAt: Date.now() }
+    await db.books.put(next)
+    await syncRecords({ books: [next] })
+    setActiveBook((current) => current?.id === bookId ? next : current)
+    await refreshBooks()
   }
 
   async function runBackground(kind: BackgroundJob['kind'], scope: BackgroundJob['scope'], chapter?: Chapter) {
@@ -695,6 +720,7 @@ function App() {
         nothingToTranslate = discovered === 0
       }
 
+      if (kind === 'translate' && scope === 'book') await updateBookTranslationStatus(activeBook.id)
       setDataRevision((value) => value + 1)
       setBackgroundJob(null)
       setNotice(nothingToTranslate
@@ -745,6 +771,41 @@ function App() {
     }
   }
 
+  async function saveBookCollection(collectionId: string, collectionName: string, bookIds: string[]) {
+    const selected = new Set(bookIds)
+    const affected = books.filter((book) => selected.has(book.id) || book.collectionId === collectionId)
+    const updated = affected.map((book) => {
+      const next: Book = { ...book, updatedAt: Date.now() }
+      if (selected.has(book.id)) {
+        next.collectionId = collectionId
+        next.collectionName = collectionName
+      } else {
+        delete next.collectionId
+        delete next.collectionName
+      }
+      return next
+    })
+    await db.books.bulkPut(updated)
+    await syncRecords({ books: updated })
+    await refreshBooks()
+    setNotice(`合集“${collectionName}”已保存。`)
+  }
+
+  async function dissolveBookCollection(collectionId: string) {
+    const members = books.filter((book) => book.collectionId === collectionId).map((book) => {
+      const next: Book = { ...book, updatedAt: Date.now() }
+      delete next.collectionId
+      delete next.collectionName
+      return next
+    })
+    if (members.length) {
+      await db.books.bulkPut(members)
+      await syncRecords({ books: members })
+    }
+    await refreshBooks()
+    setNotice('合集已解散，书籍仍保留在书架中。')
+  }
+
   function bounceLogoAndOpenLibrary() {
     navigationAbortRef.current?.abort()
     navigationAbortRef.current = null
@@ -779,7 +840,17 @@ function App() {
       {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
 
       {!activeBook ? (
-        <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} />
+        <Library
+          books={books}
+          loading={libraryLoading}
+          loadingBookId={loadingBookId}
+          onOpen={openBook}
+          onDelete={deleteBook}
+          onChangeCover={changeBookCover}
+          onImport={() => setShowImport(true)}
+          onSaveCollection={saveBookCollection}
+          onDissolveCollection={dissolveBookCollection}
+        />
       ) : (
         <Workspace
           book={activeBook}
@@ -864,10 +935,14 @@ function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onP
   const [bookmarks, setBookmarks] = useState<SentenceBookmark[]>([])
   const [navMode, setNavMode] = useState<'chapters' | 'bookmarks'>('chapters')
   const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [showBookImages, setShowBookImages] = useState(() => localStorage.getItem(`bingdu-book-images:${book.id}`) === 'true')
   const load = useCallback(async () => {
     setChapters(await db.chapters.where('bookId').equals(book.id).sortBy('order'))
   }, [book.id, activeChapter?.status, backgroundJob?.completed, dataRevision])
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    setShowBookImages(localStorage.getItem(`bingdu-book-images:${book.id}`) === 'true')
+  }, [book.id])
   useEffect(() => {
     const controller = new AbortController()
     void loadBookBookmarks(book.id, controller.signal)
@@ -925,6 +1000,14 @@ function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onP
             <label><span>并发</span><select disabled={backgroundJob?.running} value={translationConcurrency} onChange={(event) => onTranslationConcurrencyChange(Number(event.target.value))}>{Array.from({ length: 8 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label>
           </div>
           <p className="background-mode-hint">{translationMode === 'meaning' ? '只生成句意；词义与语法阅读时按需生成。' : '同时补充本地词典未命中的词义。'}</p>
+          <label className="book-image-setting">
+            <input type="checkbox" checked={showBookImages} onChange={(event) => {
+              const visible = event.target.checked
+              setShowBookImages(visible)
+              localStorage.setItem(`bingdu-book-images:${book.id}`, String(visible))
+            }} />
+            <span><strong>显示全书插图</strong><small>{showBookImages ? '换节后继续显示' : '当前全书隐藏'}</small></span>
+          </label>
           {backgroundJob && <BackgroundProgress job={backgroundJob} onCancel={onCancelBackground} />}
           <div className="nav-mode-tabs" role="tablist" aria-label="左侧栏模式">
             <button className={navMode === 'chapters' ? 'active' : ''} onClick={() => setNavMode('chapters')}>目录</button>
@@ -954,6 +1037,7 @@ function Workspace({ book, activeChapter, loadingChapterId, onSelectChapter, onP
             previousChapter={previousChapter}
             nextChapter={nextChapter}
             chapterNavigationLoading={Boolean(loadingChapterId)}
+            showImages={showBookImages}
             onNavigateChapter={onSelectChapter}
             onNotice={onNotice}
             onRetry={() => onProcessChapter(activeChapter)}

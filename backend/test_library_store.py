@@ -99,3 +99,26 @@ def test_translation_queue_is_stable_and_filters_by_detail(tmp_path, monkeypatch
     assert [item["sentence"]["id"] for item in second_full_page["items"]] == ["s2"]
     assert [token["id"] for token in second_full_page["items"][0]["tokens"]] == ["t2"]
     assert second_full_page["contextBefore"] == ["一。"]
+
+
+def test_library_index_marks_only_fully_translated_books(tmp_path, monkeypatch):
+    path = tmp_path / "data" / "library.sqlite3"
+    monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
+    library_store.apply_library_patch(LibraryPatch(upserts={
+        "books": [{"id": "book-1", "title": "test"}],
+        "chapters": [
+            {"id": "chapter-1", "bookId": "book-1", "text": "猫。", "order": 0},
+            {"id": "chapter-2", "bookId": "book-1", "text": "犬。", "order": 1},
+        ],
+        "sentences": [
+            {"id": "s1", "chapter_id": "chapter-1", "start": 0, "original": "猫。", "translation_zh": "猫。", "explanation_status": "complete", "explanation_detail": "meaning"},
+            {"id": "s2", "chapter_id": "chapter-2", "start": 0, "original": "犬。", "translation_zh": "", "explanation_status": "idle"},
+        ],
+    }))
+
+    assert library_store.load_library_index().books[0]["translationComplete"] is False
+
+    library_store.apply_library_patch(LibraryPatch(upserts={"sentences": [
+        {"id": "s2", "chapter_id": "chapter-2", "start": 0, "original": "犬。", "translation_zh": "狗。", "explanation_status": "complete", "explanation_detail": "meaning"},
+    ]}))
+    assert library_store.load_library_index().books[0]["translationComplete"] is True
