@@ -499,7 +499,7 @@ function App() {
 
         const primaryKeys: Record<string, string> = {
           books: 'id', chapters: 'id', sentences: 'id', tokens: 'id', annotations: 'id',
-          contextSenses: 'token_id', lexemes: 'key', cards: 'id', bookmarks: 'id',
+          contextSenses: 'token_id', lexemes: 'key', bookmarks: 'id',
         }
         const bufferedUpserts = new Map<string, Map<string, unknown>>()
         const bufferedDeletes = new Map<string, Set<string>>()
@@ -769,7 +769,7 @@ function App() {
         </button>
         <div className="top-actions">
           <span className={`server-dot ${serverReady ? 'ready' : 'down'}`} title={serverReady ? '本地服务正常' : '本地服务未连接'} />
-          <button className="button ghost" onClick={() => setShowStudyData(true)}>词库与词卡</button>
+          <button className="button ghost" onClick={() => setShowStudyData(true)}>个人词库</button>
           <button className="button ghost" onClick={() => setShowVoiceSettings(true)}>配音设置</button>
           <button className="button ghost" onClick={() => setShowSettings(true)}>AI 设置</button>
           <button className="button primary" onClick={() => setShowImport(true)}>导入书籍</button>

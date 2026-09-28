@@ -65,7 +65,6 @@ class LibrarySnapshot(BaseModel):
     annotations: list[dict] = Field(default_factory=list)
     contextSenses: list[dict] = Field(default_factory=list)
     lexemes: list[dict] = Field(default_factory=list)
-    cards: list[dict] = Field(default_factory=list)
     bookmarks: list[dict] = Field(default_factory=list)
 
 
@@ -85,7 +84,6 @@ class ChapterSnapshot(BaseModel):
 
 class StudyDataSnapshot(BaseModel):
     lexemes: list[dict] = Field(default_factory=list)
-    cards: list[dict] = Field(default_factory=list)
 
 
 class LibraryPatch(BaseModel):

@@ -8,19 +8,18 @@ LIBRARY_PATH = DATA_DIR / "library.sqlite3"
 LEGACY_PATH = DATA_DIR / "library.json"
 TABLE_KEYS = {
     "books": "id", "chapters": "id", "sentences": "id", "tokens": "id",
-    "annotations": "id", "contextSenses": "token_id", "lexemes": "key", "cards": "id",
+    "annotations": "id", "contextSenses": "token_id", "lexemes": "key",
     "bookmarks": "id",
 }
 OBSOLETE_INDEXES = {
     "idx_chapters_book_order", "idx_sentences_chapter_start", "idx_tokens_sentence",
-    "idx_annotations_sentence", "idx_cards_book", "idx_lexemes_reading_lemma",
+    "idx_annotations_sentence", "idx_cards_book", "idx_cards_book_v2", "idx_lexemes_reading_lemma",
     "idx_tokens_sentence_v2", "idx_annotations_sentence_v2",
 }
 INDEX_DEFINITIONS = {
     "idx_chapters_book_order_v2": "CREATE INDEX idx_chapters_book_order_v2 ON records(table_name, json_extract(payload, '$.bookId'), CAST(json_extract(payload, '$.order') AS INTEGER))",
     "idx_sentences_chapter_start_v2": "CREATE INDEX idx_sentences_chapter_start_v2 ON records(table_name, json_extract(payload, '$.chapter_id'), CAST(json_extract(payload, '$.start') AS INTEGER))",
     "idx_records_sentence_v2": "CREATE INDEX idx_records_sentence_v2 ON records(table_name, json_extract(payload, '$.sentence_id'))",
-    "idx_cards_book_v2": "CREATE INDEX idx_cards_book_v2 ON records(table_name, json_extract(payload, '$.bookId'))",
     "idx_lexemes_reading_lemma_v2": "CREATE INDEX idx_lexemes_reading_lemma_v2 ON records(table_name, json_extract(payload, '$.reading'), json_extract(payload, '$.lemma'))",
 }
 
@@ -40,6 +39,7 @@ def _connect() -> sqlite3.Connection:
     for obsolete_index in OBSOLETE_INDEXES & existing_indexes:
         connection.execute(f"DROP INDEX {obsolete_index}")
         existing_indexes.remove(obsolete_index)
+    connection.execute("DELETE FROM records WHERE table_name = 'cards'")
     # Include table_name in each expression index. SQLite may prefer the
     # records primary key over a partial expression index for a large IN (...)
     # predicate; these composite indexes remain usable for both = and IN.
@@ -307,7 +307,6 @@ def load_study_data() -> StudyDataSnapshot:
     with _connect() as connection:
         return StudyDataSnapshot(
             lexemes=_load_rows(connection, "lexemes"),
-            cards=_load_rows(connection, "cards"),
         )
 
 
@@ -401,7 +400,6 @@ def delete_book(book_id: str) -> dict[str, int]:
             connection.execute(
                 f"DELETE FROM records WHERE table_name = 'chapters' AND record_key IN ({placeholders})", chapter_ids,
             )
-        connection.execute("DELETE FROM records WHERE table_name = 'cards' AND json_extract(payload, '$.bookId') = ?", (book_id,))
         connection.execute("DELETE FROM records WHERE table_name = 'bookmarks' AND json_extract(payload, '$.bookId') = ?", (book_id,))
         connection.execute("DELETE FROM records WHERE table_name = 'books' AND record_key = ?", (book_id,))
     return {"chapters": len(chapter_ids), "sentences": len(sentence_ids), "tokens": len(token_ids)}

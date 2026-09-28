@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Annotation, Book, Chapter, ContextSense, Lexeme, Sentence, SentenceBookmark, StudyCard, Token } from './types'
+import type { Annotation, Book, Chapter, ContextSense, Lexeme, Sentence, SentenceBookmark, Token } from './types'
 
 class ReaderDatabase extends Dexie {
   books!: EntityTable<Book, 'id'>
@@ -9,7 +9,6 @@ class ReaderDatabase extends Dexie {
   annotations!: EntityTable<Annotation, 'id'>
   contextSenses!: EntityTable<ContextSense, 'token_id'>
   lexemes!: EntityTable<Lexeme, 'key'>
-  cards!: EntityTable<StudyCard, 'id'>
   bookmarks!: EntityTable<SentenceBookmark, 'id'>
 
   constructor() {
@@ -49,12 +48,23 @@ class ReaderDatabase extends Dexie {
       cards: 'id, lexemeKey, bookId, chapterId, createdAt',
       bookmarks: 'id, bookId, chapterId, sentenceId, [bookId+chapterOrder+sentenceStart], createdAt',
     })
+    this.version(4).stores({
+      books: 'id, updatedAt, title',
+      chapters: 'id, bookId, [bookId+order], status',
+      sentences: 'id, chapter_id, [chapter_id+start]',
+      tokens: 'id, sentence_id, lexemeKey',
+      annotations: 'id, sentence_id',
+      contextSenses: 'token_id',
+      lexemes: 'key, lemma, reading, firstKana, part_of_speech, correctedByUser',
+      cards: null,
+      bookmarks: 'id, bookId, chapterId, sentenceId, [bookId+chapterOrder+sentenceStart], createdAt',
+    })
   }
 }
 
 export const db = new ReaderDatabase()
 
-const DATA_TABLES = ['books', 'chapters', 'sentences', 'tokens', 'annotations', 'contextSenses', 'lexemes', 'cards', 'bookmarks'] as const
+const DATA_TABLES = ['books', 'chapters', 'sentences', 'tokens', 'annotations', 'contextSenses', 'lexemes', 'bookmarks'] as const
 export type DataTableName = typeof DATA_TABLES[number]
 export type RecordChanges = Partial<Record<DataTableName, unknown[]>>
 export type RecordDeletes = Partial<Record<DataTableName, string[]>>
@@ -148,13 +158,11 @@ export async function loadChapterDetails(chapterId: string, offset: number, limi
 }
 
 export async function loadStudyData(signal?: AbortSignal) {
-  const response = await expectOk(await fetch('/api/library/study-data', { signal }), '无法读取词库与词卡')
-  const snapshot = await response.json() as { lexemes: Lexeme[]; cards: StudyCard[] }
-  await db.transaction('rw', [db.lexemes, db.cards], async () => {
+  const response = await expectOk(await fetch('/api/library/study-data', { signal }), '无法读取个人词库')
+  const snapshot = await response.json() as { lexemes: Lexeme[] }
+  await db.transaction('rw', db.lexemes, async () => {
     await db.lexemes.clear()
-    await db.cards.clear()
     if (snapshot.lexemes.length) await db.lexemes.bulkPut(snapshot.lexemes)
-    if (snapshot.cards.length) await db.cards.bulkPut(snapshot.cards)
   })
   return snapshot
 }
@@ -177,12 +185,11 @@ export async function removeBook(bookId: string) {
   const sentences = await db.sentences.where('chapter_id').anyOf(chapterIds).toArray()
   const sentenceIds = sentences.map((sentence) => sentence.id)
   const tokens = await db.tokens.where('sentence_id').anyOf(sentenceIds).toArray()
-  await db.transaction('rw', [db.books, db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.cards, db.bookmarks], async () => {
+  await db.transaction('rw', [db.books, db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.bookmarks], async () => {
     await db.contextSenses.bulkDelete(tokens.map((token) => token.id))
     await db.annotations.where('sentence_id').anyOf(sentenceIds).delete()
     await db.tokens.where('sentence_id').anyOf(sentenceIds).delete()
     await db.sentences.where('chapter_id').anyOf(chapterIds).delete()
-    await db.cards.where('bookId').equals(bookId).delete()
     await db.bookmarks.where('bookId').equals(bookId).delete()
     await db.chapters.where('bookId').equals(bookId).delete()
     await db.books.delete(bookId)

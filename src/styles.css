@@ -191,7 +191,6 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .voice-status.complete { color: var(--accent-deep); }
 .voice-status.failed { color: #8b5365; }
 .dictionary-actions { display: flex; align-items: center; gap: 6px; }
-.card-voice-actions { display: flex; align-items: center; gap: 6px; }
 .fixed-setting strong { min-height: 38px; display: flex; align-items: center; color: var(--text); font-size: 13px; }
 .annotation { border-left: 2px solid #76add3; padding-left: 12px; margin: 16px 0; }
 .annotation span { display: block; color: var(--accent); font-size: 10px; font-weight: 800; margin-bottom: 5px; }
@@ -259,8 +258,6 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .data-list article span, .data-list article small { color: var(--muted); font-size: 11px; }
 .data-list article p { margin: 6px 0; font-size: 13px; line-height: 1.55; }
 .data-list blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid #76add3; font: 13px/1.6 "Yu Mincho", serif; }
-.data-list article > .card-title-row { align-items: center; justify-content: space-between; }
-.card-word { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 
 @media (max-width: 980px) {
   .reader-layout { grid-template-columns: minmax(0, 1fr) 320px; }

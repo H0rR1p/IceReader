@@ -105,23 +105,6 @@ export interface Lexeme {
   correctedByUser?: boolean
 }
 
-export interface StudyCard {
-  id: string
-  lexemeKey: string
-  tokenId: string
-  bookId: string
-  chapterId: string
-  sentenceId: string
-  surface: string
-  lemma: string
-  reading: string
-  glossZh: string
-  sentence: string
-  translationZh: string
-  sourceLabel: string
-  createdAt: number
-}
-
 export interface SentenceBookmark {
   id: string
   bookId: string

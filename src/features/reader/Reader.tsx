@@ -11,7 +11,6 @@ import type {
   Lexeme,
   Sentence,
   SentenceBookmark,
-  StudyCard,
   Token,
   VoiceJob,
 } from '../../types'
@@ -24,10 +23,6 @@ type ReaderBackgroundJob = {
 
 function containsKanji(value: string) {
   return /[一-龯々]/.test(value)
-}
-
-function newId(prefix: string) {
-  return `${prefix}_${crypto.randomUUID()}`
 }
 
 export default function Reader({ book, chapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground, bookmarks, onToggleBookmark }: {
@@ -356,20 +351,6 @@ export default function Reader({ book, chapter, onNotice, onRetry, onExplainSent
     }
   }
 
-  async function addCard() {
-    if (!selectedToken || !selectedSentence) return
-    const card: StudyCard = {
-      id: newId('card'), lexemeKey: selectedToken.lexemeKey, tokenId: selectedToken.id,
-      bookId: book.id, chapterId: chapter.id, sentenceId: selectedSentence.id,
-      surface: selectedToken.surface, lemma: selectedToken.lemma, reading: selectedToken.reading,
-      glossZh: currentSense?.gloss_zh || lexeme?.senses_zh.join('；') || '',
-      sentence: selectedSentence.original, translationZh: selectedSentence.translation_zh,
-      sourceLabel: `${book.title} · ${chapter.title}`, createdAt: Date.now(),
-    }
-    await db.cards.put(card)
-    await syncRecords({ cards: [card] })
-  }
-
   const renderSentence = (sentence: Sentence) => (
     <button
       key={sentence.id}
@@ -458,7 +439,7 @@ export default function Reader({ book, chapter, onNotice, onRetry, onExplainSent
             </div>
             {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
             {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
-            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCard} />}
+            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} />}
             {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>语法句法</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>语法结构</span><strong>{note.structure || note.quote}</strong><small className="annotation-quote" lang="ja">{note.quote}</small><p>{note.explanation_zh}</p></div>)}</section>}
           </>
         ) : <p className="muted">选择一个句子开始冰读。</p>}
@@ -468,9 +449,9 @@ export default function Reader({ book, chapter, onNotice, onRetry, onExplainSent
   )
 }
 
-function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
+function DictionaryCard({ token, lexeme, contextGloss, onSave }: {
   token: Token; lexeme: Lexeme | null; contextGloss: string
-  onSave: (senses: string[]) => void; onAddCard: () => void
+  onSave: (senses: string[]) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
@@ -529,7 +510,7 @@ function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
   }
   return (
     <section className="dictionary-card">
-      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}<button className="button small" onClick={() => void onAddCard()}>加入词卡</button></div></div>
+      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}</div></div>
       {wordVoice?.status === 'failed' && <small className="voice-status failed">{wordVoice.message}</small>}
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
