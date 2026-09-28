@@ -27,6 +27,10 @@ def test_parse_epub_accepts_uploaded_bytes(tmp_path, monkeypatch):
     assert "吾輩は猫である。" in imported.chapters[0].text
     assert [block.type for block in imported.chapters[0].blocks] == ["heading", "paragraph"]
     assert imported.chapters[0].original_html_url
+    managed_book_dirs = [path for path in (tmp_path / "books").iterdir() if path.is_dir()]
+    assert len(managed_book_dirs) == 1
+    assert (managed_book_dirs[0] / "source" / "book.epub").read_bytes() == source.read_bytes()
+    assert (managed_book_dirs[0] / "source" / "filename.txt").read_text(encoding="utf-8") == "sample.epub"
 
 
 def test_parse_epub_reads_top_level_kobo_spans_without_ruby_duplication(tmp_path, monkeypatch):

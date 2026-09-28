@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme, VoiceJob, VoiceSettings } from './types'
+import type { AiUsageSummary, AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme, Sentence, Token, TranslationQueuePage, VoiceJob, VoiceSettings } from './types'
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -25,18 +25,43 @@ export async function checkHealth(): Promise<boolean> {
 
 export async function loadApiSettings(): Promise<ApiSettings> {
   const response = await fetch('/api/settings')
-  const data = await parseResponse<{ base_url: string; model: string; has_api_key: boolean }>(response)
-  return { apiKey: '', baseUrl: data.base_url, model: data.model, hasStoredApiKey: data.has_api_key }
+  const data = await parseResponse<{
+    base_url: string; model: string; has_api_key: boolean
+    cache_hit_usd_per_million: number; cache_miss_usd_per_million: number; output_usd_per_million: number
+  }>(response)
+  return {
+    apiKey: '', baseUrl: data.base_url, model: data.model, hasStoredApiKey: data.has_api_key,
+    cacheHitUsdPerMillion: data.cache_hit_usd_per_million,
+    cacheMissUsdPerMillion: data.cache_miss_usd_per_million,
+    outputUsdPerMillion: data.output_usd_per_million,
+  }
 }
 
 export async function saveApiSettings(settings: ApiSettings): Promise<ApiSettings> {
   const response = await fetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: settings.apiKey || null, base_url: settings.baseUrl, model: settings.model }),
+    body: JSON.stringify({
+      api_key: settings.apiKey || null, base_url: settings.baseUrl, model: settings.model,
+      cache_hit_usd_per_million: settings.cacheHitUsdPerMillion,
+      cache_miss_usd_per_million: settings.cacheMissUsdPerMillion,
+      output_usd_per_million: settings.outputUsdPerMillion,
+    }),
   })
-  const data = await parseResponse<{ base_url: string; model: string; has_api_key: boolean }>(response)
-  return { apiKey: '', baseUrl: data.base_url, model: data.model, hasStoredApiKey: data.has_api_key }
+  const data = await parseResponse<{
+    base_url: string; model: string; has_api_key: boolean
+    cache_hit_usd_per_million: number; cache_miss_usd_per_million: number; output_usd_per_million: number
+  }>(response)
+  return {
+    apiKey: '', baseUrl: data.base_url, model: data.model, hasStoredApiKey: data.has_api_key,
+    cacheHitUsdPerMillion: data.cache_hit_usd_per_million,
+    cacheMissUsdPerMillion: data.cache_miss_usd_per_million,
+    outputUsdPerMillion: data.output_usd_per_million,
+  }
+}
+
+export async function loadAiUsage(): Promise<AiUsageSummary> {
+  return parseResponse(await fetch('/api/ai/usage'))
 }
 
 function mapVoiceSettings(data: {
@@ -158,6 +183,9 @@ export async function explainSentence(
   tokens: AnalyzeResponse['tokens'],
   settings: ApiSettings,
   signal?: AbortSignal,
+  annotationMode: 'none' | 'grammar' = 'none',
+  detailMode: 'meaning' | 'full' = 'full',
+  contextBefore: string[] = [],
 ): Promise<AnalyzeResponse> {
   const response = await fetch('/api/sentences/explain', {
     method: 'POST',
@@ -167,11 +195,63 @@ export async function explainSentence(
     body: JSON.stringify({
       sentence,
       tokens,
+      annotation_mode: annotationMode,
+      detail_mode: detailMode,
+      context_before: contextBefore,
       settings: { base_url: settings.baseUrl, model: settings.model },
     }),
     signal,
   })
   return parseResponse(response)
+}
+
+export async function explainSentences(
+  items: Array<{ sentence: Sentence; tokens: Token[] }>,
+  settings: ApiSettings,
+  annotationMode: 'none' | 'grammar' = 'none',
+  signal?: AbortSignal,
+  detailMode: 'meaning' | 'full' = 'full',
+  contextBefore: string[] = [],
+): Promise<AnalyzeResponse> {
+  const response = await fetch('/api/sentences/explain-batch', {
+    method: 'POST',
+    headers: settings.apiKey
+      ? { 'Content-Type': 'application/json', 'X-API-Key': settings.apiKey }
+      : { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      items: items.map(({ sentence, tokens }) => ({
+        sentence,
+        tokens: tokens.map(({ lexemeKey: _lexemeKey, ...token }) => token),
+      })),
+      annotation_mode: annotationMode,
+      detail_mode: detailMode,
+      context_before: contextBefore,
+      settings: { base_url: settings.baseUrl, model: settings.model },
+    }),
+    signal,
+  })
+  return parseResponse(response)
+}
+
+export async function loadTranslationQueue(
+  bookId: string,
+  chapterId: string,
+  detailMode: 'meaning' | 'full',
+  includeTokens: boolean,
+  cursor = '',
+  signal?: AbortSignal,
+): Promise<TranslationQueuePage> {
+  const params = new URLSearchParams({
+    chapter_id: chapterId,
+    detail_mode: detailMode,
+    include_tokens: String(includeTokens),
+    limit: '160',
+  })
+  if (cursor) params.set('cursor', cursor)
+  return parseResponse(await fetch(
+    `/api/library/books/${encodeURIComponent(bookId)}/translation-queue?${params}`,
+    { signal },
+  ))
 }
 
 export async function segmentChapter(chapterId: string, text: string, blocks: ContentBlock[], settings: ApiSettings, signal?: AbortSignal): Promise<AnalyzeResponse> {

@@ -12,12 +12,18 @@ class LocalAiSettingsInput(BaseModel):
     api_key: str | None = None
     base_url: HttpUrl = "https://api.deepseek.com"
     model: str = Field(default="deepseek-chat", min_length=1, max_length=100)
+    cache_hit_usd_per_million: float = Field(default=0, ge=0)
+    cache_miss_usd_per_million: float = Field(default=0, ge=0)
+    output_usd_per_million: float = Field(default=0, ge=0)
 
 
 class LocalAiSettingsStatus(BaseModel):
     base_url: str
     model: str
     has_api_key: bool
+    cache_hit_usd_per_million: float = 0
+    cache_miss_usd_per_million: float = 0
+    output_usd_per_million: float = 0
 
 
 class VoiceSettingsInput(BaseModel):
@@ -60,6 +66,7 @@ class LibrarySnapshot(BaseModel):
     contextSenses: list[dict] = Field(default_factory=list)
     lexemes: list[dict] = Field(default_factory=list)
     cards: list[dict] = Field(default_factory=list)
+    bookmarks: list[dict] = Field(default_factory=list)
 
 
 class LibraryIndex(BaseModel):
@@ -113,6 +120,7 @@ class AnnotationOut(BaseModel):
     anchor_start: int
     anchor_end: int
     quote: str
+    structure: str = ""
     explanation_zh: str
 
 
@@ -140,6 +148,7 @@ class SentenceOut(BaseModel):
     status: Literal["complete", "failed"] = "complete"
     error: str | None = None
     explanation_status: Literal["idle", "processing", "complete", "failed"] = "idle"
+    explanation_detail: Literal["meaning", "full"] | None = None
 
 
 class AnalyzeResponse(BaseModel):
@@ -154,6 +163,22 @@ class AnalyzeResponse(BaseModel):
 class ExplainSentenceRequest(BaseModel):
     sentence: SentenceOut
     tokens: list[TokenOut]
+    annotation_mode: Literal["none", "grammar"] = "none"
+    detail_mode: Literal["meaning", "full"] = "full"
+    context_before: list[str] = Field(default_factory=list, max_length=2)
+    settings: AiSettings = Field(default_factory=AiSettings)
+
+
+class ExplainBatchItem(BaseModel):
+    sentence: SentenceOut
+    tokens: list[TokenOut]
+
+
+class ExplainBatchRequest(BaseModel):
+    items: list[ExplainBatchItem] = Field(min_length=1, max_length=12)
+    annotation_mode: Literal["none", "grammar"] = "none"
+    detail_mode: Literal["meaning", "full"] = "full"
+    context_before: list[str] = Field(default_factory=list, max_length=2)
     settings: AiSettings = Field(default_factory=AiSettings)
 
 

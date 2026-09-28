@@ -48,6 +48,20 @@ export interface Sentence {
   status: 'complete' | 'failed'
   error?: string | null
   explanation_status?: 'idle' | 'processing' | 'complete' | 'failed'
+  explanation_detail?: 'meaning' | 'full' | null
+}
+
+export interface TranslationQueueItem {
+  sentence: Sentence
+  tokens: Token[]
+  chapterTitle: string
+  chapterOrder: number
+}
+
+export interface TranslationQueuePage {
+  items: TranslationQueueItem[]
+  nextCursor: string | null
+  contextBefore: string[]
 }
 
 export interface Token {
@@ -70,6 +84,7 @@ export interface Annotation {
   anchor_start: number
   anchor_end: number
   quote: string
+  structure?: string
   explanation_zh: string
 }
 
@@ -107,6 +122,18 @@ export interface StudyCard {
   createdAt: number
 }
 
+export interface SentenceBookmark {
+  id: string
+  bookId: string
+  chapterId: string
+  sentenceId: string
+  chapterTitle: string
+  chapterOrder: number
+  sentenceStart: number
+  text: string
+  createdAt: number
+}
+
 export interface ImportedBook {
   title: string
   author: string
@@ -134,6 +161,33 @@ export interface ApiSettings {
   baseUrl: string
   model: string
   hasStoredApiKey: boolean
+  cacheHitUsdPerMillion: number
+  cacheMissUsdPerMillion: number
+  outputUsdPerMillion: number
+}
+
+export interface AiUsageSummary {
+  requests: number
+  items: number
+  prompt_tokens: number
+  cache_hit_tokens: number
+  cache_miss_tokens: number
+  completion_tokens: number
+  duration_ms: number
+  failures: number
+  response_cache_entries: number
+  response_cache_hits: number
+  estimated_cost_usd: number
+  pricing_configured: boolean
+  operations: Array<{
+    operation: string
+    requests: number
+    items: number
+    cache_hit_tokens: number
+    cache_miss_tokens: number
+    completion_tokens: number
+    duration_ms: number
+  }>
 }
 
 export interface VoiceSettings {

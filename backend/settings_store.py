@@ -8,7 +8,7 @@ DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"
 
 
-def _read() -> dict[str, str]:
+def _read() -> dict:
     try:
         data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
@@ -22,6 +22,9 @@ def get_settings_status() -> LocalAiSettingsStatus:
         base_url=str(data.get("base_url") or DEFAULT_BASE_URL),
         model=str(data.get("model") or DEFAULT_MODEL),
         has_api_key=bool(data.get("api_key")),
+        cache_hit_usd_per_million=float(data.get("cache_hit_usd_per_million") or 0),
+        cache_miss_usd_per_million=float(data.get("cache_miss_usd_per_million") or 0),
+        output_usd_per_million=float(data.get("output_usd_per_million") or 0),
     )
 
 
@@ -32,6 +35,9 @@ def save_settings(incoming: LocalAiSettingsInput) -> LocalAiSettingsStatus:
         "api_key": api_key,
         "base_url": str(incoming.base_url).rstrip("/"),
         "model": incoming.model.strip(),
+        "cache_hit_usd_per_million": incoming.cache_hit_usd_per_million,
+        "cache_miss_usd_per_million": incoming.cache_miss_usd_per_million,
+        "output_usd_per_million": incoming.output_usd_per_million,
     }
     SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     temporary = SETTINGS_PATH.with_suffix(".tmp")
@@ -48,3 +54,12 @@ def resolve_settings(header_api_key: str | None, base_url: str, model: str) -> t
         str(stored.get("base_url") or base_url).rstrip("/"),
         str(stored.get("model") or model),
     )
+
+
+def get_pricing() -> dict[str, float]:
+    data = _read()
+    return {
+        "cache_hit": float(data.get("cache_hit_usd_per_million") or 0),
+        "cache_miss": float(data.get("cache_miss_usd_per_million") or 0),
+        "output": float(data.get("output_usd_per_million") or 0),
+    }

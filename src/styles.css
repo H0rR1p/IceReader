@@ -79,25 +79,47 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .cover-picker input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
 .cover-picker.disabled { opacity: .5; cursor: default; }
 .workspace { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: calc(100vh - 68px); }
+.workspace.left-collapsed { grid-template-columns: 46px minmax(0, 1fr); }
 .chapter-nav { background: linear-gradient(180deg, #e5f2fc, #f2f8fd); border-right: 1px solid var(--line); padding: 26px 18px; position: sticky; top: 68px; height: calc(100vh - 68px); overflow-y: auto; }
+.workspace.left-collapsed .chapter-nav { padding: 12px 6px; overflow: hidden; }
+.sidebar-collapse { width: 30px; height: 30px; border: 1px solid #b9d7ec; border-radius: 9px; background: #f8fcff; color: var(--accent-deep); cursor: pointer; display: grid; place-items: center; font-size: 20px; line-height: 1; }
+.sidebar-collapse:hover { background: var(--accent-soft); border-color: var(--accent); }
+.sidebar-collapse.left { margin: 0 0 12px auto; }
+.workspace.left-collapsed .sidebar-collapse.left { margin: 0 auto; }
 .book-heading { padding: 0 7px 20px; }
 .book-heading small { color: var(--muted); }
 .book-heading h2 { font: 600 21px "Yu Mincho", serif; margin: 7px 0 5px; }
 .book-heading p { margin: 0; color: var(--muted); font-size: 12px; }
 .book-background-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 0 7px; }
+.book-background-actions .button { padding-inline: 5px; font-size: 11px; white-space: nowrap; }
 .book-background-actions .button, .chapter-background-actions .button { border-color: #a4cae5; color: #3979a8; background: #f7fbff; }
 .book-background-actions .button:hover, .chapter-background-actions .button:hover { border-color: var(--accent); background: var(--accent-soft); }
 .book-background-actions .button:disabled, .chapter-background-actions .button:disabled { cursor: not-allowed; opacity: .48; }
+.background-options { display: grid; grid-template-columns: minmax(0, 1fr) 68px; gap: 7px; padding: 9px 7px 0; }
+.background-options label { display: grid; gap: 3px; color: var(--muted); font-size: 9px; }
+.background-options select { width: 100%; min-width: 0; border: 1px solid #b9d7ec; border-radius: 7px; padding: 5px 6px; background: #f8fcff; color: var(--accent-deep); font-size: 10px; }
+.background-options select:disabled { opacity: .55; }
+.background-mode-hint { margin: 6px 7px 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
 .background-progress { margin: 12px 7px 4px; padding: 10px; border: 1px solid #bfd9ec; border-radius: 9px; background: #f5faff; color: #426e90; }
 .background-progress > div { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; }
 .background-progress small { color: var(--muted); font-size: 10px; }
 .background-progress progress { display: block; width: 100%; height: 5px; margin: 8px 0 2px; accent-color: var(--accent); }
 .background-progress .background-progress-footer { align-items: center; margin-top: 5px; }
 .background-progress-footer button { border: 0; background: none; color: var(--accent-deep); padding: 1px 0; font-size: 10px; font-weight: 750; cursor: pointer; }
+.nav-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 16px 7px 8px; padding: 3px; border: 1px solid #c7dfef; border-radius: 9px; background: #f7fbff; }
+.nav-mode-tabs button { border: 0; border-radius: 6px; padding: 7px 5px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+.nav-mode-tabs button.active { background: #d9edfb; color: var(--accent-deep); font-weight: 750; }
+.nav-mode-tabs small { font-size: 9px; opacity: .75; }
 .chapter-nav nav { display: grid; gap: 5px; margin-top: 18px; }
+.chapter-nav .bookmark-list { margin-top: 8px; }
 .chapter-item { border: 0; background: transparent; border-radius: 8px; padding: 10px; cursor: pointer; text-align: left; display: grid; gap: 5px; }
 .chapter-item:hover, .chapter-item.active { background: var(--paper); }
 .chapter-item > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.bookmark-item { border: 0; border-radius: 8px; padding: 10px; background: transparent; color: var(--text); cursor: pointer; text-align: left; display: grid; gap: 5px; }
+.bookmark-item:hover, .bookmark-item.active { background: var(--paper); }
+.bookmark-item small { color: var(--accent); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bookmark-item span { font: 12px/1.55 "Yu Mincho", serif; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.empty-bookmarks { margin: 18px 10px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .status { font-size: 10px; color: var(--muted); }
 .status.complete { color: var(--green); }
 .status.failed, .status.partial-failed { color: var(--accent); }
@@ -116,6 +138,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .inline-warning button { border: 0; background: none; color: #3278aa; font-weight: 800; cursor: pointer; }
 .inline-warning button:disabled { cursor: not-allowed; opacity: .48; }
 .reader-layout { display: grid; grid-template-columns: minmax(430px, 1fr) 360px; min-height: calc(100vh - 68px); }
+.reader-layout.right-collapsed { grid-template-columns: minmax(430px, 1fr) 46px; }
 .reader-pane { background: var(--paper); padding: 38px clamp(28px, 5vw, 76px) 90px; min-width: 0; }
 .reader-toolbar { display: flex; justify-content: space-between; align-items: end; gap: 24px; border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 34px; }
 .reader-toolbar h1 { margin: 6px 0 0; font: 600 28px "Yu Mincho", serif; }
@@ -148,12 +171,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .token.content:hover, .token.content:focus, .token.selected { background: #c1e1f6; box-shadow: 0 0 0 2px #c1e1f6; }
 ruby { ruby-align: center; }
 rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; letter-spacing: 0; }
-.study-panel { border-left: 1px solid var(--line); background: #f2f8fe; padding: 30px 25px 70px; position: sticky; top: 68px; height: calc(100vh - 68px); overflow-y: auto; }
+.study-panel { border-left: 1px solid var(--line); background: #f2f8fe; padding: 18px 25px 70px; position: sticky; top: 68px; height: calc(100vh - 68px); overflow-y: auto; }
+.reader-layout.right-collapsed .study-panel { padding: 12px 6px; overflow: hidden; }
+.sidebar-collapse.right { margin: 0 0 14px auto; }
+.reader-layout.right-collapsed .sidebar-collapse.right { margin: 0 auto; }
+.panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sentence-bookmark { border: 1px solid #b7d7ed; border-radius: 8px; padding: 5px 8px; background: #f8fcff; color: var(--accent-deep); cursor: pointer; font-size: 11px; white-space: nowrap; }
+.sentence-bookmark.active { background: #d9edfb; border-color: #7eb6dc; }
 .panel-original { font: 18px/1.8 "Yu Mincho", serif; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .panel-section { margin-top: 25px; }
 .panel-section h3, .dictionary-senses h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .panel-section > p { font-size: 14px; line-height: 1.75; }
 .explain-button { margin: 16px 0 6px; }
+.grammar-analysis-button { margin: 0 0 8px; color: var(--accent-deep); border-color: #a9cee8; background: #f8fcff; }
 .voice-controls { margin: 8px 0 6px; padding: 10px; border: 1px solid #c4dff1; border-radius: 10px; background: #f8fcff; }
 .voice-actions { display: flex; align-items: center; gap: 7px; }
 .voice-actions .button.full { flex: 1; width: auto; }
@@ -166,6 +196,7 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .annotation { border-left: 2px solid #76add3; padding-left: 12px; margin: 16px 0; }
 .annotation span { display: block; color: var(--accent); font-size: 10px; font-weight: 800; margin-bottom: 5px; }
 .annotation strong { font: 600 15px "Yu Mincho", serif; }
+.annotation-quote { display: block; margin-top: 4px; color: var(--muted); font: 12px/1.5 "Yu Mincho", serif; }
 .annotation p { margin: 5px 0 0; line-height: 1.65; font-size: 13px; }
 .dictionary-card { margin: 24px -4px; padding: 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 7px 18px #376f9812; }
 .dictionary-head { display: flex; align-items: start; justify-content: space-between; gap: 15px; }
@@ -205,6 +236,13 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .privacy-note { padding: 12px 14px; border-radius: 9px; background: #e2f1fd; color: #426e90; }
 .privacy-note p { margin: 4px 0 0; line-height: 1.5; font-size: 12px; }
 .setting-status { margin: 12px 0; color: var(--muted); font-size: 12px; }
+.pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.usage-card { margin: 14px 0 4px; padding: 14px; border: 1px solid #bfdced; border-radius: 10px; background: #f2f9fe; }
+.usage-card > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.usage-card > div:first-child span, .usage-card small { color: var(--muted); font-size: 11px; }
+.usage-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 11px 0; }
+.usage-grid span { padding: 8px; border-radius: 7px; background: white; color: var(--muted); font-size: 10px; }
+.usage-grid b { display: block; margin-top: 3px; color: var(--text); font-size: 13px; }
 .voice-setting-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .tab-row { display: flex; gap: 5px; border-bottom: 1px solid var(--line); margin-bottom: 15px; }
 .tab-row button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 9px 12px; color: var(--muted); cursor: pointer; }
@@ -237,6 +275,7 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
   .chapter-nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 18px; }
   .chapter-nav nav { grid-auto-flow: column; grid-auto-columns: minmax(140px, 1fr); overflow-x: auto; }
   .reader-layout { display: block; }
+  .reader-layout.right-collapsed .study-panel { height: auto; min-height: 54px; }
   .study-panel { position: static; height: auto; border-left: 0; border-top: 1px solid var(--line); }
   .reader-toolbar, .page-heading { align-items: start; flex-direction: column; }
   .page-heading > p { text-align: left; }

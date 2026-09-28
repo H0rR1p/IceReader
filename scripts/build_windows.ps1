@@ -1,6 +1,27 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+
+function Copy-DirectoryContents {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [switch]$Verify
+    )
+    if (-not (Test-Path -LiteralPath $Source)) { return }
+    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    $sourceItems = Get-ChildItem -LiteralPath $Source -Force
+    foreach ($item in $sourceItems) {
+        Copy-Item -LiteralPath $item.FullName -Destination $Destination -Recurse -Force
+    }
+    if ($Verify) {
+        $sourceCount = (Get-ChildItem -LiteralPath $Source -Recurse -File -Force | Measure-Object).Count
+        $destinationCount = (Get-ChildItem -LiteralPath $Destination -Recurse -File -Force | Measure-Object).Count
+        if ($destinationCount -lt $sourceCount) {
+            throw "本地数据复制不完整：源文件 $sourceCount 个，目标文件 $destinationCount 个"
+        }
+    }
+}
 
 npm run build
 & ".\.venv64\Scripts\python.exe" ".\scripts\create_windows_icon.py"
@@ -39,7 +60,7 @@ if (Test-Path -LiteralPath $bundleOutput) {
         }
         # Copy the data snapshot before replacing the bundle. Moving a directory
         # containing SQLite WAL files can fail on Windows even after the app exits.
-        Copy-Item -LiteralPath $existingData -Destination $preservedData -Recurse -Force
+        Copy-DirectoryContents -Source $existingData -Destination $preservedData -Verify
     }
     Remove-Item -LiteralPath $bundleOutput -Recurse -Force
 }
@@ -47,10 +68,21 @@ Rename-Item -LiteralPath $executable -NewName ($bundleName + ".exe")
 Copy-Item -LiteralPath $bundleSource -Destination $bundleOutput -Recurse -Force
 Remove-Item -LiteralPath $bundleSource -Recurse -Force
 if (Test-Path -LiteralPath $preservedData) {
-    Copy-Item -LiteralPath $preservedData -Destination (Join-Path $bundleOutput "data") -Recurse -Force
+    Copy-DirectoryContents -Source $preservedData -Destination (Join-Path $bundleOutput "data") -Verify
     Remove-Item -LiteralPath $preservedData -Recurse -Force
 } elseif (Test-Path -LiteralPath (Join-Path $root "data")) {
-    Copy-Item -LiteralPath (Join-Path $root "data") -Destination (Join-Path $bundleOutput "data") -Recurse
+    Copy-DirectoryContents -Source (Join-Path $root "data") -Destination (Join-Path $bundleOutput "data") -Verify
+}
+
+# During development, also merge locally extracted EPUB resources into the
+# bundle. Database files and settings remain those preserved from the bundle.
+$projectBooks = Join-Path $root "data\books"
+if (Test-Path -LiteralPath $projectBooks) {
+    Copy-DirectoryContents -Source $projectBooks -Destination (Join-Path $bundleOutput "data\books")
+}
+& ".\.venv64\Scripts\python.exe" ".\scripts\validate_book_assets.py" (Join-Path $bundleOutput "data") --repair-previews
+if ($LASTEXITCODE -ne 0) {
+    throw "目录版数据引用了缺失的 EPUB 图片或预览文件，已停止构建"
 }
 
 $compiler64 = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"

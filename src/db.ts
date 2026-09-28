@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Annotation, Book, Chapter, ContextSense, Lexeme, Sentence, StudyCard, Token } from './types'
+import type { Annotation, Book, Chapter, ContextSense, Lexeme, Sentence, SentenceBookmark, StudyCard, Token } from './types'
 
 class ReaderDatabase extends Dexie {
   books!: EntityTable<Book, 'id'>
@@ -10,6 +10,7 @@ class ReaderDatabase extends Dexie {
   contextSenses!: EntityTable<ContextSense, 'token_id'>
   lexemes!: EntityTable<Lexeme, 'key'>
   cards!: EntityTable<StudyCard, 'id'>
+  bookmarks!: EntityTable<SentenceBookmark, 'id'>
 
   constructor() {
     super('nichidoku-reader')
@@ -37,12 +38,23 @@ class ReaderDatabase extends Dexie {
         lexeme.firstKana = lexeme.firstKana || lexeme.reading?.[0] || '未'
       })
     })
+    this.version(3).stores({
+      books: 'id, updatedAt, title',
+      chapters: 'id, bookId, [bookId+order], status',
+      sentences: 'id, chapter_id, [chapter_id+start]',
+      tokens: 'id, sentence_id, lexemeKey',
+      annotations: 'id, sentence_id',
+      contextSenses: 'token_id',
+      lexemes: 'key, lemma, reading, firstKana, part_of_speech, correctedByUser',
+      cards: 'id, lexemeKey, bookId, chapterId, createdAt',
+      bookmarks: 'id, bookId, chapterId, sentenceId, [bookId+chapterOrder+sentenceStart], createdAt',
+    })
   }
 }
 
 export const db = new ReaderDatabase()
 
-const DATA_TABLES = ['books', 'chapters', 'sentences', 'tokens', 'annotations', 'contextSenses', 'lexemes', 'cards'] as const
+const DATA_TABLES = ['books', 'chapters', 'sentences', 'tokens', 'annotations', 'contextSenses', 'lexemes', 'cards', 'bookmarks'] as const
 export type DataTableName = typeof DATA_TABLES[number]
 export type RecordChanges = Partial<Record<DataTableName, unknown[]>>
 export type RecordDeletes = Partial<Record<DataTableName, string[]>>
@@ -65,7 +77,13 @@ export async function syncRecords(upserts: RecordChanges = {}, deletes: RecordDe
 export async function restoreProjectIndex(signal?: AbortSignal) {
   const response = await expectOk(await fetch('/api/library/index', { signal }), '无法读取书籍索引')
   const snapshot = await response.json() as { books: Book[]; chapters: Array<Omit<Chapter, 'text' | 'blocks'> & Partial<Pick<Chapter, 'text' | 'blocks'>>> }
-  const chapters: Chapter[] = snapshot.chapters.map((chapter) => ({ ...chapter, text: '', blocks: [] }))
+  const cached = await db.chapters.bulkGet(snapshot.chapters.map((chapter) => chapter.id))
+  const chapters: Chapter[] = snapshot.chapters.map((chapter, index) => ({
+    ...chapter,
+    text: cached[index]?.text ?? chapter.text ?? '',
+    blocks: cached[index]?.blocks ?? chapter.blocks ?? [],
+    originalHtmlUrl: cached[index]?.originalHtmlUrl ?? chapter.originalHtmlUrl,
+  }))
   await db.transaction('rw', [db.books, db.chapters], async () => {
     await db.books.clear()
     await db.chapters.clear()
@@ -89,26 +107,44 @@ export async function loadChapterData(chapterId: string, signal?: AbortSignal) {
   }
   const chapter = snapshot.chapter
   if (!chapter) throw new Error('章节不存在或已被删除')
-  const oldSentences = await db.sentences.where('chapter_id').equals(chapterId).toArray()
-  const oldSentenceIds = oldSentences.map((sentence) => sentence.id)
-  const oldTokens = oldSentenceIds.length
-    ? await db.tokens.where('sentence_id').anyOf(oldSentenceIds).toArray()
-    : []
-  await db.transaction('rw', [db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.lexemes], async () => {
+  await db.transaction('rw', [db.chapters, db.sentences], async () => {
     await db.chapters.put(chapter)
-    if (oldTokens.length) await db.contextSenses.bulkDelete(oldTokens.map((token) => token.id))
-    if (oldSentenceIds.length) {
-      await db.annotations.where('sentence_id').anyOf(oldSentenceIds).delete()
-      await db.tokens.where('sentence_id').anyOf(oldSentenceIds).delete()
-      await db.sentences.bulkDelete(oldSentenceIds)
-    }
     if (snapshot.sentences.length) await db.sentences.bulkPut(snapshot.sentences)
+  })
+  return { ...snapshot, chapter }
+}
+
+export async function loadChapterDetails(chapterId: string, offset: number, limit: number, signal?: AbortSignal) {
+  const sentences = await db.sentences.where('chapter_id').equals(chapterId).sortBy('start')
+  const sentenceIds = sentences.slice(offset, offset + limit).map((sentence) => sentence.id)
+  const cachedTokens = sentenceIds.length
+    ? await db.tokens.where('sentence_id').anyOf(sentenceIds).toArray()
+    : []
+  const covered = new Set(cachedTokens.map((token) => token.sentence_id))
+  if (sentenceIds.length && sentenceIds.every((id) => covered.has(id))) {
+    const annotations = await db.annotations.where('sentence_id').anyOf(sentenceIds).toArray()
+    const tokenIds = cachedTokens.map((token) => token.id)
+    const contextSenses = tokenIds.length
+      ? await db.contextSenses.where('token_id').anyOf(tokenIds).toArray()
+      : []
+    return { offset, limit, sentence_ids: sentenceIds, tokens: cachedTokens, annotations, contextSenses, lexemes: [] as Lexeme[] }
+  }
+
+  const response = await expectOk(await fetch(
+    `/api/library/chapters/${encodeURIComponent(chapterId)}/details?offset=${offset}&limit=${limit}`,
+    { signal },
+  ), '无法读取章节词元')
+  const snapshot = await response.json() as {
+    offset: number; limit: number; sentence_ids: string[]; tokens: Token[]; annotations: Annotation[]
+    contextSenses: ContextSense[]; lexemes: Lexeme[]
+  }
+  await db.transaction('rw', [db.tokens, db.annotations, db.contextSenses, db.lexemes], async () => {
     if (snapshot.tokens.length) await db.tokens.bulkPut(snapshot.tokens)
     if (snapshot.annotations.length) await db.annotations.bulkPut(snapshot.annotations)
     if (snapshot.contextSenses.length) await db.contextSenses.bulkPut(snapshot.contextSenses)
     if (snapshot.lexemes.length) await db.lexemes.bulkPut(snapshot.lexemes)
   })
-  return { ...snapshot, chapter }
+  return snapshot
 }
 
 export async function loadStudyData(signal?: AbortSignal) {
@@ -123,6 +159,17 @@ export async function loadStudyData(signal?: AbortSignal) {
   return snapshot
 }
 
+export async function loadBookBookmarks(bookId: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ book_id: bookId })
+  const response = await expectOk(await fetch(`/api/library/bookmarks?${params}`, { signal }), '无法读取书签')
+  const bookmarks = await response.json() as SentenceBookmark[]
+  await db.transaction('rw', db.bookmarks, async () => {
+    await db.bookmarks.where('bookId').equals(bookId).delete()
+    if (bookmarks.length) await db.bookmarks.bulkPut(bookmarks)
+  })
+  return bookmarks
+}
+
 export async function removeBook(bookId: string) {
   await expectOk(await fetch(`/api/library/books/${encodeURIComponent(bookId)}`, { method: 'DELETE' }), '无法删除书籍')
   const chapters = await db.chapters.where('bookId').equals(bookId).toArray()
@@ -130,12 +177,13 @@ export async function removeBook(bookId: string) {
   const sentences = await db.sentences.where('chapter_id').anyOf(chapterIds).toArray()
   const sentenceIds = sentences.map((sentence) => sentence.id)
   const tokens = await db.tokens.where('sentence_id').anyOf(sentenceIds).toArray()
-  await db.transaction('rw', [db.books, db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.cards], async () => {
+  await db.transaction('rw', [db.books, db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.cards, db.bookmarks], async () => {
     await db.contextSenses.bulkDelete(tokens.map((token) => token.id))
     await db.annotations.where('sentence_id').anyOf(sentenceIds).delete()
     await db.tokens.where('sentence_id').anyOf(sentenceIds).delete()
     await db.sentences.where('chapter_id').anyOf(chapterIds).delete()
     await db.cards.where('bookId').equals(bookId).delete()
+    await db.bookmarks.where('bookId').equals(bookId).delete()
     await db.chapters.where('bookId').equals(bookId).delete()
     await db.books.delete(bookId)
   })

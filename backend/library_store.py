@@ -9,6 +9,19 @@ LEGACY_PATH = DATA_DIR / "library.json"
 TABLE_KEYS = {
     "books": "id", "chapters": "id", "sentences": "id", "tokens": "id",
     "annotations": "id", "contextSenses": "token_id", "lexemes": "key", "cards": "id",
+    "bookmarks": "id",
+}
+OBSOLETE_INDEXES = {
+    "idx_chapters_book_order", "idx_sentences_chapter_start", "idx_tokens_sentence",
+    "idx_annotations_sentence", "idx_cards_book", "idx_lexemes_reading_lemma",
+    "idx_tokens_sentence_v2", "idx_annotations_sentence_v2",
+}
+INDEX_DEFINITIONS = {
+    "idx_chapters_book_order_v2": "CREATE INDEX idx_chapters_book_order_v2 ON records(table_name, json_extract(payload, '$.bookId'), CAST(json_extract(payload, '$.order') AS INTEGER))",
+    "idx_sentences_chapter_start_v2": "CREATE INDEX idx_sentences_chapter_start_v2 ON records(table_name, json_extract(payload, '$.chapter_id'), CAST(json_extract(payload, '$.start') AS INTEGER))",
+    "idx_records_sentence_v2": "CREATE INDEX idx_records_sentence_v2 ON records(table_name, json_extract(payload, '$.sentence_id'))",
+    "idx_cards_book_v2": "CREATE INDEX idx_cards_book_v2 ON records(table_name, json_extract(payload, '$.bookId'))",
+    "idx_lexemes_reading_lemma_v2": "CREATE INDEX idx_lexemes_reading_lemma_v2 ON records(table_name, json_extract(payload, '$.reading'), json_extract(payload, '$.lemma'))",
 }
 
 
@@ -18,6 +31,21 @@ def _connect() -> sqlite3.Connection:
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA synchronous=NORMAL")
     connection.execute("CREATE TABLE IF NOT EXISTS records (table_name TEXT NOT NULL, record_key TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY (table_name, record_key))")
+    # The store keeps flexible JSON payloads, but chapter reads must not scan
+    # every token in a large library. SQLite expression indexes support these
+    # exact json_extract predicates and turn related-record lookups into seeks.
+    existing_indexes = {
+        row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'index'")
+    }
+    for obsolete_index in OBSOLETE_INDEXES & existing_indexes:
+        connection.execute(f"DROP INDEX {obsolete_index}")
+        existing_indexes.remove(obsolete_index)
+    # Include table_name in each expression index. SQLite may prefer the
+    # records primary key over a partial expression index for a large IN (...)
+    # predicate; these composite indexes remain usable for both = and IN.
+    for index_name, statement in INDEX_DEFINITIONS.items():
+        if index_name not in existing_indexes:
+            connection.execute(statement)
     return connection
 
 
@@ -108,6 +136,172 @@ def load_chapter(chapter_id: str) -> ChapterSnapshot:
     )
 
 
+def load_chapter_view(chapter_id: str) -> ChapterSnapshot:
+    """Load chapter text and sentence rows without the much larger token graph."""
+    _migrate_legacy()
+    with _connect() as connection:
+        chapter_row = connection.execute(
+            "SELECT payload FROM records WHERE table_name = 'chapters' AND record_key = ?", (chapter_id,),
+        ).fetchone()
+        chapter = json.loads(chapter_row[0]) if chapter_row else None
+        sentences = [json.loads(row[0]) for row in connection.execute(
+            "SELECT payload FROM records WHERE table_name = 'sentences' AND json_extract(payload, '$.chapter_id') = ? ORDER BY CAST(json_extract(payload, '$.start') AS INTEGER)",
+            (chapter_id,),
+        )]
+    return ChapterSnapshot(chapter=chapter, sentences=sentences)
+
+
+def load_chapter_details(chapter_id: str, offset: int, limit: int) -> dict:
+    """Load token and annotation data only for one visible sentence window."""
+    _migrate_legacy()
+    with _connect() as connection:
+        sentence_ids = [row[0] for row in connection.execute(
+            """
+            SELECT record_key FROM records
+            WHERE table_name = 'sentences' AND json_extract(payload, '$.chapter_id') = ?
+            ORDER BY CAST(json_extract(payload, '$.start') AS INTEGER)
+            LIMIT ? OFFSET ?
+            """,
+            (chapter_id, limit, offset),
+        )]
+        tokens: list[dict] = []
+        annotations: list[dict] = []
+        if sentence_ids:
+            placeholders = ",".join("?" for _ in sentence_ids)
+            tokens = [json.loads(row[0]) for row in connection.execute(
+                f"SELECT payload FROM records WHERE table_name = 'tokens' AND json_extract(payload, '$.sentence_id') IN ({placeholders}) ORDER BY rowid",
+                sentence_ids,
+            )]
+            annotations = [json.loads(row[0]) for row in connection.execute(
+                f"SELECT payload FROM records WHERE table_name = 'annotations' AND json_extract(payload, '$.sentence_id') IN ({placeholders}) ORDER BY rowid",
+                sentence_ids,
+            )]
+        token_ids = [str(row.get("id", "")) for row in tokens if row.get("id")]
+        context_senses: list[dict] = []
+        if token_ids:
+            placeholders = ",".join("?" for _ in token_ids)
+            context_senses = [json.loads(row[0]) for row in connection.execute(
+                f"SELECT payload FROM records WHERE table_name = 'contextSenses' AND record_key IN ({placeholders}) ORDER BY rowid",
+                token_ids,
+            )]
+        lexeme_keys = list({str(row.get("lexemeKey", "")) for row in tokens if row.get("lexemeKey")})
+        lexemes: list[dict] = []
+        if lexeme_keys:
+            placeholders = ",".join("?" for _ in lexeme_keys)
+            lexemes = [json.loads(row[0]) for row in connection.execute(
+                f"SELECT payload FROM records WHERE table_name = 'lexemes' AND record_key IN ({placeholders}) ORDER BY rowid",
+                lexeme_keys,
+            )]
+    return {
+        "offset": offset, "limit": limit, "sentence_ids": sentence_ids,
+        "tokens": tokens, "annotations": annotations,
+        "contextSenses": context_senses, "lexemes": lexemes,
+    }
+
+
+def load_translation_queue(
+    book_id: str,
+    chapter_id: str | None = None,
+    cursor: str = "",
+    limit: int = 160,
+    detail_mode: str = "meaning",
+    include_tokens: bool = False,
+) -> dict:
+    """Return one stable page of pending sentences directly from SQLite.
+
+    The cursor is based on chapter order, sentence offset and sentence id, so
+    updating a completed sentence while workers are running cannot shift later
+    pages and cause skipped work.
+    """
+    _migrate_legacy()
+    after_order, after_start, after_id = -1, -1, ""
+    if cursor:
+        try:
+            order_value, start_value, after_id = cursor.split(":", 2)
+            after_order, after_start = int(order_value), int(start_value)
+        except (ValueError, TypeError):
+            raise ValueError("无效的翻译队列游标") from None
+    with _connect() as connection:
+        parameters: list[object] = [book_id]
+        chapter_filter = ""
+        if chapter_id:
+            chapter_filter = " AND c.record_key = ?"
+            parameters.append(chapter_id)
+        parameters.extend([detail_mode, after_order, after_order, after_start, after_order, after_start, after_id, limit + 1])
+        rows = connection.execute(
+            f"""
+            SELECT s.payload, c.payload,
+                   CAST(json_extract(c.payload, '$.order') AS INTEGER) AS chapter_order,
+                   CAST(json_extract(s.payload, '$.start') AS INTEGER) AS sentence_start,
+                   s.record_key
+            FROM records AS s
+            JOIN records AS c
+              ON c.table_name = 'chapters'
+             AND c.record_key = json_extract(s.payload, '$.chapter_id')
+            WHERE s.table_name = 'sentences'
+              AND json_extract(c.payload, '$.bookId') = ?
+              {chapter_filter}
+              AND (
+                    COALESCE(json_extract(s.payload, '$.translation_zh'), '') = ''
+                 OR COALESCE(json_extract(s.payload, '$.explanation_status'), 'idle') != 'complete'
+                 OR (? = 'full' AND json_extract(s.payload, '$.explanation_detail') = 'meaning')
+              )
+              AND (
+                    chapter_order > ?
+                 OR (chapter_order = ? AND sentence_start > ?)
+                 OR (chapter_order = ? AND sentence_start = ? AND s.record_key > ?)
+              )
+            ORDER BY chapter_order, sentence_start, s.record_key
+            LIMIT ?
+            """,
+            parameters,
+        ).fetchall()
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        sentence_ids = [str(row[4]) for row in rows]
+        tokens_by_sentence: dict[str, list[dict]] = {sentence_id: [] for sentence_id in sentence_ids}
+        if include_tokens and sentence_ids:
+            placeholders = ",".join("?" for _ in sentence_ids)
+            for token_row in connection.execute(
+                f"""SELECT payload FROM records
+                    WHERE table_name = 'tokens'
+                      AND json_extract(payload, '$.sentence_id') IN ({placeholders})
+                    ORDER BY json_extract(payload, '$.sentence_id'),
+                             CAST(json_extract(payload, '$.start') AS INTEGER)""",
+                sentence_ids,
+            ):
+                token = json.loads(token_row[0])
+                tokens_by_sentence.setdefault(str(token.get("sentence_id", "")), []).append(token)
+        items = []
+        for row in rows:
+            sentence = json.loads(row[0])
+            chapter = json.loads(row[1])
+            items.append({
+                "sentence": sentence,
+                "tokens": tokens_by_sentence.get(str(sentence.get("id", "")), []),
+                "chapterTitle": str(chapter.get("title", "")),
+                "chapterOrder": int(row[2]),
+            })
+        next_cursor = None
+        if has_more and rows:
+            last = rows[-1]
+            next_cursor = f"{int(last[2])}:{int(last[3])}:{last[4]}"
+        context_before: list[str] = []
+        if rows:
+            first_sentence = json.loads(rows[0][0])
+            previous = connection.execute(
+                """SELECT json_extract(payload, '$.original') FROM records
+                   WHERE table_name = 'sentences'
+                     AND json_extract(payload, '$.chapter_id') = ?
+                     AND CAST(json_extract(payload, '$.start') AS INTEGER) < ?
+                   ORDER BY CAST(json_extract(payload, '$.start') AS INTEGER) DESC
+                   LIMIT 2""",
+                (first_sentence.get("chapter_id"), int(rows[0][3])),
+            ).fetchall()
+            context_before = [str(value[0]) for value in reversed(previous) if value[0]]
+    return {"items": items, "nextCursor": next_cursor, "contextBefore": context_before}
+
+
 def load_study_data() -> StudyDataSnapshot:
     _migrate_legacy()
     with _connect() as connection:
@@ -115,6 +309,18 @@ def load_study_data() -> StudyDataSnapshot:
             lexemes=_load_rows(connection, "lexemes"),
             cards=_load_rows(connection, "cards"),
         )
+
+
+def load_bookmarks(book_id: str) -> list[dict]:
+    _migrate_legacy()
+    with _connect() as connection:
+        return [json.loads(row[0]) for row in connection.execute(
+            """SELECT payload FROM records
+               WHERE table_name = 'bookmarks' AND json_extract(payload, '$.bookId') = ?
+               ORDER BY CAST(json_extract(payload, '$.chapterOrder') AS INTEGER),
+                        CAST(json_extract(payload, '$.sentenceStart') AS INTEGER)""",
+            (book_id,),
+        )]
 
 
 def find_personal_lexeme(exact_key: str, lemma: str, reading: str, surface: str = "") -> dict | None:
@@ -196,6 +402,7 @@ def delete_book(book_id: str) -> dict[str, int]:
                 f"DELETE FROM records WHERE table_name = 'chapters' AND record_key IN ({placeholders})", chapter_ids,
             )
         connection.execute("DELETE FROM records WHERE table_name = 'cards' AND json_extract(payload, '$.bookId') = ?", (book_id,))
+        connection.execute("DELETE FROM records WHERE table_name = 'bookmarks' AND json_extract(payload, '$.bookId') = ?", (book_id,))
         connection.execute("DELETE FROM records WHERE table_name = 'books' AND record_key = ?", (book_id,))
     return {"chapters": len(chapter_ids), "sentences": len(sentence_ids), "tokens": len(token_ids)}
 

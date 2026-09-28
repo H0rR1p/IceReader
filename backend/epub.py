@@ -151,10 +151,22 @@ def parse_epub(payload: bytes, filename: str) -> ImportedBook:
 
     book_key = hashlib.sha256(payload).hexdigest()[:20]
     book_dir = BOOK_DATA_DIR / book_key
+    source_dir = book_dir / "source"
     assets_dir = book_dir / "assets"
     documents_dir = book_dir / "documents"
+    source_dir.mkdir(parents=True, exist_ok=True)
     assets_dir.mkdir(parents=True, exist_ok=True)
     documents_dir.mkdir(parents=True, exist_ok=True)
+
+    # Keep a managed local copy instead of depending on the browser-selected
+    # file path. The content hash makes this archive immutable and allows the
+    # extracted assets to be rebuilt later without asking for the EPUB again.
+    archived_epub = source_dir / "book.epub"
+    if not archived_epub.is_file() or archived_epub.stat().st_size != len(payload):
+        temporary_epub = source_dir / "book.epub.tmp"
+        temporary_epub.write_bytes(payload)
+        temporary_epub.replace(archived_epub)
+    (source_dir / "filename.txt").write_text(Path(filename).name, encoding="utf-8")
 
     asset_urls: dict[str, str] = {}
     for item in book.get_items():
