@@ -67,9 +67,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .empty-state p { max-width: 520px; margin: 0 auto 22px; color: var(--muted); line-height: 1.7; }
 .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 28px; }
 .book-card { min-width: 0; }
-.book-cover { width: 100%; aspect-ratio: 3 / 4; border: 0; border-radius: 6px 14px 14px 6px; background: linear-gradient(145deg, #82bee3, #4f8fbe); color: white; box-shadow: inset 7px 0 #2f638312, 0 12px 25px #376f9824; cursor: pointer; display: grid; place-items: center; position: relative; overflow: hidden; }
-.book-cover span { writing-mode: vertical-rl; letter-spacing: .25em; font: 22px "Yu Mincho", serif; opacity: .85; }
-.book-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.book-cover { width: 100%; aspect-ratio: 3 / 4; border: 0; border-radius: 6px 14px 14px 6px; background: linear-gradient(145deg, #80c5ef, #4a91c5); box-shadow: inset 7px 0 #245f891c, inset 0 0 0 1px #d6efff55, 0 12px 25px #376f9824; cursor: pointer; display: grid; place-items: center; position: relative; overflow: hidden; }
+.book-cover::before, .book-cover::after { content: ""; position: absolute; border: 1px solid #e5f6ff42; border-radius: 50%; }
+.book-cover::before { width: 82%; aspect-ratio: 1; top: -33%; right: -33%; }
+.book-cover::after { width: 66%; aspect-ratio: 1; bottom: -31%; left: -28%; }
+.book-cover-default { width: 62%; aspect-ratio: 1; display: grid; place-items: center; border-radius: 50%; background: #edf8ff33; box-shadow: 0 10px 30px #1d5d8d25; overflow: hidden; }
+.book-cover-default img { width: 90%; height: 90%; object-fit: contain; mix-blend-mode: multiply; }
+.book-cover-image { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .book-cover:disabled, .book-title:disabled, .text-button:disabled, .chapter-item:disabled { cursor: wait; opacity: .62; }
 .book-meta { padding: 13px 3px; }
 .book-title { border: 0; background: none; padding: 0; font-weight: 750; cursor: pointer; text-align: left; font-size: 16px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

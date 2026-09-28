@@ -57,8 +57,8 @@ export default function Library({ books, loading, loadingBookId, onOpen, onDelet
           {books.map((book) => (
             <article className="book-card" key={book.id}>
               <button className="book-cover" disabled={Boolean(loadingBookId)} aria-label={`打开《${book.title}》`} onClick={() => onOpen(book)}>
-                <span aria-hidden="true">読む</span>
-                {showCovers && book.coverUrl && <img src={book.coverUrl} alt="" onError={(event) => { event.currentTarget.hidden = true }} />}
+                <span className="book-cover-default" aria-hidden="true"><img src="/bingdu-logo.png" alt="" /></span>
+                {showCovers && book.coverUrl && <img className="book-cover-image" src={book.coverUrl} alt="" onError={(event) => { event.currentTarget.hidden = true }} />}
               </button>
               <div className="book-meta">
                 <button className="book-title" disabled={Boolean(loadingBookId)} onClick={() => onOpen(book)}>{book.title}</button>
@@ -81,7 +81,7 @@ export default function Library({ books, loading, loadingBookId, onOpen, onDelet
       <section className="modal confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-book-title">
         <div className="confirm-icon">删</div>
         <h2 id="delete-book-title">确认删除这本书？</h2>
-        <p>《{pendingDelete.title}》的正文、阅读进度、逐句结果和词卡将从本地项目中删除。</p>
+        <p>《{pendingDelete.title}》的正文、阅读进度和逐句结果将从本地项目中删除。</p>
         <div className="modal-actions">
           <button className="button" autoFocus disabled={deleting} onClick={() => setPendingDelete(null)}>取消</button>
           <button className="button danger-solid" disabled={deleting} onClick={() => void confirmDelete()}>{deleting ? '正在删除…' : '确认删除'}</button>
