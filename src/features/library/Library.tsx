@@ -41,7 +41,7 @@ export default function Library({ books, loading, loadingBookId, onOpen, onDelet
       </div>
       {loading ? (
         <section className="empty-state loading-state" aria-live="polite">
-          <div className="loading-spinner" />
+          <div className="loading-dango" aria-hidden="true" />
           <h2>正在读取书架</h2>
           <p>只加载书籍与章节索引，不读取正文、词元和释义。</p>
         </section>

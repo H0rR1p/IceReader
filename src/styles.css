@@ -132,9 +132,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .processing-panel h1 { font: 600 30px "Yu Mincho", serif; margin: 8px 0; }
 .processing-panel > p:not(.eyebrow) { color: var(--muted); line-height: 1.8; }
 .loading-chapter { text-align: center; }
-.loading-spinner { width: 28px; height: 28px; margin: 0 auto 14px; border: 3px solid #d4e9f7; border-top-color: var(--accent); border-radius: 50%; animation: loading-spin .8s linear infinite; }
+.loading-dango { width: 58px; height: 55px; margin: 0 auto 14px; background: url('/bingdu-logo.png') center / contain no-repeat; mix-blend-mode: multiply; filter: drop-shadow(0 8px 6px #2e709f26); transform-origin: 50% 92%; animation: loading-dango-bounce .9s cubic-bezier(.35, 0, .25, 1) infinite; }
 .reader-loading { min-height: 42vh; display: grid; place-items: center; align-content: center; gap: 4px; color: var(--muted); }
-.reader-loading .loading-spinner { margin-bottom: 6px; }
+.reader-loading .loading-dango { margin-bottom: 6px; }
 .load-more-sentinel { margin: 32px 0 0; padding: 12px; text-align: center; border-top: 1px solid var(--line); color: var(--muted); font: 12px "Noto Sans SC", sans-serif; }
 .chapter-page-navigation { max-width: 760px; margin: 72px auto 0; padding-top: 22px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .chapter-page-navigation button { min-width: 0; padding: 14px 16px; border: 1px solid #b9d8ed; border-radius: 11px; background: #f4faff; color: var(--accent-deep); cursor: pointer; display: grid; gap: 4px; text-align: left; transition: background .15s, border-color .15s, transform .15s; }
@@ -143,7 +143,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .chapter-page-navigation button:disabled { cursor: default; opacity: .42; }
 .chapter-page-navigation span { font-size: 14px; font-weight: 750; white-space: nowrap; }
 .chapter-page-navigation small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-@keyframes loading-spin { to { transform: rotate(360deg); } }
+@keyframes loading-dango-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  14% { transform: translateY(3px) scale(1.12, .86); }
+  40% { transform: translateY(-13px) scale(.94, 1.08); }
+  64% { transform: translateY(1px) scale(1.08, .91); }
+  79% { transform: translateY(-4px) scale(.98, 1.03); }
+  91% { transform: translateY(0) scale(1.025, .98); }
+}
 .error-box { background: #faece9; color: #843d32; border: 1px solid #edc9c1; border-radius: 9px; padding: 11px 13px; margin: 14px 0; font-size: 13px; white-space: pre-wrap; }
 .inline-warning { background: #e0f0fd; color: #3b6f98; border: 1px solid #b7d7ed; border-radius: 9px; padding: 11px 13px; margin: 14px 0; font-size: 13px; white-space: pre-wrap; }
 .inline-warning button { border: 0; background: none; color: #3278aa; font-weight: 800; cursor: pointer; }
@@ -298,5 +305,5 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-mark.is-bouncing { animation: none; }
+  .brand-mark.is-bouncing, .loading-dango { animation: none; }
 }

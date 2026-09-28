@@ -415,7 +415,7 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
         </div>
         {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章尚未切分。<button disabled={backgroundJob?.running} onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
         {chapter.status === 'processing' && <div className="inline-warning">正在切分本章。</div>}
-        {readerLoading ? <div className="reader-loading" aria-live="polite"><div className="loading-spinner" /><span>正在整理本章内容…</span></div> : viewMode === 'original' && chapter.originalHtmlUrl
+        {readerLoading ? <div className="reader-loading" aria-live="polite"><div className="loading-dango" aria-hidden="true" /><span>正在整理本章内容…</span></div> : viewMode === 'original' && chapter.originalHtmlUrl
           ? <iframe className="original-preview" sandbox="" src={chapter.originalHtmlUrl} title={`${chapter.title} 原书预览`} />
           : <div className="japanese-text" lang="ja">
               {chapter.blocks?.length ? chapter.blocks.map(renderBlock) : sentences.length ? visibleSentences.map(renderSentence) : chapter.text}
