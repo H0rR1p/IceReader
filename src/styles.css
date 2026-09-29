@@ -357,4 +357,3 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 @media (prefers-reduced-motion: reduce) {
   .brand-mark.is-bouncing, .loading-dango { animation: none; }
 }
-

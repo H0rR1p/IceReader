@@ -1123,4 +1123,3 @@ function StatusBadge({ status }: { status: Chapter['status'] }) {
 }
 
 export default App
-
