@@ -691,6 +691,8 @@ async def _explain_batch(
             misses, api_key, base_url, model, request.annotation_mode,
             request.detail_mode, request.context_before,
         ) if misses else []
+    except AiRateLimitError:
+        raise
     except Exception as exc:
         raise HTTPException(502, f"句子释义失败：{exc}") from exc
     fresh_by_id = {str(row.get("id")): row for row in fresh_rows if isinstance(row, dict)}

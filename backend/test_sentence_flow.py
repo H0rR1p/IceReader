@@ -1,8 +1,11 @@
 import asyncio
 import time
 
+import pytest
+from fastapi import HTTPException
+
 from . import app as app_module
-from .models import ContentBlock, ExplainSentenceRequest, ImportedBook, ImportedChapter
+from .models import ContentBlock, ExplainBatchRequest, ExplainSentenceRequest, ImportedBook, ImportedChapter
 
 
 def test_import_does_not_segment_book(monkeypatch):
@@ -283,3 +286,21 @@ def test_truncated_batch_is_split_and_missing_rows_are_retried(monkeypatch):
 
     assert {row["id"] for row in result} == {"s1", "s2", "s3"}
     assert calls == [["s1", "s2", "s3"], ["s1"], ["s2", "s3"], ["s3"]]
+
+
+def test_rate_limit_passes_through_batch_wrapper_with_retry_after(monkeypatch):
+    sentences, tokens = app_module._local_analysis("chapter-1", "彼は来た。")
+    request = ExplainBatchRequest(items=[{"sentence": sentences[0], "tokens": tokens}], detail_mode="meaning")
+    monkeypatch.setattr(app_module, "resolve_settings", lambda *_: ("key", "https://example.invalid", "model"))
+    monkeypatch.setattr(app_module, "get_cached_response", lambda *_: None)
+
+    async def rate_limited(*_args, **_kwargs):
+        raise app_module.AiRateLimitError("slow down", retry_after=7)
+
+    monkeypatch.setattr(app_module, "_fetch_ai_rows_resilient", rate_limited)
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(app_module.explain_sentence_batch(request, None))
+
+    assert error.value.status_code == 429
+    assert error.value.headers == {"Retry-After": "7"}
