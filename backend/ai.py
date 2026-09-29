@@ -1,6 +1,9 @@
 import asyncio
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import json
 import logging
+import random
 import ssl
 import time
 import urllib.error
@@ -21,6 +24,8 @@ SYSTEM_PROMPT = """你是一名严谨的日语 N1 精读编辑。输出合法 JS
 _shared_http_client: httpx.AsyncClient | None = None
 _unsupported_request_fields: dict[tuple[str, str], set[str]] = {}
 _OPTIONAL_REQUEST_FIELDS = {"response_format", "thinking", "reasoning_effort"}
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+_MAX_HTTP_ATTEMPTS = 4
 
 
 def _get_http_client() -> httpx.AsyncClient:
@@ -29,7 +34,6 @@ def _get_http_client() -> httpx.AsyncClient:
     if _shared_http_client is None or getattr(_shared_http_client, "is_closed", False):
         transport = httpx.AsyncHTTPTransport(
             retries=2,
-            local_address="0.0.0.0",
             limits=httpx.Limits(max_connections=16, max_keepalive_connections=8, keepalive_expiry=30.0),
         )
         _shared_http_client = httpx.AsyncClient(
@@ -76,6 +80,69 @@ def _response_error_detail(response: httpx.Response) -> str:
     return detail[-800:] if detail else "未提供错误详情"
 
 
+def _retry_delay_value(retry_after: str | None, retry_index: int) -> float:
+    if retry_after:
+        try:
+            return min(60.0, max(0.0, float(retry_after)))
+        except (TypeError, ValueError):
+            try:
+                retry_at = parsedate_to_datetime(str(retry_after))
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                return min(60.0, max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds()))
+            except (TypeError, ValueError, OverflowError):
+                pass
+    base = min(8.0, 0.5 * (2 ** retry_index))
+    return base + random.uniform(0.0, min(0.5, base * 0.25))
+
+
+def _retry_delay(response: httpx.Response, retry_index: int) -> float:
+    """Respect Retry-After, otherwise use capped exponential backoff with jitter."""
+    headers = getattr(response, "headers", {})
+    return _retry_delay_value(headers.get("Retry-After") if headers else None, retry_index)
+
+
+async def _post_with_retries(
+    url: str,
+    api_key: str,
+    payload: dict,
+    timeout: float,
+    capability_key: tuple[str, str],
+    model: str,
+) -> httpx.Response:
+    """Post once per capability shape, retrying only transient HTTP statuses."""
+    logger = logging.getLogger(__name__)
+    for request_attempt in range(_MAX_HTTP_ATTEMPTS):
+        for _capability_attempt in range(len(_OPTIONAL_REQUEST_FIELDS) + 1):
+            unsupported = _unsupported_request_fields.get(capability_key, set())
+            compatible_payload = {key: value for key, value in payload.items() if key not in unsupported}
+            response = await _get_http_client().post(
+                url,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=compatible_payload,
+                timeout=httpx.Timeout(timeout),
+            )
+            rejected_fields = _unsupported_fields_from_response(response) - unsupported
+            if rejected_fields:
+                _unsupported_request_fields.setdefault(capability_key, set()).update(rejected_fields)
+                logger.info(
+                    "AI endpoint rejected optional fields %s for model %s; retrying without them",
+                    sorted(rejected_fields), model,
+                )
+                continue
+            break
+
+        if response.status_code not in _RETRYABLE_STATUS_CODES or request_attempt == _MAX_HTTP_ATTEMPTS - 1:
+            return response
+        delay = _retry_delay(response, request_attempt)
+        logger.warning(
+            "AI service returned %s; retrying in %.2fs (%s/%s)",
+            response.status_code, delay, request_attempt + 2, _MAX_HTTP_ATTEMPTS,
+        )
+        await asyncio.sleep(delay)
+    raise RuntimeError("AI 请求重试状态异常")
+
+
 def _urllib_chat(url: str, api_key: str, payload: dict, timeout: float) -> dict:
     request = urllib.request.Request(
         url,
@@ -84,14 +151,25 @@ def _urllib_chat(url: str, api_key: str, payload: dict, timeout: float) -> dict:
         method="POST",
     )
     context = ssl.create_default_context(cafile=certifi.where())
-    try:
-        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[-800:]
-        if exc.code == 401:
-            raise RuntimeError("DeepSeek 拒绝了 API Key（401），请检查密钥是否有效或是否已失效") from exc
-        raise RuntimeError(f"AI 服务返回 {exc.code}：{detail}") from exc
+    for attempt in range(_MAX_HTTP_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[-800:]
+            if exc.code == 401:
+                raise RuntimeError("DeepSeek 拒绝了 API Key（401），请检查密钥是否有效或是否已失效") from exc
+            if exc.code in _RETRYABLE_STATUS_CODES and attempt < _MAX_HTTP_ATTEMPTS - 1:
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                delay = _retry_delay_value(retry_after, attempt)
+                logging.getLogger(__name__).warning(
+                    "urllib AI fallback returned %s; retrying in %.2fs (%s/%s)",
+                    exc.code, delay, attempt + 2, _MAX_HTTP_ATTEMPTS,
+                )
+                time.sleep(delay)
+                continue
+            raise RuntimeError(f"AI 服务返回 {exc.code}：{detail}") from exc
+    raise RuntimeError("AI 请求重试状态异常")
 
 
 async def _chat_json(
@@ -135,30 +213,16 @@ async def _chat_json(
         try:
             try:
                 capability_key = _capability_key(base_url, model)
-                for _capability_attempt in range(len(_OPTIONAL_REQUEST_FIELDS) + 1):
-                    unsupported = _unsupported_request_fields.get(capability_key, set())
-                    compatible_payload = {
-                        key: value for key, value in attempt_payload.items() if key not in unsupported
-                    }
-                    response = await _get_http_client().post(
-                        url,
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json=compatible_payload,
-                        timeout=httpx.Timeout(timeout),
-                    )
-                    rejected_fields = _unsupported_fields_from_response(response) - unsupported
-                    if rejected_fields:
-                        _unsupported_request_fields.setdefault(capability_key, set()).update(rejected_fields)
-                        logging.getLogger(__name__).info(
-                            "AI endpoint rejected optional fields %s for model %s; retrying without them",
-                            sorted(rejected_fields), model,
-                        )
-                        continue
-                    break
+                response = await _post_with_retries(
+                    url, api_key, attempt_payload, timeout, capability_key, model,
+                )
                 if response.status_code == 401:
                     raise RuntimeError("DeepSeek 拒绝了 API Key（401），请检查密钥是否有效或是否已失效")
-                if response.status_code in {429, 500, 502, 503, 504}:
-                    raise RuntimeError(f"AI 服务返回 {response.status_code}，请稍后重试")
+                if response.status_code in _RETRYABLE_STATUS_CODES:
+                    raise RuntimeError(
+                        f"AI 服务连续 {_MAX_HTTP_ATTEMPTS} 次返回 {response.status_code}："
+                        f"{_response_error_detail(response)}"
+                    )
                 if response.status_code >= 400:
                     raise RuntimeError(
                         f"AI 服务返回 {response.status_code}：{_response_error_detail(response)}"
@@ -293,8 +357,8 @@ async def explain_sentences(
                 1024,
                 len(items) * 120 + sum(len(item["sentence"].get("original", "")) for item in items) * 2,
             )) if detail_mode == "meaning"
-            else min(4096, max(
-                4096,
+            else min(8192, max(
+                2048,
                 len(items) * 520 + sum(len(item.get("unresolved_tokens", [])) for item in items) * 120,
             ))
         ),

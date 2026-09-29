@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v10.0": {
-      "BingduYmmBridge/0.1.0": {
+      "BingduYmmBridge/0.2.0": {
         "dependencies": {
           "runtimepack.Microsoft.Windows.SDK.NET.Ref": "10.0.19041.57"
         },
@@ -29,7 +29,7 @@
     }
   },
   "libraries": {
-    "BingduYmmBridge/0.1.0": {
+    "BingduYmmBridge/0.2.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

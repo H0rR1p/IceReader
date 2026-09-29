@@ -1,6 +1,32 @@
 from ebooklib import epub
+from bs4 import BeautifulSoup
 
 from . import epub as epub_parser
+
+
+def test_original_preview_removes_active_url_schemes_and_handlers():
+    soup = BeautifulSoup("""<html><head>
+      <base href="https://attacker.invalid/">
+      <meta http-equiv="refresh" content="0;url=javascript:alert(1)">
+      <style>.bad { background: url(javascript:alert(1)); }</style>
+    </head><body>
+      <a href="java&#x09;script:alert(1)" onclick="alert(2)">bad</a>
+      <a href="https://example.com/ok">safe</a>
+      <form action="vbscript:alert(1)"><button formaction="data:text/html,bad">go</button></form>
+      <div srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;" style="width: expression(alert(1))">x</div>
+    </body></html>""", "html.parser")
+
+    sanitized = epub_parser._sanitize_original(soup, "chapter.xhtml", {}, "")
+    lowered = sanitized.lower()
+
+    assert "javascript:" not in lowered
+    assert "vbscript:" not in lowered
+    assert "data:text/html" not in lowered
+    assert "onclick" not in lowered
+    assert "srcdoc" not in lowered
+    assert "http-equiv=\"refresh\"" not in lowered
+    assert "<base" not in lowered
+    assert 'href="https://example.com/ok"' in lowered
 
 
 def test_parse_epub_accepts_uploaded_bytes(tmp_path, monkeypatch):

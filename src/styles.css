@@ -216,7 +216,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .original-preview { width: 100%; min-height: calc(100vh - 170px); border: 1px solid var(--line); border-radius: 10px; background: white; }
 .mode-button { border: 1px solid var(--line); background: white; color: var(--muted); border-radius: 7px; padding: 6px 9px; cursor: pointer; }
 .mode-button.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.sentence { display: inline; border: 0; background: transparent; padding: 3px 1px; border-radius: 4px; text-align: left; cursor: pointer; font: inherit; line-height: inherit; letter-spacing: inherit; }
+.sentence { display: inline; background: transparent; padding: 3px 1px; border-radius: 4px; text-align: left; cursor: pointer; font: inherit; line-height: inherit; letter-spacing: inherit; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .sentence.selected { background: #e2f1fc; box-shadow: 0 0 0 3px #e2f1fc; }
 .sentence.failed { text-decoration: underline wavy #c95b4b; text-decoration-thickness: 1px; }
 .token { border-radius: 3px; transition: background .1s; }

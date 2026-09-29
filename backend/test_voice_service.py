@@ -1,6 +1,7 @@
 import asyncio
 import json
 import struct
+import threading
 
 from . import voice_service
 from .models import VoiceSettingsInput
@@ -35,6 +36,8 @@ def _paths(tmp_path, monkeypatch):
     monkeypatch.setattr(voice_service, "JOBS_DIR", voice_dir / "jobs")
     monkeypatch.setattr(voice_service, "SETTINGS_PATH", voice_dir / "settings.json")
     monkeypatch.setattr(voice_service, "TEMPLATE_PATH", voice_dir / "template.ymmp")
+    voice_service._jobs.clear()
+    voice_service._render_lock = None
 
 
 def test_template_install_reads_character_and_settings(tmp_path, monkeypatch):
@@ -59,6 +62,21 @@ def test_voice_character_can_override_template_character(tmp_path, monkeypatch):
     status = voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm), character_name="灵梦", playback_rate=85))
 
     assert status.character_name == "灵梦"
+
+
+def test_voice_cache_key_changes_with_character(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
+    fake_ymm.write_bytes(b"exe")
+    voice_service.install_template(_template())
+    cirno = voice_service.save_voice_settings(VoiceSettingsInput(
+        ymm_path=str(fake_ymm), character_name="琪露诺", playback_rate=85, volume=50,
+    ))
+    reimu = voice_service.save_voice_settings(VoiceSettingsInput(
+        ymm_path=str(fake_ymm), character_name="博丽灵梦", playback_rate=85, volume=50,
+    ))
+
+    assert voice_service._cache_key("こんにちは。", cirno) != voice_service._cache_key("こんにちは。", reimu)
 
 
 def test_cached_voice_does_not_start_ymm(tmp_path, monkeypatch):
@@ -105,6 +123,17 @@ def test_bridge_install_copies_soundtouch_next_to_plugin(tmp_path, monkeypatch):
     assert (plugin_dir / "SoundTouch.Net.dll").read_bytes() == b"soundtouch"
 
 
+def test_bridge_readiness_requires_cancel_capable_api(monkeypatch):
+    monkeypatch.setattr(voice_service, "_bridge_request", lambda *_args, **_kwargs: {
+        "success": True, "app": "bingdu-ymm-bridge", "api_version": 1,
+    })
+    assert voice_service._bridge_ready() is False
+    monkeypatch.setattr(voice_service, "_bridge_request", lambda *_args, **_kwargs: {
+        "success": True, "app": "bingdu-ymm-bridge", "api_version": 2,
+    })
+    assert voice_service._bridge_ready() is True
+
+
 def test_trim_float_wave_removes_trailing_silence(tmp_path):
     sample_rate = 1000
     active = [0.1] * 1000
@@ -128,10 +157,11 @@ def test_bridge_voice_job_completes_and_caches_real_audio(tmp_path, monkeypatch)
     voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm)))
     voice_service.install_template(_template())
 
-    def fake_synthesis(text, character, output, settings):
+    def fake_synthesis(text, character, output, settings, job_id):
         assert text == "きょうははれです。"
         assert settings.playback_rate == 85
         assert character == "琪露诺"
+        assert job_id
         sample_rate = 1000
         samples = [1200] * 700 + [0] * 300
         payload = struct.pack("<" + "h" * len(samples), *samples)
@@ -151,3 +181,56 @@ def test_bridge_voice_job_completes_and_caches_real_audio(tmp_path, monkeypatch)
     assert result.status == "complete"
     assert result.audio_url and result.audio_url.endswith(".wav")
     assert result.cached is False
+
+
+def test_cancel_waits_for_worker_before_removing_job_directory(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
+    fake_ymm.write_bytes(b"exe")
+    voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm)))
+    voice_service.install_template(_template())
+    entered = threading.Event()
+    release = threading.Event()
+
+    def slow_synthesis(_text, _character, output, _settings, _job_id):
+        entered.set()
+        assert release.wait(timeout=3)
+        output.write_bytes(b"unused")
+
+    monkeypatch.setattr(voice_service, "_synthesize_with_bridge", slow_synthesis)
+    monkeypatch.setattr(voice_service, "_cancel_bridge_job", lambda _job_id: True)
+    monkeypatch.setattr(voice_service, "pronunciation_text", lambda value: value)
+
+    async def run():
+        started = await voice_service.start_voice_job("今日は晴れです。", force=True)
+        assert await asyncio.to_thread(entered.wait, 1)
+        task = voice_service._jobs[started.id].task
+        canceled = await voice_service.cancel_voice_job(started.id)
+        assert canceled.status == "canceled"
+        assert voice_service._jobs[started.id].finished_at is None
+        assert (voice_service.JOBS_DIR / started.id).is_dir()
+        assert task is not None and not task.done()
+        release.set()
+        await task
+        return started.id
+
+    job_id = asyncio.run(run())
+
+    assert not (voice_service.JOBS_DIR / job_id).exists()
+    assert voice_service.get_voice_job(job_id).status == "canceled"
+    assert voice_service._jobs[job_id].finished_at is not None
+
+
+def test_finished_voice_jobs_are_bounded(monkeypatch):
+    voice_service._jobs.clear()
+    monkeypatch.setattr(voice_service, "MAX_RETAINED_JOBS", 2)
+    monkeypatch.setattr(voice_service, "JOB_TTL_SECONDS", 3600)
+    for index in range(4):
+        job = voice_service._VoiceJob(id=str(index))
+        voice_service._jobs[job.id] = job
+        voice_service._finish_job(job, "complete", "done")
+        job.finished_at = float(index + 1)
+
+    voice_service._prune_jobs(now=4.0)
+
+    assert set(voice_service._jobs) == {"2", "3"}

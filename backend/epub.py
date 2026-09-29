@@ -16,11 +16,22 @@ from .paths import DATA_DIR
 
 BOOK_DATA_DIR = DATA_DIR / "books"
 TEXT_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "blockquote"}
+URL_ATTRIBUTES = {"href", "src", "action", "formaction", "poster", "cite", "background", "xlink:href"}
+DANGEROUS_URL_SCHEMES = {"javascript", "vbscript", "data", "file", "blob"}
 
 
 def _safe_css(value: str) -> str:
     value = re.sub(r"@import[^;]+;?", "", value, flags=re.I)
-    return re.sub(r"url\((['\"]?)(?:https?:|data:|javascript:)[^)]+\)", "none", value, flags=re.I)
+    value = re.sub(r"expression\s*\([^)]*\)", "", value, flags=re.I)
+    return re.sub(r"url\((['\"]?)\s*(?:https?:|data:|javascript:|vbscript:|file:|blob:)[^)]+\)", "none", value, flags=re.I)
+
+
+def _is_unsafe_url(value: object) -> bool:
+    # BeautifulSoup has already decoded character references here. Removing
+    # ASCII whitespace and controls also catches forms such as java\tscript:.
+    normalized = re.sub(r"[\x00-\x20\x7f]+", "", str(value)).lower()
+    match = re.match(r"^([a-z][a-z0-9+.-]*):", normalized)
+    return bool(match and match.group(1) in DANGEROUS_URL_SCHEMES)
 
 
 def _resolve_href(document_name: str, href: str) -> str:
@@ -112,14 +123,22 @@ def _extract_blocks(soup: BeautifulSoup, document_name: str, asset_urls: dict[st
 
 
 def _sanitize_original(soup: BeautifulSoup, document_name: str, asset_urls: dict[str, str], css: str) -> str:
-    for tag in soup(["script", "iframe", "object", "embed"]):
+    for tag in soup(["script", "iframe", "object", "embed", "base"]):
         tag.decompose()
+    for tag in soup.find_all("meta"):
+        if str(tag.get("http-equiv", "")).strip().lower() == "refresh":
+            tag.decompose()
     for tag in soup.find_all(True):
         for attribute in list(tag.attrs):
-            if attribute.lower().startswith("on"):
+            attribute_lower = attribute.lower()
+            if attribute_lower.startswith("on") or attribute_lower == "srcdoc":
+                del tag.attrs[attribute]
+            elif attribute_lower in URL_ATTRIBUTES and _is_unsafe_url(tag.attrs[attribute]):
                 del tag.attrs[attribute]
         if tag.has_attr("style"):
             tag["style"] = _safe_css(str(tag["style"]))
+        if tag.name == "style":
+            tag.string = _safe_css(tag.get_text())
     for tag in soup.find_all(["img", "image"]):
         attribute = "src" if tag.name == "img" else "href"
         source = str(tag.get(attribute) or tag.get("xlink:href") or "")

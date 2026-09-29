@@ -1,13 +1,17 @@
 import asyncio
+from contextlib import asynccontextmanager
 import re
+import shutil
 import time
 import zipfile
+from typing import Any
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .ai import PROMPT_VERSION, close_http_client, explain_sentences as explain_sentences_with_ai
 from .ai import review_sentence_boundaries
+from .ai_store import close_store as close_ai_store
 from .ai_store import get_cached_response, make_cache_key, set_cached_response, usage_summary
 from .dictionary_store import import_yomitan, lookup
 from .epub import BOOK_DATA_DIR, parse_epub
@@ -22,6 +26,7 @@ from .library_store import (
     load_library_index,
     load_translation_queue,
     load_study_data,
+    initialize_store as initialize_library_store,
     save_library,
 )
 from .models import (
@@ -66,7 +71,19 @@ from .voice_service import (
 )
 
 
-app = FastAPI(title="冰读本地 API", version="0.2.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        await asyncio.to_thread(initialize_library_store)
+        yield
+    finally:
+        try:
+            await close_http_client()
+        finally:
+            close_ai_store()
+
+
+app = FastAPI(title="冰读本地 API", version="0.2.0", lifespan=lifespan)
 app.mount("/api/assets", StaticFiles(directory=BOOK_DATA_DIR, check_dir=False), name="book-assets")
 app.mount("/api/voice/audio", StaticFiles(directory=CACHE_DIR, check_dir=False), name="voice-audio")
 app.add_middleware(
@@ -76,11 +93,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("shutdown")
-async def close_ai_connections() -> None:
-    await close_http_client()
 
 
 @app.middleware("http")
@@ -359,9 +371,41 @@ async def patch_library(patch: LibraryPatch) -> dict[str, int]:
         raise HTTPException(422, str(exc)) from exc
 
 
+def _delete_book_and_resources(book_id: str) -> dict[str, Any]:
+    result = delete_library_book(book_id)
+    resource_keys = result.pop("resource_keys", [])
+    root = BOOK_DATA_DIR.resolve()
+    deleted_resources = 0
+    cleanup_errors: list[str] = []
+    for resource_key in resource_keys:
+        if not re.fullmatch(r"[0-9a-f]{20}", str(resource_key)):
+            continue
+        target = (root / str(resource_key)).resolve()
+        if target.parent != root or not target.is_dir():
+            continue
+        try:
+            shutil.rmtree(target)
+            deleted_resources += 1
+        except OSError as exc:
+            cleanup_errors.append(f"{resource_key}: {exc}")
+
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,100}", book_id):
+        cover_dir = root / "custom-covers"
+        for suffix in (".jpg", ".png", ".webp", ".gif"):
+            try:
+                (cover_dir / f"{book_id}{suffix}").unlink(missing_ok=True)
+            except OSError as exc:
+                cleanup_errors.append(f"custom-cover{suffix}: {exc}")
+
+    result["resources_deleted"] = deleted_resources
+    if cleanup_errors:
+        result["resource_cleanup_errors"] = cleanup_errors
+    return result
+
+
 @app.delete("/api/library/books/{book_id}")
-async def delete_library_book_data(book_id: str) -> dict[str, int]:
-    return delete_library_book(book_id)
+async def delete_library_book_data(book_id: str) -> dict[str, Any]:
+    return await asyncio.to_thread(_delete_book_and_resources, book_id)
 
 
 @app.post("/api/import/text", response_model=ImportedBook)

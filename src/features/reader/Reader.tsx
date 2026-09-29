@@ -356,11 +356,18 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
   }
 
   const renderSentence = (sentence: Sentence) => (
-    <button
+    <span
       key={sentence.id}
       data-sentence-id={sentence.id}
       className={`sentence ${selectedSentenceId === sentence.id ? 'selected' : ''} ${sentence.status === 'failed' ? 'failed' : ''}`}
+      role="button"
+      tabIndex={0}
       onClick={() => void selectSentence(sentence)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        void selectSentence(sentence)
+      }}
     >
       {(tokensBySentence.get(sentence.id) ?? []).length ? (tokensBySentence.get(sentence.id) ?? []).map((token) => (
         <span
@@ -368,12 +375,18 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
           className={`token ${token.is_content ? 'content' : ''} ${selectedTokenId === token.id ? 'selected' : ''}`}
           onClick={(event) => { event.stopPropagation(); setSelectedSentenceId(sentence.id); if (token.is_content) setSelectedTokenId(token.id) }}
           tabIndex={token.is_content ? 0 : -1}
-          onKeyDown={(event) => { if (token.is_content && (event.key === 'Enter' || event.key === ' ')) setSelectedTokenId(token.id) }}
+          onKeyDown={(event) => {
+            if (!token.is_content || (event.key !== 'Enter' && event.key !== ' ')) return
+            event.preventDefault()
+            event.stopPropagation()
+            setSelectedSentenceId(sentence.id)
+            setSelectedTokenId(token.id)
+          }}
         >
           {showFurigana && token.is_content && containsKanji(token.surface) ? <ruby>{token.surface}<rt>{toHiragana(token.reading)}</rt></ruby> : token.surface}
         </span>
       )) : sentence.original}
-    </button>
+    </span>
   )
 
   const renderBlock = (block: ContentBlock) => {

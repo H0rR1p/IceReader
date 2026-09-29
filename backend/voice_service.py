@@ -24,8 +24,11 @@ JOBS_DIR = VOICE_DIR / "jobs"
 SETTINGS_PATH = VOICE_DIR / "settings.json"
 TEMPLATE_PATH = VOICE_DIR / "template.ymmp"
 YMM_DIRECTORY_NAME = "幻想乡口音剪辑器"
-CACHE_VERSION = b"voice-v4-hiragana"
+CACHE_VERSION = b"voice-v5-character-hiragana"
+BRIDGE_API_VERSION = 2
 BRIDGE_CONNECTION_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "BingduYmmBridge" / "connection.json"
+JOB_TTL_SECONDS = 60 * 60
+MAX_RETAINED_JOBS = 256
 
 
 @dataclass
@@ -36,8 +39,8 @@ class _VoiceJob:
     audio_url: str | None = None
     cached: bool = False
     task: asyncio.Task | None = None
-    process: asyncio.subprocess.Process | None = None
     cancel_requested: bool = False
+    finished_at: float | None = None
 
 
 _jobs: dict[str, _VoiceJob] = {}
@@ -49,6 +52,31 @@ def _lock() -> asyncio.Lock:
     if _render_lock is None:
         _render_lock = asyncio.Lock()
     return _render_lock
+
+
+def _finish_job(job: _VoiceJob, status: str, message: str) -> None:
+    job.status = status
+    job.message = message
+    job.finished_at = time.monotonic()
+
+
+def _prune_jobs(now: float | None = None) -> None:
+    """Retain active jobs and only a bounded, recent set of terminal results."""
+    current = time.monotonic() if now is None else now
+    expired = [
+        job_id for job_id, job in _jobs.items()
+        if job.finished_at is not None and current - job.finished_at >= JOB_TTL_SECONDS
+    ]
+    for job_id in expired:
+        _jobs.pop(job_id, None)
+    overflow = max(0, len(_jobs) - MAX_RETAINED_JOBS)
+    if overflow:
+        terminal = sorted(
+            ((job.finished_at, job_id) for job_id, job in _jobs.items() if job.finished_at is not None),
+            key=lambda value: value[0],
+        )
+        for _, job_id in terminal[:overflow]:
+            _jobs.pop(job_id, None)
 
 
 def _read_settings() -> dict:
@@ -194,6 +222,8 @@ def _cache_key(text: str, settings: VoiceSettingsStatus) -> str:
     digest.update(CACHE_VERSION)
     digest.update(text.strip().encode("utf-8"))
     digest.update(TEMPLATE_PATH.read_bytes())
+    digest.update(b"\0character\0")
+    digest.update(settings.character_name.strip().encode("utf-8"))
     digest.update(f"{settings.playback_rate}:{settings.volume}".encode("ascii"))
     return digest.hexdigest()
 
@@ -291,7 +321,19 @@ def _bridge_request(method: str, path: str, payload: dict | None = None, timeout
 def _bridge_ready() -> bool:
     try:
         status = _bridge_request("GET", "/status")
-        return status.get("success") is True and status.get("app") == "bingdu-ymm-bridge"
+        return (
+            status.get("success") is True
+            and status.get("app") == "bingdu-ymm-bridge"
+            and int(status.get("api_version") or 0) >= BRIDGE_API_VERSION
+        )
+    except (OSError, ValueError, KeyError, RuntimeError, json.JSONDecodeError, urllib.error.URLError):
+        return False
+
+
+def _cancel_bridge_job(job_id: str) -> bool:
+    try:
+        result = _bridge_request("POST", "/cancel", {"job_id": job_id}, timeout=5.0)
+        return result.get("success") is True and result.get("canceled") is True
     except (OSError, ValueError, KeyError, RuntimeError, json.JSONDecodeError, urllib.error.URLError):
         return False
 
@@ -330,7 +372,9 @@ def _ensure_bridge(settings: VoiceSettingsStatus) -> None:
     raise RuntimeError("无法连接冰读 YMM4 配音桥，请保存并重启 YMM4 后重试")
 
 
-def _synthesize_with_bridge(text: str, character: str, output: Path, settings: VoiceSettingsStatus) -> None:
+def _synthesize_with_bridge(
+    text: str, character: str, output: Path, settings: VoiceSettingsStatus, job_id: str,
+) -> None:
     _ensure_bridge(settings)
     result = _bridge_request("POST", "/synthesize", {
         "text": text,
@@ -338,6 +382,7 @@ def _synthesize_with_bridge(text: str, character: str, output: Path, settings: V
         "output": str(output.resolve()),
         "playback_rate": settings.playback_rate,
         "volume": settings.volume,
+        "job_id": job_id,
     }, timeout=140)
     if result.get("success") is not True:
         raise RuntimeError(str(result.get("error") or "YMM4 配音桥合成失败"))
@@ -356,6 +401,7 @@ def _status(job: _VoiceJob) -> VoiceJobStatus:
 
 
 async def start_voice_job(text: str, force: bool = False) -> VoiceJobStatus:
+    _prune_jobs()
     settings = get_voice_settings()
     if not settings.ready:
         raise ValueError("配音尚未配置，请先设置 YMM4 路径并导入配音模板")
@@ -365,10 +411,10 @@ async def start_voice_job(text: str, force: bool = False) -> VoiceJobStatus:
     job = _VoiceJob(id=uuid.uuid4().hex)
     _jobs[job.id] = job
     if cache_file.is_file() and not force:
-        job.status = "complete"
-        job.message = "已从本地语音缓存读取"
+        _finish_job(job, "complete", "已从本地语音缓存读取")
         job.audio_url = f"/api/voice/audio/{cache_file.name}"
         job.cached = True
+        _prune_jobs()
         return _status(job)
     job.task = asyncio.create_task(_run_job(job, normalized, cache_key, settings))
     return _status(job)
@@ -379,7 +425,7 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
     try:
         async with _lock():
             if job.cancel_requested:
-                job.status, job.message = "canceled", "配音任务已取消"
+                _finish_job(job, "canceled", "配音任务已取消")
                 return
             job.status, job.message = "running", "YMM4 正在生成语音"
             job_dir.mkdir(parents=True, exist_ok=True)
@@ -387,9 +433,24 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
             character = settings.character_name or ""
             if not character:
                 raise RuntimeError("配音模板缺少角色名称，请重新导入有效的 YMM4 项目")
-            await asyncio.to_thread(_synthesize_with_bridge, pronunciation_text(text), character, output_file, settings)
             if job.cancel_requested:
-                job.status, job.message = "canceled", "配音任务已取消"
+                _finish_job(job, "canceled", "配音任务已取消")
+                return
+            worker = asyncio.create_task(asyncio.to_thread(
+                _synthesize_with_bridge, pronunciation_text(text), character, output_file, settings, job.id,
+            ))
+            try:
+                await asyncio.shield(worker)
+            except asyncio.CancelledError:
+                job.cancel_requested = True
+                await asyncio.to_thread(_cancel_bridge_job, job.id)
+                try:
+                    await asyncio.shield(worker)
+                except Exception:
+                    pass
+                raise
+            if job.cancel_requested:
+                _finish_job(job, "canceled", "配音任务已取消")
                 return
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             cache_file = CACHE_DIR / f"{cache_key}.wav"
@@ -399,19 +460,22 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
             if duration < 0.2:
                 raise RuntimeError("YMM4 配音桥生成的语音过短，请检查系统输出设备和 YMM4 预览音量")
             temporary.replace(cache_file)
-            job.status = "complete"
-            job.message = "配音已生成并保存到本地缓存"
+            _finish_job(job, "complete", "配音已生成并保存到本地缓存")
             job.audio_url = f"/api/voice/audio/{cache_file.name}"
     except asyncio.CancelledError:
-        job.status, job.message = "canceled", "配音任务已取消"
+        _finish_job(job, "canceled", "配音任务已取消")
     except Exception as exc:
-        job.status, job.message = "failed", str(exc)
+        if job.cancel_requested:
+            _finish_job(job, "canceled", "配音任务已取消")
+        else:
+            _finish_job(job, "failed", str(exc))
     finally:
-        job.process = None
         shutil.rmtree(job_dir, ignore_errors=True)
+        _prune_jobs()
 
 
 def get_voice_job(job_id: str) -> VoiceJobStatus:
+    _prune_jobs()
     job = _jobs.get(job_id)
     if not job:
         raise KeyError(job_id)
@@ -419,20 +483,16 @@ def get_voice_job(job_id: str) -> VoiceJobStatus:
 
 
 async def cancel_voice_job(job_id: str) -> VoiceJobStatus:
+    _prune_jobs()
     job = _jobs.get(job_id)
     if not job:
         raise KeyError(job_id)
     if job.status in {"complete", "failed", "canceled"}:
         return _status(job)
     job.cancel_requested = True
-    if job.process and job.process.returncode is None:
-        job.process.terminate()
-        try:
-            await asyncio.wait_for(job.process.wait(), timeout=3)
-        except asyncio.TimeoutError:
-            job.process.kill()
-            await job.process.wait()
-    if job.task and not job.task.done():
-        job.task.cancel()
+    await asyncio.to_thread(_cancel_bridge_job, job.id)
+    # Keep the record non-terminal for pruning purposes until the worker has
+    # actually stopped and released its files. The public status is canceled
+    # immediately, while _run_job sets finished_at during safe cleanup.
     job.status, job.message = "canceled", "配音任务已取消"
     return _status(job)

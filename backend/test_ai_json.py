@@ -1,13 +1,16 @@
 import asyncio
 
+import pytest
+
 from . import ai
 
 
 class _FakeResponse:
     status_code = 200
 
-    def __init__(self, body: dict):
+    def __init__(self, body: dict, headers: dict | None = None):
         self._body = body
+        self.headers = headers or {}
 
     def raise_for_status(self):
         return None
@@ -111,6 +114,80 @@ def test_http_client_is_reused(monkeypatch):
 
     assert ai._get_http_client() is ai._get_http_client()
     assert len(created) == 1
+
+
+def test_http_client_does_not_force_ipv4_source_address(monkeypatch):
+    transport_options = {}
+
+    class _ReusableClient:
+        is_closed = False
+
+    def build_transport(**kwargs):
+        transport_options.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(ai, "_shared_http_client", None)
+    monkeypatch.setattr(ai.httpx, "AsyncHTTPTransport", build_transport)
+    monkeypatch.setattr(ai.httpx, "AsyncClient", lambda **_kwargs: _ReusableClient())
+
+    ai._get_http_client()
+
+    assert "local_address" not in transport_options
+
+
+@pytest.mark.parametrize("status_code", [429, 503])
+def test_chat_json_retries_transient_status_and_respects_retry_after(monkeypatch, status_code):
+    responses = [
+        type("TransientFailure", (_FakeResponse,), {"status_code": status_code})(
+            {"error": "slow down"}, {"Retry-After": "2"},
+        ),
+        _FakeResponse({"choices": [{"message": {"content": '{"results":[]}'}}]}),
+    ]
+    sleeps: list[float] = []
+
+    class _FakeClient:
+        is_closed = False
+
+        async def post(self, _url, *, headers, json, timeout):
+            return responses.pop(0)
+
+    async def fake_sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr(ai, "_shared_http_client", _FakeClient())
+    monkeypatch.setattr(ai, "_unsupported_request_fields", {})
+    monkeypatch.setattr(ai.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(ai, "record_usage", lambda *_args, **_kwargs: None)
+
+    result = asyncio.run(ai._chat_json(
+        "key", "https://api.example", "model", "system", "prompt", operation="test",
+    ))
+
+    assert result == {"results": []}
+    assert sleeps == [2.0]
+
+
+def test_full_explanation_output_budget_scales_past_4096(monkeypatch):
+    observed = {}
+
+    async def fake_chat(*_args, **kwargs):
+        observed.update(kwargs)
+        return {"results": []}
+
+    monkeypatch.setattr(ai, "_chat_json", fake_chat)
+    items = [
+        {
+            "sentence": {"id": f"s-{index}", "original": "長い文章です。"},
+            "unresolved_tokens": [],
+        }
+        for index in range(10)
+    ]
+
+    asyncio.run(ai.explain_sentences(
+        items, "key", "https://api.example", "model", detail_mode="full",
+    ))
+
+    assert observed["max_tokens"] == 5200
 
 
 def test_chat_json_removes_unsupported_optional_fields_and_caches_capability(monkeypatch):

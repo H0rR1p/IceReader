@@ -131,6 +131,26 @@ def test_local_analysis_async_does_not_block_event_loop(monkeypatch):
     assert asyncio.run(run()) < 0.06
 
 
+def test_lifespan_closes_shared_ai_client_even_on_error(monkeypatch):
+    closed = []
+
+    async def fake_close():
+        closed.append(True)
+
+    monkeypatch.setattr(app_module, "close_http_client", fake_close)
+
+    async def run():
+        try:
+            async with app_module.lifespan(app_module.app):
+                raise RuntimeError("stop")
+        except RuntimeError:
+            pass
+
+    asyncio.run(run())
+
+    assert closed == [True]
+
+
 def test_sentence_boundary_review_has_strict_output_budget(monkeypatch):
     from . import ai as ai_module
 

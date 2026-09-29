@@ -1,18 +1,24 @@
 import hashlib
 import json
 import sqlite3
+import threading
 import time
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 from .paths import DATA_DIR
 
 
 AI_DATA_PATH = DATA_DIR / "ai.sqlite3"
+_connection: sqlite3.Connection | None = None
+_connection_path: Path | None = None
+_connection_lock = threading.RLock()
 
 
-def _connect() -> sqlite3.Connection:
-    AI_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(AI_DATA_PATH)
+def _open_connection(path: Path) -> sqlite3.Connection:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA synchronous=NORMAL")
@@ -51,6 +57,41 @@ def _connect() -> sqlite3.Connection:
     return connection
 
 
+def _get_connection() -> sqlite3.Connection:
+    """Return one process-local connection, rebuilding it only when the data path changes."""
+    global _connection, _connection_path
+    path = AI_DATA_PATH.resolve()
+    with _connection_lock:
+        if _connection is None or _connection_path != path:
+            if _connection is not None:
+                _connection.close()
+            _connection = _open_connection(path)
+            _connection_path = path
+        return _connection
+
+
+@contextmanager
+def _session():
+    """Serialize access to the shared SQLite connection and commit atomically."""
+    with _connection_lock:
+        connection = _get_connection()
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+
+
+def close_store() -> None:
+    global _connection, _connection_path
+    with _connection_lock:
+        if _connection is not None:
+            _connection.close()
+        _connection = None
+        _connection_path = None
+
+
 def record_usage(
     operation: str,
     model: str,
@@ -66,7 +107,7 @@ def record_usage(
     prompt = int(usage.get("prompt_tokens") or 0)
     cache_miss = int(usage.get("prompt_cache_miss_tokens") or max(0, prompt - cache_hit))
     completion = int(usage.get("completion_tokens") or 0)
-    with _connect() as connection:
+    with _session() as connection:
         connection.execute(
             """
             INSERT INTO usage (
@@ -84,7 +125,7 @@ def record_usage(
 
 def usage_summary(pricing: dict[str, float] | None = None) -> dict[str, Any]:
     pricing = pricing or {}
-    with _connect() as connection:
+    with _session() as connection:
         total = connection.execute(
             """
             SELECT COUNT(*) AS requests, COALESCE(SUM(item_count), 0) AS items,
@@ -129,7 +170,7 @@ def make_cache_key(kind: str, model: str, prompt_version: str, value: Any) -> st
 
 
 def get_cached_response(cache_key: str) -> dict[str, Any] | None:
-    with _connect() as connection:
+    with _session() as connection:
         row = connection.execute(
             "SELECT payload FROM response_cache WHERE cache_key = ?", (cache_key,),
         ).fetchone()
@@ -150,7 +191,7 @@ def set_cached_response(
     cache_key: str, kind: str, model: str, prompt_version: str, payload: dict[str, Any],
 ) -> None:
     now = time.time()
-    with _connect() as connection:
+    with _session() as connection:
         connection.execute(
             """
             INSERT INTO response_cache (

@@ -1,11 +1,20 @@
 import json
+import re
 import sqlite3
+import threading
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
 from .models import ChapterSnapshot, LibraryIndex, LibraryPatch, LibrarySnapshot, StudyDataSnapshot
 from .paths import DATA_DIR
 
 
 LIBRARY_PATH = DATA_DIR / "library.sqlite3"
 LEGACY_PATH = DATA_DIR / "library.json"
+LIBRARY_SCHEMA_VERSION = 2
+_initialization_lock = threading.Lock()
+_initialized_paths: set[Path] = set()
+_RESOURCE_KEY_PATTERN = re.compile(r"/api/assets/([0-9a-f]{20})(?:/|$)")
 TABLE_KEYS = {
     "books": "id", "chapters": "id", "sentences": "id", "tokens": "id",
     "annotations": "id", "contextSenses": "token_id", "lexemes": "key",
@@ -24,29 +33,63 @@ INDEX_DEFINITIONS = {
 }
 
 
-def _connect() -> sqlite3.Connection:
-    LIBRARY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(LIBRARY_PATH)
-    connection.execute("PRAGMA journal_mode=WAL")
+def _initialize_connection(connection: sqlite3.Connection, path: Path) -> None:
+    with _initialization_lock:
+        if path in _initialized_paths:
+            return
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("CREATE TABLE IF NOT EXISTS records (table_name TEXT NOT NULL, record_key TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY (table_name, record_key))")
+        schema_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+        if schema_version < LIBRARY_SCHEMA_VERSION:
+            # Cards were removed from the product. Purge them once as a schema
+            # migration instead of turning every read connection into a write.
+            connection.execute("DELETE FROM records WHERE table_name = 'cards'")
+            existing_indexes = {
+                row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'index'")
+            }
+            for obsolete_index in OBSOLETE_INDEXES & existing_indexes:
+                connection.execute(f"DROP INDEX {obsolete_index}")
+                existing_indexes.remove(obsolete_index)
+            for index_name, statement in INDEX_DEFINITIONS.items():
+                if index_name not in existing_indexes:
+                    connection.execute(statement)
+            connection.execute(f"PRAGMA user_version = {LIBRARY_SCHEMA_VERSION}")
+        connection.commit()
+        _initialized_paths.add(path)
+
+
+def initialize_store() -> None:
+    with _connect():
+        pass
+
+
+@contextmanager
+def _connect():
+    path = LIBRARY_PATH.resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existed = path.exists()
+    if not existed:
+        with _initialization_lock:
+            _initialized_paths.discard(path)
+    connection = sqlite3.connect(path)
+    _initialize_connection(connection, path)
     connection.execute("PRAGMA synchronous=NORMAL")
-    connection.execute("CREATE TABLE IF NOT EXISTS records (table_name TEXT NOT NULL, record_key TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY (table_name, record_key))")
-    # The store keeps flexible JSON payloads, but chapter reads must not scan
-    # every token in a large library. SQLite expression indexes support these
-    # exact json_extract predicates and turn related-record lookups into seeks.
-    existing_indexes = {
-        row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'index'")
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def _resource_keys(payloads: list[str]) -> set[str]:
+    return {
+        match.group(1)
+        for payload in payloads
+        for match in _RESOURCE_KEY_PATTERN.finditer(payload)
     }
-    for obsolete_index in OBSOLETE_INDEXES & existing_indexes:
-        connection.execute(f"DROP INDEX {obsolete_index}")
-        existing_indexes.remove(obsolete_index)
-    connection.execute("DELETE FROM records WHERE table_name = 'cards'")
-    # Include table_name in each expression index. SQLite may prefer the
-    # records primary key over a partial expression index for a large IN (...)
-    # predicate; these composite indexes remain usable for both = and IN.
-    for index_name, statement in INDEX_DEFINITIONS.items():
-        if index_name not in existing_indexes:
-            connection.execute(statement)
-    return connection
 
 
 def _migrate_legacy() -> None:
@@ -395,11 +438,19 @@ def apply_library_patch(patch: LibraryPatch) -> dict[str, int]:
     return {"changed": changed}
 
 
-def delete_book(book_id: str) -> dict[str, int]:
+def delete_book(book_id: str) -> dict[str, Any]:
     with _connect() as connection:
-        chapter_ids = [row[0] for row in connection.execute(
-            "SELECT record_key FROM records WHERE table_name = 'chapters' AND json_extract(payload, '$.bookId') = ?", (book_id,),
-        )]
+        chapter_rows = connection.execute(
+            "SELECT record_key, payload FROM records WHERE table_name = 'chapters' AND json_extract(payload, '$.bookId') = ?", (book_id,),
+        ).fetchall()
+        chapter_ids = [row[0] for row in chapter_rows]
+        target_payloads = [row[1] for row in chapter_rows]
+        book_row = connection.execute(
+            "SELECT payload FROM records WHERE table_name = 'books' AND record_key = ?", (book_id,),
+        ).fetchone()
+        if book_row:
+            target_payloads.append(book_row[0])
+        target_resource_keys = _resource_keys(target_payloads)
         sentence_ids: list[str] = []
         if chapter_ids:
             placeholders = ",".join("?" for _ in chapter_ids)
@@ -432,7 +483,15 @@ def delete_book(book_id: str) -> dict[str, int]:
             )
         connection.execute("DELETE FROM records WHERE table_name = 'bookmarks' AND json_extract(payload, '$.bookId') = ?", (book_id,))
         connection.execute("DELETE FROM records WHERE table_name = 'books' AND record_key = ?", (book_id,))
-    return {"chapters": len(chapter_ids), "sentences": len(sentence_ids), "tokens": len(token_ids)}
+        remaining_resource_keys = _resource_keys([
+            row[0] for row in connection.execute(
+                "SELECT payload FROM records WHERE table_name IN ('books', 'chapters')"
+            )
+        ])
+    return {
+        "chapters": len(chapter_ids), "sentences": len(sentence_ids), "tokens": len(token_ids),
+        "resource_keys": sorted(target_resource_keys - remaining_resource_keys),
+    }
 
 
 def save_library(snapshot: LibrarySnapshot) -> LibrarySnapshot:

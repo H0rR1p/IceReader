@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Reflection;
@@ -15,6 +16,7 @@ internal static class BridgeServer
 {
     private static readonly object StartGate = new();
     private static readonly SemaphoreSlim SynthesisGate = new(1, 1);
+    private static readonly ConcurrentDictionary<string, CancellationTokenSource> SynthesisJobs = new();
     private static HttpListener? listener;
     private static string token = "";
     private static int startScheduled;
@@ -99,7 +101,17 @@ internal static class BridgeServer
             }
             if (context.Request.HttpMethod == "GET" && context.Request.Url?.AbsolutePath == "/status")
             {
-                await Reply(context, 200, new { success = true, app = "bingdu-ymm-bridge" });
+                await Reply(context, 200, new { success = true, app = "bingdu-ymm-bridge", api_version = 2 });
+                return;
+            }
+            if (context.Request.HttpMethod == "POST" && context.Request.Url?.AbsolutePath == "/cancel")
+            {
+                using var document = await JsonDocument.ParseAsync(context.Request.InputStream);
+                var jobId = document.RootElement.GetProperty("job_id").GetString()?.Trim() ?? "";
+                CancellationTokenSource? pending = null;
+                var canceled = jobId.Length > 0 && SynthesisJobs.TryGetValue(jobId, out pending);
+                if (canceled) pending!.Cancel();
+                await Reply(context, 200, new { success = true, canceled });
                 return;
             }
             if (context.Request.HttpMethod == "POST" && context.Request.Url?.AbsolutePath == "/synthesize")
@@ -111,11 +123,29 @@ internal static class BridgeServer
                 var output = root.GetProperty("output").GetString()?.Trim() ?? "";
                 var playbackRate = root.TryGetProperty("playback_rate", out var rateValue) ? rateValue.GetInt32() : 100;
                 var volume = root.TryGetProperty("volume", out var volumeValue) ? volumeValue.GetInt32() : 100;
+                var jobId = root.TryGetProperty("job_id", out var jobValue)
+                    ? jobValue.GetString()?.Trim() ?? ""
+                    : Guid.NewGuid().ToString("N");
                 if (text.Length == 0 || text.Length > 500 || character.Length == 0 || !Path.IsPathFullyQualified(output))
                     throw new ArgumentException("invalid synthesis request");
+                if (jobId.Length == 0 || jobId.Length > 100) throw new ArgumentException("invalid job id");
                 if (playbackRate is < 50 or > 200 || volume is < 0 or > 200) throw new ArgumentException("invalid voice settings");
-                var result = await Synthesize(text, character, Path.GetFullPath(output), playbackRate, volume);
-                await Reply(context, 200, result);
+                using var cancellation = new CancellationTokenSource();
+                if (!SynthesisJobs.TryAdd(jobId, cancellation)) throw new InvalidOperationException("duplicate synthesis job id");
+                try
+                {
+                    var result = await Synthesize(
+                        text, character, Path.GetFullPath(output), playbackRate, volume, cancellation.Token);
+                    await Reply(context, 200, result);
+                }
+                catch (OperationCanceledException)
+                {
+                    await Reply(context, 409, new { success = false, canceled = true, error = "配音任务已取消" });
+                }
+                finally
+                {
+                    SynthesisJobs.TryRemove(jobId, out _);
+                }
                 return;
             }
             await Reply(context, 404, new { success = false, error = "not found" });
@@ -126,9 +156,11 @@ internal static class BridgeServer
         }
     }
 
-    private static async Task<object> Synthesize(string text, string characterName, string output, int playbackRate, int volume)
+    private static async Task<object> Synthesize(
+        string text, string characterName, string output, int playbackRate, int volume,
+        CancellationToken cancellationToken)
     {
-        await SynthesisGate.WaitAsync();
+        await SynthesisGate.WaitAsync(cancellationToken);
         var synthesisStarted = DateTime.UtcNow;
         object? model = null;
         object? added = null;
@@ -152,7 +184,7 @@ internal static class BridgeServer
                 var pending = method.Invoke(model, BuildAddArguments(method, frame, layer, character, text));
                 if (pending is Task task) await task;
                 var returned = pending == null ? null : pending.GetType().GetProperty("Result")?.GetValue(pending);
-                await Task.Delay(250);
+                await Task.Delay(250, cancellationToken);
                 var current = Enumerable(Member(timeline, "Items")).Select(UnwrapItem).ToArray();
                 var newcomers = current.Where(item => !before.Contains(item)).ToArray();
                 added = returned == null ? null : UnwrapItem(returned);
@@ -177,11 +209,12 @@ internal static class BridgeServer
                 static bool IsVoice(object item) => item.GetType().Name.Contains("Voice", StringComparison.OrdinalIgnoreCase);
             });
 
-            var generatedWave = await FindGeneratedWave(synthesisStarted, add.length / 60d);
+            cancellationToken.ThrowIfCancellationRequested();
+            var generatedWave = await FindGeneratedWave(synthesisStarted, add.length / 60d, cancellationToken);
             if (generatedWave != null)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-                WriteAdjustedWave(generatedWave, output, playbackRate / 100d, volume / 100f);
+                WriteAdjustedWave(generatedWave, output, playbackRate / 100d, volume / 100f, cancellationToken);
                 return new { success = true, output, frames = add.length, bytes = new FileInfo(output).Length };
             }
 
@@ -200,13 +233,25 @@ internal static class BridgeServer
                 lock (chunksGate) chunks.Add(copy);
             };
             capture.RecordingStopped += (_, _) => stopped.TrySetResult();
-            capture.StartRecording();
-            await InvokeAsync(preview, "TogglePlayAsync");
-            var durationMs = Math.Clamp((int)Math.Ceiling(add.length * 1000d / 60d) + 700, 700, 120000);
-            await Task.Delay(durationMs);
-            try { await InvokeAsync(preview, "StopAsync"); } catch { }
-            capture.StopRecording();
-            await Task.WhenAny(stopped.Task, Task.Delay(2000));
+            var playbackStarted = false;
+            try
+            {
+                capture.StartRecording();
+                await InvokeAsync(preview, "TogglePlayAsync");
+                playbackStarted = true;
+                var durationMs = Math.Clamp((int)Math.Ceiling(add.length * 1000d / 60d) + 700, 700, 120000);
+                await Task.Delay(durationMs, cancellationToken);
+            }
+            finally
+            {
+                if (playbackStarted)
+                {
+                    try { await InvokeAsync(preview, "StopAsync"); } catch { }
+                }
+                try { capture.StopRecording(); } catch { }
+                await Task.WhenAny(stopped.Task, Task.Delay(2000));
+            }
+            cancellationToken.ThrowIfCancellationRequested();
             byte[] audio;
             lock (chunksGate) audio = chunks.SelectMany(value => value).ToArray();
             using (var writer = new WaveFileWriter(output, capture.WaveFormat)) writer.Write(audio, 0, audio.Length);
@@ -232,11 +277,13 @@ internal static class BridgeServer
         }
     }
 
-    private static async Task<string?> FindGeneratedWave(DateTime startedAt, double expectedSeconds)
+    private static async Task<string?> FindGeneratedWave(
+        DateTime startedAt, double expectedSeconds, CancellationToken cancellationToken)
     {
         var tempRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YukkuriMovieMaker", "v4", "temp");
         for (var attempt = 0; attempt < 20; attempt++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var candidates = new List<(string Path, double Difference)>();
             try
             {
@@ -255,12 +302,14 @@ internal static class BridgeServer
             catch { }
             var best = candidates.OrderBy(value => value.Difference).FirstOrDefault();
             if (best.Path != null && best.Difference <= 0.35) return best.Path;
-            await Task.Delay(100);
+            await Task.Delay(100, cancellationToken);
         }
         return null;
     }
 
-    private static void WriteAdjustedWave(string sourcePath, string outputPath, double speed, float volume)
+    private static void WriteAdjustedWave(
+        string sourcePath, string outputPath, double speed, float volume,
+        CancellationToken cancellationToken)
     {
         using var source = new WaveFileReader(sourcePath);
         var provider = source.ToSampleProvider();
@@ -268,7 +317,10 @@ internal static class BridgeServer
         var buffer = new float[8192];
         int read;
         while ((read = provider.Read(buffer.AsSpan())) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             samples.AddRange(buffer.AsSpan(0, read).ToArray());
+        }
 
         var channels = provider.WaveFormat.Channels;
         var sourceFrames = samples.Count / channels;
@@ -287,6 +339,7 @@ internal static class BridgeServer
         var output = new float[8192 * channels];
         while (processor.AvailableSamples > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var receivedFrames = processor.ReceiveSamples(output.AsSpan(), Math.Min(8192, processor.AvailableSamples));
             for (var index = 0; index < receivedFrames * channels; index++) writer.WriteSample(output[index] * volume);
         }
