@@ -135,7 +135,7 @@ def test_http_client_does_not_force_ipv4_source_address(monkeypatch):
     assert "local_address" not in transport_options
 
 
-@pytest.mark.parametrize("status_code", [429, 503])
+@pytest.mark.parametrize("status_code", [500, 503])
 def test_chat_json_retries_transient_status_and_respects_retry_after(monkeypatch, status_code):
     responses = [
         type("TransientFailure", (_FakeResponse,), {"status_code": status_code})(
@@ -165,6 +165,38 @@ def test_chat_json_retries_transient_status_and_respects_retry_after(monkeypatch
 
     assert result == {"results": []}
     assert sleeps == [2.0]
+
+
+def test_chat_json_returns_429_to_batch_scheduler_without_local_retry(monkeypatch):
+    calls = 0
+    sleeps: list[float] = []
+
+    class _FakeClient:
+        is_closed = False
+
+        async def post(self, _url, *, headers, json, timeout):
+            nonlocal calls
+            calls += 1
+            return type("RateLimited", (_FakeResponse,), {"status_code": 429})(
+                {"error": "slow down"}, {"Retry-After": "7"},
+            )
+
+    async def fake_sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr(ai, "_shared_http_client", _FakeClient())
+    monkeypatch.setattr(ai, "_unsupported_request_fields", {})
+    monkeypatch.setattr(ai.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(ai, "record_usage", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(ai.AiRateLimitError) as error:
+        asyncio.run(ai._chat_json(
+            "key", "https://api.example", "model", "system", "prompt", operation="test",
+        ))
+
+    assert calls == 1
+    assert sleeps == []
+    assert error.value.retry_after == 7.0
 
 
 def test_full_explanation_output_budget_scales_past_4096(monkeypatch):

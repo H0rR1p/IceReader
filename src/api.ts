@@ -1,5 +1,12 @@
 import type { AiUsageSummary, AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme, Sentence, Token, TranslationQueuePage, VoiceJob, VoiceSettings } from './types'
 
+export class ApiRequestError extends Error {
+  constructor(message: string, public status: number, public retryAfterMs: number | null = null) {
+    super(message)
+    this.name = 'ApiRequestError'
+  }
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `请求失败（${response.status}）`
@@ -9,7 +16,12 @@ async function parseResponse<T>(response: Response): Promise<T> {
     } catch {
       // Keep the status-based message.
     }
-    throw new Error(message)
+    const retryAfter = Number(response.headers.get('Retry-After'))
+    throw new ApiRequestError(
+      message,
+      response.status,
+      Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter * 1000 : null,
+    )
   }
   return response.json() as Promise<T>
 }

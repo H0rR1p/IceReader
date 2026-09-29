@@ -28,6 +28,12 @@ _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _MAX_HTTP_ATTEMPTS = 4
 
 
+class AiRateLimitError(RuntimeError):
+    def __init__(self, detail: str, retry_after: float | None = None):
+        super().__init__(f"AI 服务限流（429）：{detail}")
+        self.retry_after = retry_after
+
+
 def _get_http_client() -> httpx.AsyncClient:
     """Reuse TCP/TLS connections across the many small translation batches."""
     global _shared_http_client
@@ -110,7 +116,7 @@ async def _post_with_retries(
     capability_key: tuple[str, str],
     model: str,
 ) -> httpx.Response:
-    """Post once per capability shape, retrying only transient HTTP statuses."""
+    """Post once on 429; retry transient server failures in this layer."""
     logger = logging.getLogger(__name__)
     for request_attempt in range(_MAX_HTTP_ATTEMPTS):
         for _capability_attempt in range(len(_OPTIONAL_REQUEST_FIELDS) + 1):
@@ -132,6 +138,11 @@ async def _post_with_retries(
                 continue
             break
 
+        # Rate limiting is coordinated by the outer batch scheduler. Retrying
+        # here multiplies with its retries and can create a self-inflicted
+        # request storm.
+        if response.status_code == 429:
+            return response
         if response.status_code not in _RETRYABLE_STATUS_CODES or request_attempt == _MAX_HTTP_ATTEMPTS - 1:
             return response
         delay = _retry_delay(response, request_attempt)
@@ -159,6 +170,9 @@ def _urllib_chat(url: str, api_key: str, payload: dict, timeout: float) -> dict:
             detail = exc.read().decode("utf-8", errors="replace")[-800:]
             if exc.code == 401:
                 raise RuntimeError("DeepSeek 拒绝了 API Key（401），请检查密钥是否有效或是否已失效") from exc
+            if exc.code == 429:
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                raise AiRateLimitError(detail, _retry_delay_value(retry_after, 0)) from exc
             if exc.code in _RETRYABLE_STATUS_CODES and attempt < _MAX_HTTP_ATTEMPTS - 1:
                 retry_after = exc.headers.get("Retry-After") if exc.headers else None
                 delay = _retry_delay_value(retry_after, attempt)
@@ -218,6 +232,8 @@ async def _chat_json(
                 )
                 if response.status_code == 401:
                     raise RuntimeError("DeepSeek 拒绝了 API Key（401），请检查密钥是否有效或是否已失效")
+                if response.status_code == 429:
+                    raise AiRateLimitError(_response_error_detail(response), _retry_delay(response, 0))
                 if response.status_code in _RETRYABLE_STATUS_CODES:
                     raise RuntimeError(
                         f"AI 服务连续 {_MAX_HTTP_ATTEMPTS} 次返回 {response.status_code}："

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { checkHealth, deleteBookCover, explainSentence, explainSentences, loadApiSettings, loadTranslationQueue, loadVoiceSettings, saveApiSettings, saveVoiceSettings, segmentChapter, uploadBookCover, uploadVoiceTemplate } from './api'
+import { ApiRequestError, checkHealth, deleteBookCover, explainSentence, explainSentences, loadApiSettings, loadTranslationQueue, loadVoiceSettings, saveApiSettings, saveVoiceSettings, segmentChapter, uploadBookCover, uploadVoiceTemplate } from './api'
 import { db, loadBookBookmarks, loadChapterData, removeBook, restoreProjectIndex, syncRecords } from './db'
 import type { RecordChanges, RecordDeletes } from './db'
 import Library from './features/library/Library'
@@ -683,7 +683,9 @@ function App() {
                 if (overloaded && attempt < 3) {
                   effectiveConcurrency = Math.max(1, Math.floor(effectiveConcurrency / 2))
                   successfulSinceAdjustment = 0
-                  pauseUntil = Date.now() + Math.min(8000, 1000 * (2 ** attempt))
+                  const scheduledDelay = Math.min(8000, 1000 * (2 ** attempt))
+                  const serverDelay = error instanceof ApiRequestError ? error.retryAfterMs ?? 0 : 0
+                  pauseUntil = Date.now() + Math.min(60_000, Math.max(scheduledDelay, serverDelay))
                   attempt += 1
                   updateProgress(batch.chapterTitle)
                   while (Date.now() < pauseUntil) {

@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .ai import PROMPT_VERSION, close_http_client, explain_sentences as explain_sentences_with_ai
+from .ai import AiRateLimitError, PROMPT_VERSION, close_http_client, explain_sentences as explain_sentences_with_ai
 from .ai import review_sentence_boundaries
 from .ai_store import close_store as close_ai_store
 from .ai_store import get_cached_response, make_cache_key, set_cached_response, usage_summary
@@ -734,7 +734,11 @@ async def _explain_batch(
 async def explain_sentence_batch(
     request: ExplainBatchRequest, x_api_key: str | None = Header(default=None),
 ) -> AnalyzeResponse:
-    return await _explain_batch(request, x_api_key)
+    try:
+        return await _explain_batch(request, x_api_key)
+    except AiRateLimitError as exc:
+        retry_after = max(1, round(exc.retry_after or 1))
+        raise HTTPException(429, str(exc), headers={"Retry-After": str(retry_after)}) from exc
 
 
 @app.post("/api/sentences/explain", response_model=AnalyzeResponse)
@@ -748,7 +752,11 @@ async def explain_sentence(
         context_before=request.context_before,
         settings=request.settings,
     )
-    return await _explain_batch(batch, x_api_key)
+    try:
+        return await _explain_batch(batch, x_api_key)
+    except AiRateLimitError as exc:
+        retry_after = max(1, round(exc.retry_after or 1))
+        raise HTTPException(429, str(exc), headers={"Retry-After": str(retry_after)}) from exc
 
 
 if DIST_DIR.is_dir():
