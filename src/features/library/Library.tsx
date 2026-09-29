@@ -62,6 +62,10 @@ export default function Library({
   }, [books])
   const activeCollection = collections.find((collection) => collection.id === activeCollectionId) ?? null
   const visibleBooks = activeCollection ? activeCollection.books : books.filter((book) => !book.collectionId)
+  const recentBooks = useMemo(() => books
+    .filter((book) => Boolean(book.lastOpenedAt || book.currentChapterId))
+    .sort((left, right) => (right.lastOpenedAt ?? right.updatedAt) - (left.lastOpenedAt ?? left.updatedAt))
+    .slice(0, 4), [books])
 
   async function changeCover(book: Book, file: File | null) {
     if (!file) return
@@ -116,11 +120,10 @@ export default function Library({
       <main className="library page-width">
         <div className="page-heading">
           <div>
-            <p className="eyebrow">我的书架</p>
-            <h1>{activeCollection ? activeCollection.name : '继续冰读'}</h1>
+            <h1>{activeCollection ? activeCollection.name : '书架'}</h1>
           </div>
           <div className="library-heading-side">
-            <p>{activeCollection ? `${activeCollection.books.length} 本书` : '电子书、学习数据和阅读进度保存在本地项目中。'}</p>
+            {activeCollection && <p>{activeCollection.books.length} 本书</p>}
             <div className="library-heading-actions">
               {activeCollection && <button className="button ghost" onClick={() => setActiveCollectionId(null)}>返回书架</button>}
               <button className="button ghost" onClick={() => editCollection(activeCollection ?? undefined)}>{activeCollection ? '管理合集' : '新建合集'}</button>
@@ -142,6 +145,26 @@ export default function Library({
             <button className="button primary" onClick={onImport}>导入内容</button>
           </section>
         ) : (
+          <>
+          {!activeCollection && recentBooks.length > 0 && <section className="recent-section" aria-labelledby="recent-heading">
+            <h2 id="recent-heading">最近阅读</h2>
+            <div className="recent-grid">
+              {recentBooks.map((book) => (
+                <button className="recent-book" key={book.id} disabled={Boolean(loadingBookId)} onClick={() => onOpen(book)}>
+                  <span className="recent-book-cover" aria-hidden="true">
+                    <span className="book-cover-default"><img src="/bingdu-logo.png" alt="" /></span>
+                    {showCovers && <CoverArtwork className="book-cover-image" src={book.coverUrl} />}
+                  </span>
+                  <span className="recent-book-meta">
+                    <strong>{book.title}</strong>
+                    <small>{book.author || '作者未知'}</small>
+                    <span>{loadingBookId === book.id ? '正在加载…' : '继续阅读'}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>}
+          {!activeCollection && <h2 className="shelf-title">我的书架</h2>}
           <div className="book-grid">
             {!activeCollection && collections.map((collection) => (
               <article className="collection-card" key={collection.id}>
@@ -184,6 +207,7 @@ export default function Library({
             ))}
             {activeCollection && visibleBooks.length === 0 && <section className="empty-state"><h2>这个合集还是空的</h2><button className="button ghost" onClick={() => editCollection(activeCollection)}>添加书籍</button></section>}
           </div>
+          </>
         )}
       </main>
 
@@ -223,3 +247,4 @@ export default function Library({
     </>
   )
 }
+

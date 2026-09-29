@@ -22,6 +22,7 @@ export interface Book {
   customCover?: boolean
   createdAt: number
   updatedAt: number
+  lastOpenedAt?: number
   currentChapterId?: string
   currentSentenceId?: string
   collectionId?: string
@@ -195,3 +196,4 @@ export interface VoiceJob {
   audioUrl?: string | null
   cached: boolean
 }
+

@@ -258,7 +258,11 @@ function App() {
     try {
       const chapters = await db.chapters.where('bookId').equals(book.id).sortBy('order')
       const preferred = chapters.find((chapter) => chapter.id === book.currentChapterId) ?? chapters[0]
-      setActiveBook(book)
+      const openedBook = { ...book, lastOpenedAt: Date.now() }
+      await db.books.put(openedBook)
+      await syncRecords({ books: [openedBook] }, {}, controller.signal)
+      setBooks((current) => current.map((item) => item.id === book.id ? openedBook : item))
+      setActiveBook(openedBook)
       setActiveChapter(null)
       setNotice('')
       if (!preferred) return
@@ -1119,3 +1123,4 @@ function StatusBadge({ status }: { status: Chapter['status'] }) {
 }
 
 export default App
+
