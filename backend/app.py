@@ -216,6 +216,8 @@ async def _segment_chapter(chapter: ImportedChapter, api_key: str, base_url: str
     try:
         for result in await asyncio.gather(*(review_batch(batch) for batch in _candidate_batches(candidates))):
             merge_ids.update(result)
+    except AiRateLimitError:
+        raise
     except Exception as exc:
         chapter.sentences, chapter.tokens = await _local_analysis_async(chapter.id, chapter.text, spans)
         chapter.segmentation_source = "local-fallback"
@@ -503,7 +505,11 @@ async def segment_chapter(request: SegmentChapterRequest, x_api_key: str | None 
     chapter = ImportedChapter(
         id=request.chapter_id, title="当前章节", order=0, text=request.text, blocks=request.blocks,
     )
-    chapter, warning = await _segment_chapter(chapter, api_key, base_url, model, asyncio.Semaphore(3))
+    try:
+        chapter, warning = await _segment_chapter(chapter, api_key, base_url, model, asyncio.Semaphore(3))
+    except AiRateLimitError as exc:
+        retry_after = max(1, round(exc.retry_after or 1))
+        raise HTTPException(429, str(exc), headers={"Retry-After": str(retry_after)}) from exc
     warnings = [warning] if warning else []
     return AnalyzeResponse(
         sentences=chapter.sentences, tokens=chapter.tokens, annotations=[], context_senses=[], lexemes=[], warnings=warnings,

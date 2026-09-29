@@ -370,6 +370,13 @@ function App() {
         setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: restoredStatus, error: undefined } : current)
         throw error
       }
+      if (error instanceof ApiRequestError && error.status === 429) {
+        const restoredStatus = chapter.status === 'processing' ? 'pending' : chapter.status
+        await db.chapters.update(chapter.id, { status: restoredStatus, error: undefined })
+        if (options.persist ?? true) await syncRecords({ chapters: [{ ...chapter, status: restoredStatus, error: undefined }] })
+        setActiveChapter((current) => current?.id === chapter.id ? { ...current, status: restoredStatus, error: undefined } : current)
+        throw error
+      }
       const message = error instanceof Error ? error.message : String(error)
       const fallbackStatus = localReady ? 'local-ready' : 'failed'
       await db.chapters.update(chapter.id, { status: fallbackStatus, error: message })
@@ -498,6 +505,29 @@ function App() {
     let nothingToTranslate = false
     setBackgroundJob({ kind, scope, label: `准备后台${jobName}`, completed: 0, total: targets.length, failed: 0, running: true })
 
+    const processChapterWithBackoff = async (target: Chapter) => {
+      let attempt = 0
+      while (true) {
+        try {
+          return await processChapter(target, { quiet: true, persist: true, signal: controller.signal })
+        } catch (error) {
+          if (!(error instanceof ApiRequestError) || error.status !== 429 || attempt >= 3) throw error
+          const scheduledDelay = Math.min(8000, 1000 * (2 ** attempt))
+          const delay = Math.min(60_000, Math.max(scheduledDelay, error.retryAfterMs ?? 0))
+          attempt += 1
+          setBackgroundJob((current) => current && ({
+            ...current,
+            label: `后台切分限流，${Math.ceil(delay / 1000)} 秒后重试：${target.title}`,
+          }))
+          const resumeAt = Date.now() + delay
+          while (Date.now() < resumeAt) {
+            ensureNotCanceled()
+            await new Promise((resolve) => window.setTimeout(resolve, 180))
+          }
+        }
+      }
+    }
+
     try {
       if (kind === 'segment') {
         for (let index = 0; index < targets.length; index += 1) {
@@ -508,7 +538,7 @@ function App() {
           const ready = loaded.sentences.length > 0 && target.status !== 'pending' && target.status !== 'failed'
           if (!ready && target.text.trim()) {
             setBackgroundJob((current) => current && ({ ...current, label: `后台切分：${target.title}`, completed: index, failed }))
-            if (!await processChapter(target, { quiet: true, persist: true, signal: controller.signal })) failed += 1
+            if (!await processChapterWithBackoff(target)) failed += 1
           }
           setBackgroundJob((current) => current && ({ ...current, completed: index + 1, failed }))
         }
@@ -609,7 +639,7 @@ function App() {
               let ready = loaded.sentences.length > 0 && target.status !== 'pending' && target.status !== 'failed'
               if (!ready && target.text.trim()) {
                 setBackgroundJob((current) => current && ({ ...current, label: `后台切分：${target.title}` }))
-                ready = await processChapter(target, { quiet: true, persist: true, signal: controller.signal })
+                ready = await processChapterWithBackoff(target)
                 if (!ready) failed += 1
               }
               if (!ready) continue

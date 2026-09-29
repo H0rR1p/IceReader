@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from . import app as app_module
-from .models import ContentBlock, ExplainBatchRequest, ExplainSentenceRequest, ImportedBook, ImportedChapter
+from .models import ContentBlock, ExplainBatchRequest, ExplainSentenceRequest, ImportedBook, ImportedChapter, SegmentChapterRequest
 
 
 def test_import_does_not_segment_book(monkeypatch):
@@ -74,6 +74,30 @@ def test_segment_joins_aozora_style_paragraph_spans(monkeypatch):
 
     assert [sentence.original for sentence in segmented.sentences] == [text]
     assert warning is None
+
+
+def test_segment_rate_limit_reaches_endpoint_with_retry_after(monkeypatch):
+    from .nlp import SentenceSpan
+
+    text = "前半\n後半"
+    spans = [SentenceSpan(0, 2, "前半", True), SentenceSpan(3, 5, "後半", False)]
+    monkeypatch.setattr(app_module, "_chapter_sentence_spans", lambda _chapter: spans)
+    monkeypatch.setattr(app_module, "resolve_settings", lambda *_: ("key", "https://example.invalid", "model"))
+
+    async def rate_limited(*_args, **_kwargs):
+        raise app_module.AiRateLimitError("slow down", retry_after=9)
+
+    monkeypatch.setattr(app_module, "review_sentence_boundaries", rate_limited)
+    request = SegmentChapterRequest(
+        chapter_id="chapter-1", text=text,
+        blocks=[ContentBlock(id="p1", type="paragraph", start=0, end=len(text), text=text)],
+    )
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(app_module.segment_chapter(request, None))
+
+    assert error.value.status_code == 429
+    assert error.value.headers == {"Retry-After": "9"}
 
 
 def test_structural_heading_does_not_merge_into_paragraph():
