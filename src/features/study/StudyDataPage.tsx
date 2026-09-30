@@ -4,7 +4,6 @@ import type { Blindspot } from '../../api'
 import { loadStudyData } from '../../db'
 import type { Lexeme } from '../../types'
 import { toHiragana } from '../../text'
-import { Modal } from '../settings/Dialogs'
 
 function downloadJson(filename: string, value: unknown) {
   const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json;charset=utf-8' })
@@ -16,7 +15,7 @@ function downloadJson(filename: string, value: unknown) {
   URL.revokeObjectURL(url)
 }
 
-export default function StudyDataDialog({ onClose }: { onClose: () => void }) {
+export default function StudyDataPage() {
   const [lexemes, setLexemes] = useState<Lexeme[]>([])
   const [query, setQuery] = useState('')
   const [dictionaryNotice, setDictionaryNotice] = useState('')
@@ -73,7 +72,9 @@ export default function StudyDataDialog({ onClose }: { onClose: () => void }) {
   )
 
   return (
-    <Modal title="个人词库" onClose={onClose}>
+    <main className="app-page study-page">
+      <header className="page-heading"><div><span>学习资料</span><h1>个人词库</h1><p>查找已保存的词义，管理系统识别出的知识盲区。</p></div></header>
+      <section className="page-surface">
       <div className="data-tools">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="按词形、读音或首个片假名查找" />
         <label className="button small file-button"><input type="file" accept=".zip,application/zip" onChange={(event) => void importDictionary(event.target.files?.[0] ?? null)} />{importingDictionary ? '导入中…' : '导入日中词典'}</label>
@@ -93,6 +94,8 @@ export default function StudyDataDialog({ onClose }: { onClose: () => void }) {
         <div><strong lang="ja">{item.lemma}</strong><span>{toHiragana(item.reading)} · {item.part_of_speech}</span></div>
         <p>{item.senses_zh.join('；')}</p><small>{item.firstKana} · {item.source}</small>
       </article>) : <p className="muted">还没有匹配的词条。</p>}</div>
-    </Modal>
+      </section>
+    </main>
   )
 }
+

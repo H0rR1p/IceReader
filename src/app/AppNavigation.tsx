@@ -2,9 +2,9 @@ import { useRef, useState } from 'react'
 import type { CurrentUser } from '../types'
 import UserAvatar from './UserAvatar'
 
-export type AppPage = 'library' | 'profile' | 'settings'
+export type AppPage = 'library' | 'dictionary' | 'cards' | 'review' | 'profile' | 'settings'
 
-export default function AppNavigation({ page, user, bookCount, canResumeReading, onNavigate, onResumeReading, onImport, onOpenDictionary, onOpenCards, onOpenReview }: {
+export default function AppNavigation({ page, user, bookCount, canResumeReading, onNavigate, onResumeReading, onImport }: {
   page: AppPage
   user: CurrentUser
   bookCount: number
@@ -12,9 +12,6 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
   onNavigate: (page: AppPage) => void
   onResumeReading?: () => void
   onImport: () => void
-  onOpenDictionary: () => void
-  onOpenCards: () => void
-  onOpenReview: () => void
 }) {
   const [logoBouncing, setLogoBouncing] = useState(false)
   const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
@@ -43,9 +40,9 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
       {canResumeReading && onResumeReading && <button className="app-nav-item resume-reading-item" onClick={onResumeReading}><span aria-hidden="true">▶</span><strong>继续阅读</strong></button>}
       <button className="app-nav-item" onClick={onImport}><span aria-hidden="true">＋</span><strong>导入书籍</strong></button>
       <p className="nav-section-label">学习</p>
-      <button className="app-nav-item" onClick={onOpenDictionary}><span aria-hidden="true">あ</span><strong>个人词库</strong></button>
-      <button className="app-nav-item" onClick={onOpenCards}><span aria-hidden="true">◇</span><strong>词语卡片</strong></button>
-      <button className="app-nav-item" onClick={onOpenReview}><span aria-hidden="true">✓</span><strong>今日复习</strong></button>
+      {item('dictionary', 'あ', '个人词库')}
+      {item('cards', '◇', '词语卡片')}
+      {item('review', '✓', '今日复习')}
       <p className="nav-section-label">账户</p>
       {item('profile', '○', '个人主页')}
       {item('settings', '⚙', '设置')}
@@ -56,3 +53,4 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
     </button>
   </aside>
 }
+

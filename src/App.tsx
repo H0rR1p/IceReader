@@ -6,14 +6,14 @@ import { loadCurrentUser, logoutCurrentAccount } from './app/session'
 import ProfilePage from './features/activity/ProfilePage'
 import { useActivityTracker } from './features/activity/useActivityTracker'
 import LoginPage from './features/auth/LoginPage'
-import CardCenterDialog from './features/cards/CardCenterDialog'
-import ReviewDialog from './features/cards/ReviewDialog'
+import CardCenterPage from './features/cards/CardCenterPage'
+import ReviewPage from './features/cards/ReviewPage'
 import Library from './features/library/Library'
 import { useLibraryController } from './features/library/useLibraryController'
 import Workspace from './features/reader/Workspace'
 import { ImportDialog } from './features/settings/Dialogs'
 import SettingsPage from './features/settings/SettingsPage'
-import StudyDataDialog from './features/study/StudyDataDialog'
+import StudyDataPage from './features/study/StudyDataPage'
 import { useAnalysisController } from './features/translation/useAnalysisController'
 import type { ApiSettings, CurrentUser, VoiceSettings } from './types'
 import type { Book } from './types'
@@ -34,9 +34,6 @@ function App() {
 function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { currentUser: CurrentUser; serverReady: boolean | null; onUserChange: (user: CurrentUser) => void; onExit: (user: CurrentUser) => void }) {
   const [page, setPage] = useState<AppPage>('library')
   const [showImport, setShowImport] = useState(false)
-  const [showStudyData, setShowStudyData] = useState(false)
-  const [showCards, setShowCards] = useState(false)
-  const [showReview, setShowReview] = useState(false)
   const [settings, setSettings] = useState<ApiSettings>(DEFAULT_SETTINGS)
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS)
   const [notice, setNotice] = useState('')
@@ -48,7 +45,7 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
   const analysis = useAnalysisController({ activeBook, settings, setActiveBook, setActiveChapter, refreshBooks, setNotice })
   const { backgroundJob, dataRevision, translationMode, translationConcurrency, setTranslationMode, setTranslationConcurrency, processChapter, explainAndStoreSentence, runBackground, cancelBackground } = analysis
 
-  useActivityTracker(currentUser.user_id, showReview ? 'review' : showCards ? 'cards' : showStudyData ? 'dictionary' : activeBook && activeChapter ? 'reading' : null)
+  useActivityTracker(currentUser.user_id, page === 'review' ? 'review' : page === 'cards' ? 'cards' : page === 'dictionary' ? 'dictionary' : activeBook && activeChapter ? 'reading' : null)
   useEffect(() => { void Promise.all([loadApiSettings(), loadVoiceSettings()]).then(([nextApi, nextVoice]) => { setSettings(nextApi); setVoiceSettings(nextVoice) }).catch(() => undefined) }, [])
   useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 5000); return () => window.clearTimeout(timer) }, [notice])
 
@@ -74,9 +71,6 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
 
   const overlays = <>
     {showImport && <ImportDialog onClose={() => setShowImport(false)} onImported={async (book) => { setShowImport(false); await saveImportedBook(book) }} />}
-    {showStudyData && <StudyDataDialog onClose={() => setShowStudyData(false)} />}
-    {showCards && <CardCenterDialog onClose={() => setShowCards(false)} onNotice={setNotice} />}
-    {showReview && <ReviewDialog onClose={() => setShowReview(false)} onNotice={setNotice} />}
   </>
 
   if (activeBook) return <div className="app-shell">
@@ -87,11 +81,14 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
   </div>
 
   return <div className="app-shell app-dashboard-shell">
-    <AppNavigation page={page} user={currentUser} bookCount={books.length} canResumeReading={Boolean(resumeBook)} onResumeReading={resumeReading} onNavigate={navigate} onImport={() => setShowImport(true)} onOpenDictionary={() => setShowStudyData(true)} onOpenCards={() => setShowCards(true)} onOpenReview={() => setShowReview(true)} />
+    <AppNavigation page={page} user={currentUser} bookCount={books.length} canResumeReading={Boolean(resumeBook)} onResumeReading={resumeReading} onNavigate={navigate} onImport={() => setShowImport(true)} />
     <div className="app-page-column">
       {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
       {page === 'library' && <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} onSaveCollection={saveBookCollection} onDissolveCollection={dissolveBookCollection} />}
-      {page === 'profile' && <ProfilePage user={currentUser} books={books} onUserChange={onUserChange} onLogout={logout} onOpenCards={() => setShowCards(true)} onOpenReview={() => setShowReview(true)} />}
+      {page === 'dictionary' && <StudyDataPage />}
+      {page === 'cards' && <CardCenterPage onNotice={setNotice} onStartReview={() => setPage('review')} />}
+      {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} />}
+      {page === 'profile' && <ProfilePage user={currentUser} books={books} onUserChange={onUserChange} onLogout={logout} onOpenCards={() => setPage('cards')} onOpenReview={() => setPage('review')} />}
       {page === 'settings' && <SettingsPage apiSettings={settings} voiceSettings={voiceSettings} books={books} translationMode={translationMode} translationConcurrency={translationConcurrency} onTranslationModeChange={updateTranslationMode} onTranslationConcurrencyChange={updateTranslationConcurrency} onBookImageVisibility={setBookImageVisibility} onSaveApi={async (next) => setSettings(await saveApiSettings(next))} onSaveVoice={async (next, template) => { if (template) await uploadVoiceTemplate(template); setVoiceSettings(await saveVoiceSettings(next)) }} onNotice={setNotice} />}
     </div>
     {overlays}
@@ -99,3 +96,4 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
 }
 
 export default App
+
