@@ -89,4 +89,3 @@ export default function CardCenterPage({ onNotice, onStartReview }: { onNotice: 
     </section>
   </main>
 }
-

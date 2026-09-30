@@ -98,4 +98,3 @@ export default function StudyDataPage() {
     </main>
   )
 }
-

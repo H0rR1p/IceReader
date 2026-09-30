@@ -53,4 +53,3 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
     </button>
   </aside>
 }
-

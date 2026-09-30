@@ -96,4 +96,3 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
 }
 
 export default App
-

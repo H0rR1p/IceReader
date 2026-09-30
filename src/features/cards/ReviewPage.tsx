@@ -33,4 +33,3 @@ export default function ReviewPage({ onNotice, onManageCards }: { onNotice: (val
     </section>
   </main>
 }
-

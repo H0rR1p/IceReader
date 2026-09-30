@@ -512,4 +512,3 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 }
 @media (max-width: 640px) { .profile-editor { grid-template-columns: 1fr 1fr; }.profile-editor .field { grid-column: 1 / -1; } }
 @media (prefers-reduced-motion: reduce) { .heat-cell { transition: none; } }
-
