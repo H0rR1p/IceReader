@@ -16,7 +16,7 @@ _connection_path: Path | None = None
 _connection_lock = threading.RLock()
 
 
-def _open_connection(path: Path) -> sqlite3.Connection:
+def _open_connection(path: Path, migration_user_id: str) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path, check_same_thread=False)
     connection.row_factory = sqlite3.Row
@@ -26,6 +26,7 @@ def _open_connection(path: Path) -> sqlite3.Connection:
         """
         CREATE TABLE IF NOT EXISTS usage (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT '',
             created_at REAL NOT NULL,
             operation TEXT NOT NULL,
             model TEXT NOT NULL,
@@ -40,10 +41,20 @@ def _open_connection(path: Path) -> sqlite3.Connection:
         )
         """
     )
+    usage_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(usage)")}
+    if "user_id" not in usage_columns:
+        backup_path = path.parent / "migration-backups" / "ai.pre-user-boundary.sqlite3"
+        if not backup_path.exists():
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(backup_path) as backup_connection:
+                connection.backup(backup_connection)
+        connection.execute("ALTER TABLE usage ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
+    connection.execute("UPDATE usage SET user_id = ? WHERE user_id = ''", (migration_user_id,))
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS response_cache (
             cache_key TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL DEFAULT '',
             kind TEXT NOT NULL,
             model TEXT NOT NULL,
             prompt_version TEXT NOT NULL,
@@ -54,10 +65,17 @@ def _open_connection(path: Path) -> sqlite3.Connection:
         )
         """
     )
+    cache_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(response_cache)")}
+    if "user_id" not in cache_columns:
+        connection.execute("ALTER TABLE response_cache ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
+    connection.execute("UPDATE response_cache SET user_id = ? WHERE user_id = ''", (migration_user_id,))
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_usage_user_created ON usage(user_id, created_at)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_response_cache_user ON response_cache(user_id, cache_key)")
+    connection.commit()
     return connection
 
 
-def _get_connection() -> sqlite3.Connection:
+def _get_connection(migration_user_id: str) -> sqlite3.Connection:
     """Return one process-local connection, rebuilding it only when the data path changes."""
     global _connection, _connection_path
     path = AI_DATA_PATH.resolve()
@@ -65,16 +83,16 @@ def _get_connection() -> sqlite3.Connection:
         if _connection is None or _connection_path != path:
             if _connection is not None:
                 _connection.close()
-            _connection = _open_connection(path)
+            _connection = _open_connection(path, migration_user_id)
             _connection_path = path
         return _connection
 
 
 @contextmanager
-def _session():
+def _session(migration_user_id: str):
     """Serialize access to the shared SQLite connection and commit atomically."""
     with _connection_lock:
-        connection = _get_connection()
+        connection = _get_connection(migration_user_id)
         try:
             yield connection
             connection.commit()
@@ -93,6 +111,7 @@ def close_store() -> None:
 
 
 def record_usage(
+    user_id: str,
     operation: str,
     model: str,
     usage: dict[str, Any] | None,
@@ -107,25 +126,25 @@ def record_usage(
     prompt = int(usage.get("prompt_tokens") or 0)
     cache_miss = int(usage.get("prompt_cache_miss_tokens") or max(0, prompt - cache_hit))
     completion = int(usage.get("completion_tokens") or 0)
-    with _session() as connection:
+    with _session(user_id) as connection:
         connection.execute(
             """
             INSERT INTO usage (
-                created_at, operation, model, prompt_tokens, cache_hit_tokens,
+                user_id, created_at, operation, model, prompt_tokens, cache_hit_tokens,
                 cache_miss_tokens, completion_tokens, duration_ms, item_count, success, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                time.time(), operation, model, prompt, cache_hit, cache_miss,
+                user_id, time.time(), operation, model, prompt, cache_hit, cache_miss,
                 completion, max(0, int(duration_ms)), max(1, int(item_count)),
                 1 if success else 0, error[:500],
             ),
         )
 
 
-def usage_summary(pricing: dict[str, float] | None = None) -> dict[str, Any]:
+def usage_summary(user_id: str, pricing: dict[str, float] | None = None) -> dict[str, Any]:
     pricing = pricing or {}
-    with _session() as connection:
+    with _session(user_id) as connection:
         total = connection.execute(
             """
             SELECT COUNT(*) AS requests, COALESCE(SUM(item_count), 0) AS items,
@@ -135,8 +154,9 @@ def usage_summary(pricing: dict[str, float] | None = None) -> dict[str, Any]:
                    COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
                    COALESCE(SUM(duration_ms), 0) AS duration_ms,
                    COALESCE(SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END), 0) AS failures
-            FROM usage
-            """
+            FROM usage WHERE user_id = ?
+            """,
+            (user_id,),
         ).fetchone()
         operations = [dict(row) for row in connection.execute(
             """
@@ -145,11 +165,13 @@ def usage_summary(pricing: dict[str, float] | None = None) -> dict[str, Any]:
                    COALESCE(SUM(cache_miss_tokens), 0) AS cache_miss_tokens,
                    COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
                    COALESCE(SUM(duration_ms), 0) AS duration_ms
-            FROM usage GROUP BY operation ORDER BY operation
-            """
+            FROM usage WHERE user_id = ? GROUP BY operation ORDER BY operation
+            """,
+            (user_id,),
         )]
         cache = connection.execute(
-            "SELECT COUNT(*) AS entries, COALESCE(SUM(hit_count), 0) AS hits FROM response_cache"
+            "SELECT COUNT(*) AS entries, COALESCE(SUM(hit_count), 0) AS hits FROM response_cache WHERE user_id = ?",
+            (user_id,),
         ).fetchone()
     data = dict(total)
     data["operations"] = operations
@@ -164,21 +186,21 @@ def usage_summary(pricing: dict[str, float] | None = None) -> dict[str, Any]:
     return data
 
 
-def make_cache_key(kind: str, model: str, prompt_version: str, value: Any) -> str:
+def make_cache_key(user_id: str, kind: str, model: str, prompt_version: str, value: Any) -> str:
     serialized = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(f"{kind}\0{model}\0{prompt_version}\0{serialized}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{user_id}\0{kind}\0{model}\0{prompt_version}\0{serialized}".encode("utf-8")).hexdigest()
 
 
-def get_cached_response(cache_key: str) -> dict[str, Any] | None:
-    with _session() as connection:
+def get_cached_response(user_id: str, cache_key: str) -> dict[str, Any] | None:
+    with _session(user_id) as connection:
         row = connection.execute(
-            "SELECT payload FROM response_cache WHERE cache_key = ?", (cache_key,),
+            "SELECT payload FROM response_cache WHERE user_id = ? AND cache_key = ?", (user_id, cache_key),
         ).fetchone()
         if not row:
             return None
         connection.execute(
-            "UPDATE response_cache SET last_used_at = ?, hit_count = hit_count + 1 WHERE cache_key = ?",
-            (time.time(), cache_key),
+            "UPDATE response_cache SET last_used_at = ?, hit_count = hit_count + 1 WHERE user_id = ? AND cache_key = ?",
+            (time.time(), user_id, cache_key),
         )
     try:
         value = json.loads(row["payload"])
@@ -188,20 +210,20 @@ def get_cached_response(cache_key: str) -> dict[str, Any] | None:
 
 
 def set_cached_response(
-    cache_key: str, kind: str, model: str, prompt_version: str, payload: dict[str, Any],
+    user_id: str, cache_key: str, kind: str, model: str, prompt_version: str, payload: dict[str, Any],
 ) -> None:
     now = time.time()
-    with _session() as connection:
+    with _session(user_id) as connection:
         connection.execute(
             """
             INSERT INTO response_cache (
-                cache_key, kind, model, prompt_version, payload, created_at, last_used_at, hit_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                cache_key, user_id, kind, model, prompt_version, payload, created_at, last_used_at, hit_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
             ON CONFLICT(cache_key) DO UPDATE SET
                 payload = excluded.payload, last_used_at = excluded.last_used_at
             """,
             (
-                cache_key, kind, model, prompt_version,
+                cache_key, user_id, kind, model, prompt_version,
                 json.dumps(payload, ensure_ascii=False, separators=(",", ":")), now, now,
             ),
         )

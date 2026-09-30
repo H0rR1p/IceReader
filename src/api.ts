@@ -7,7 +7,7 @@ export class ApiRequestError extends Error {
   }
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
+export async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `请求失败（${response.status}）`
     try {
@@ -281,4 +281,180 @@ export async function segmentChapter(chapterId: string, text: string, blocks: Co
     signal,
   })
   return parseResponse(response)
+}
+
+export type LearningEventInput = {
+  id: string
+  item: {
+    id: string
+    type: 'vocabulary' | 'sense' | 'expression' | 'grammar'
+    canonical_key: string
+    lemma?: string
+    reading?: string
+    grammar_pattern?: string
+  }
+  event_type: 'lookup' | 'repeated_lookup' | 'translation_reveal' | 'grammar_reveal' | 'mark_unknown' | 'mark_mastered' | 'natural_exposure' | 'srs_again' | 'srs_hard' | 'srs_good' | 'srs_easy'
+  occurred_at: number
+  context?: Record<string, unknown>
+}
+
+export async function recordLearningEvents(events: LearningEventInput[]): Promise<void> {
+  if (!events.length) return
+  await parseResponse(await fetch('/api/learning/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ events }),
+  }))
+}
+
+export type Blindspot = {
+  knowledge_item_id: string
+  type: 'vocabulary' | 'sense' | 'expression' | 'grammar'
+  canonical_key: string
+  lemma: string
+  reading: string
+  grammar_pattern: string
+  mastery: number
+  confidence: number
+  lookup_count: number
+  reasons: string[]
+}
+
+export async function loadBlindspots(signal?: AbortSignal): Promise<Blindspot[]> {
+  return parseResponse(await fetch('/api/learning/blindspots?limit=100', { signal }))
+}
+
+export type KnowledgeState = {
+  type: 'vocabulary' | 'sense' | 'expression' | 'grammar'; canonical_key: string
+  lemma: string; reading: string; grammar_pattern: string; mastery: number; confidence: number
+  exposure_count: number; lookup_count: number; last_seen_at: number | null
+}
+
+export async function loadKnowledgeStates(items: LearningEventInput['item'][], signal?: AbortSignal): Promise<KnowledgeState[]> {
+  if (!items.length) return []
+  return parseResponse(await fetch('/api/learning/states', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }), signal,
+  }))
+}
+
+export type CardCandidate = {
+  id: string; knowledge_item_id: string; lemma: string; reading: string; gloss: string
+  sentence: string; book_id: string; book_title: string; chapter_id: string; sentence_id: string
+  card_template: string; status: string; created_at: number; updated_at: number
+}
+
+export type StudyCard = {
+  id: string; note_id: string; knowledge_item_id: string; lemma: string; reading: string; gloss: string
+  sentence: string; book_id: string; book_title: string; chapter_id: string; sentence_id: string
+  card_template: string; status: string; tags: string[]; difficulty: number; stability: number
+  retrievability: number; due_at: number; reps: number; lapses: number; updated_at: number
+}
+
+export async function createCardCandidate(payload: Record<string, unknown>): Promise<CardCandidate> {
+  return parseResponse(await fetch('/api/cards/candidates', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }))
+}
+
+export async function loadCardCandidates(signal?: AbortSignal): Promise<CardCandidate[]> {
+  return parseResponse(await fetch('/api/cards/candidates', { signal }))
+}
+
+export async function acceptCardCandidate(id: string): Promise<StudyCard> {
+  return parseResponse(await fetch(`/api/cards/candidates/${encodeURIComponent(id)}/accept`, { method: 'POST' }))
+}
+
+export async function rejectCardCandidate(id: string): Promise<void> {
+  await parseResponse(await fetch(`/api/cards/candidates/${encodeURIComponent(id)}/reject`, { method: 'POST' }))
+}
+
+export async function loadCards(filters: { q?: string; status?: string; due?: string } = {}, signal?: AbortSignal): Promise<StudyCard[]> {
+  const query = new URLSearchParams()
+  if (filters.q) query.set('q', filters.q)
+  if (filters.status) query.set('status', filters.status)
+  if (filters.due) query.set('due', filters.due)
+  return parseResponse(await fetch(`/api/cards?${query}`, { signal }))
+}
+
+export async function updateCardStatuses(cardIds: string[], status: 'active' | 'suspended' | 'archived'): Promise<{ updated: number; undo_id: string }> {
+  return parseResponse(await fetch('/api/cards/bulk-status', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ card_ids: cardIds, status }),
+  }))
+}
+
+export async function updateCardTags(cardIds: string[], tag: string, remove = false): Promise<{ updated: number; undo_id: string }> {
+  return parseResponse(await fetch('/api/cards/bulk-tags', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ card_ids: cardIds, tag, remove }),
+  }))
+}
+
+export type CardSummary = { candidates: number; active: number; due_now: number; due_7_days: number; due_30_days: number; daily_new_limit: number }
+
+export async function loadCardSummary(signal?: AbortSignal): Promise<CardSummary> {
+  return parseResponse(await fetch('/api/cards/summary', { signal }))
+}
+
+export type SavedCardView = { id: string; name: string; query: { q?: string; status?: string; due?: string }; updated_at: number }
+
+export async function loadSavedCardViews(signal?: AbortSignal): Promise<SavedCardView[]> {
+  return parseResponse(await fetch('/api/cards/views/saved', { signal }))
+}
+
+export async function saveCardView(name: string, query: SavedCardView['query']): Promise<SavedCardView> {
+  return parseResponse(await fetch('/api/cards/views/saved', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, query }),
+  }))
+}
+
+export async function loadDueCards(signal?: AbortSignal): Promise<StudyCard[]> {
+  return parseResponse(await fetch('/api/cards/due', { signal }))
+}
+
+export async function reviewCard(cardId: string, rating: 'again' | 'hard' | 'good' | 'easy'): Promise<void> {
+  await parseResponse(await fetch(`/api/cards/${encodeURIComponent(cardId)}/review`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: crypto.randomUUID(), rating, reviewed_at: Date.now() / 1000 }),
+  }))
+  await recordActivityMetric('review', { cards_reviewed: 1 }).catch(() => undefined)
+}
+
+export type ActivityType = 'reading' | 'cards' | 'review' | 'dictionary'
+export type ActivityDay = {
+  local_date: string; active_seconds: number; reading_seconds: number; review_seconds: number
+  card_seconds: number; cards_reviewed: number; sentences_read: number; lookup_count: number
+}
+export type ActivitySummary = {
+  active_seconds: number; reading_seconds: number; review_seconds: number; card_seconds: number
+  cards_reviewed: number; sentences_read: number; lookup_count: number
+  days: number; current_streak: number; longest_streak: number
+}
+
+export async function sendActivityHeartbeat(payload: Record<string, unknown>): Promise<void> {
+  await parseResponse(await fetch('/api/me/activity/heartbeat', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }))
+}
+
+export async function recordActivityMetric(activityType: ActivityType, counters: { cards_reviewed?: number; sentences_read?: number; lookup_count?: number }): Promise<void> {
+  const now = new Date()
+  const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  await sendActivityHeartbeat({
+    id: crypto.randomUUID(), session_id: `metric-${crypto.randomUUID()}`, activity_type: activityType,
+    window_start: now.getTime() / 1000, window_end: now.getTime() / 1000, local_date: localDate,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'local', ...counters,
+  })
+}
+
+export async function loadActivityHeatmap(signal?: AbortSignal): Promise<ActivityDay[]> {
+  return parseResponse(await fetch('/api/me/activity/heatmap', { signal }))
+}
+
+export async function loadActivitySummary(days = 7, signal?: AbortSignal): Promise<ActivitySummary> {
+  return parseResponse(await fetch(`/api/me/activity/summary?days=${days}`, { signal }))
+}
+
+export type SyncStatus = { cursor: number; entities: number; tombstones: number; conflicts: number; devices: number; bindings: number; content_scope: string }
+
+export async function loadSyncStatus(signal?: AbortSignal): Promise<SyncStatus> {
+  return parseResponse(await fetch('/api/sync/status', { signal }))
 }

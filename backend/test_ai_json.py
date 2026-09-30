@@ -51,7 +51,7 @@ def test_chat_json_disables_thinking_and_retries_empty_content(monkeypatch):
     monkeypatch.setattr(ai, "record_usage", lambda *args, **kwargs: usage_rows.append({"args": args, **kwargs}))
 
     result = asyncio.run(ai._chat_json(
-        "test-key", "https://api.deepseek.com", "deepseek-v4-flash",
+        "user-1", "test-key", "https://api.deepseek.com", "deepseek-v4-flash",
         "输出JSON", "JSON格式：{\"results\":[]}", operation="test",
     ))
 
@@ -89,7 +89,7 @@ def test_chat_json_doubles_output_budget_after_truncation(monkeypatch):
     monkeypatch.setattr(ai, "record_usage", lambda *_args, **_kwargs: None)
 
     result = asyncio.run(ai._chat_json(
-        "test-key", "https://api.deepseek.com", "deepseek-v4-flash",
+        "user-1", "test-key", "https://api.deepseek.com", "deepseek-v4-flash",
         "输出JSON", "JSON格式：{\"results\":[]}", operation="test", max_tokens=4096,
     ))
 
@@ -160,7 +160,7 @@ def test_chat_json_retries_transient_status_and_respects_retry_after(monkeypatch
     monkeypatch.setattr(ai, "record_usage", lambda *_args, **_kwargs: None)
 
     result = asyncio.run(ai._chat_json(
-        "key", "https://api.example", "model", "system", "prompt", operation="test",
+        "user-1", "key", "https://api.example", "model", "system", "prompt", operation="test",
     ))
 
     assert result == {"results": []}
@@ -191,7 +191,7 @@ def test_chat_json_returns_429_to_batch_scheduler_without_local_retry(monkeypatc
 
     with pytest.raises(ai.AiRateLimitError) as error:
         asyncio.run(ai._chat_json(
-            "key", "https://api.example", "model", "system", "prompt", operation="test",
+            "user-1", "key", "https://api.example", "model", "system", "prompt", operation="test",
         ))
 
     assert calls == 1
@@ -216,7 +216,7 @@ def test_full_explanation_output_budget_scales_past_4096(monkeypatch):
     ]
 
     asyncio.run(ai.explain_sentences(
-        items, "key", "https://api.example", "model", detail_mode="full",
+        "user-1", items, "key", "https://api.example", "model", detail_mode="full",
     ))
 
     assert observed["max_tokens"] == 5200
@@ -254,7 +254,7 @@ def test_chat_json_removes_unsupported_optional_fields_and_caches_capability(mon
     monkeypatch.setattr(ai, "_unsupported_request_fields", {})
     monkeypatch.setattr(ai, "record_usage", lambda *_args, **_kwargs: None)
 
-    args = ("key", "https://compatible.example/v1", "plain-model", "system", "prompt")
+    args = ("user-1", "key", "https://compatible.example/v1", "plain-model", "system", "prompt")
     assert asyncio.run(ai._chat_json(*args, operation="test")) == {"results": []}
     assert "response_format" in payloads[0]
     assert "response_format" not in payloads[1]

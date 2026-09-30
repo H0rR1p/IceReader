@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { loadCurrentUser } from './app/session'
 import type { Annotation, Book, Chapter, ContextSense, Lexeme, Sentence, SentenceBookmark, Token } from './types'
 
 class ReaderDatabase extends Dexie {
@@ -11,8 +12,8 @@ class ReaderDatabase extends Dexie {
   lexemes!: EntityTable<Lexeme, 'key'>
   bookmarks!: EntityTable<SentenceBookmark, 'id'>
 
-  constructor() {
-    super('nichidoku-reader')
+  constructor(databaseName: string) {
+    super(databaseName)
     this.version(1).stores({
       books: 'id, updatedAt, title',
       chapters: 'id, bookId, [bookId+order], status',
@@ -62,7 +63,17 @@ class ReaderDatabase extends Dexie {
   }
 }
 
-export const db = new ReaderDatabase()
+export let db = new ReaderDatabase('bingdu-reader-bootstrap')
+let databaseUserId = ''
+
+export async function ensureUserDatabase() {
+  const user = await loadCurrentUser()
+  if (databaseUserId === user.user_id) return user
+  db.close()
+  db = new ReaderDatabase(`bingdu-reader-${user.user_id}`)
+  databaseUserId = user.user_id
+  return user
+}
 
 const DATA_TABLES = ['books', 'chapters', 'sentences', 'tokens', 'annotations', 'contextSenses', 'lexemes', 'bookmarks'] as const
 export type DataTableName = typeof DATA_TABLES[number]
@@ -85,6 +96,7 @@ export async function syncRecords(upserts: RecordChanges = {}, deletes: RecordDe
 }
 
 export async function restoreProjectIndex(signal?: AbortSignal) {
+  await ensureUserDatabase()
   const response = await expectOk(await fetch('/api/library/index', { signal }), '无法读取书籍索引')
   const snapshot = await response.json() as { books: Book[]; chapters: Array<Omit<Chapter, 'text' | 'blocks'> & Partial<Pick<Chapter, 'text' | 'blocks'>>> }
   const cached = await db.chapters.bulkGet(snapshot.chapters.map((chapter) => chapter.id))

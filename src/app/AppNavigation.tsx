@@ -1,0 +1,58 @@
+import { useRef, useState } from 'react'
+import type { CurrentUser } from '../types'
+import UserAvatar from './UserAvatar'
+
+export type AppPage = 'library' | 'profile' | 'settings'
+
+export default function AppNavigation({ page, user, bookCount, canResumeReading, onNavigate, onResumeReading, onImport, onOpenDictionary, onOpenCards, onOpenReview }: {
+  page: AppPage
+  user: CurrentUser
+  bookCount: number
+  canResumeReading?: boolean
+  onNavigate: (page: AppPage) => void
+  onResumeReading?: () => void
+  onImport: () => void
+  onOpenDictionary: () => void
+  onOpenCards: () => void
+  onOpenReview: () => void
+}) {
+  const [logoBouncing, setLogoBouncing] = useState(false)
+  const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
+  function activateBrand() {
+    const audio = new Audio('/bingdu-logo-click.wav')
+    logoAudiosRef.current.add(audio)
+    audio.addEventListener('ended', () => logoAudiosRef.current.delete(audio), { once: true })
+    void audio.play().catch(() => logoAudiosRef.current.delete(audio))
+    setLogoBouncing(false)
+    window.requestAnimationFrame(() => setLogoBouncing(true))
+    onNavigate('library')
+  }
+  const item = (target: AppPage, icon: string, label: string, detail?: string) => (
+    <button className={`app-nav-item ${page === target ? 'active' : ''}`} onClick={() => onNavigate(target)}>
+      <span aria-hidden="true">{icon}</span><strong>{label}</strong>{detail && <small>{detail}</small>}
+    </button>
+  )
+  return <aside className="app-navigation">
+    <button className={`nav-brand ${logoBouncing ? 'is-bouncing' : ''}`} onClick={activateBrand} onAnimationEnd={() => setLogoBouncing(false)} aria-label="返回书架并播放冰读语音">
+      <img src="/bingdu-logo.png" alt="" />
+      <span><strong>冰读</strong><small>日语学习阅读器</small></span>
+    </button>
+    <nav aria-label="主要页面">
+      <p className="nav-section-label">阅读</p>
+      {item('library', '▦', '我的书架', `${bookCount} 本`)}
+      {canResumeReading && onResumeReading && <button className="app-nav-item resume-reading-item" onClick={onResumeReading}><span aria-hidden="true">▶</span><strong>继续阅读</strong></button>}
+      <button className="app-nav-item" onClick={onImport}><span aria-hidden="true">＋</span><strong>导入书籍</strong></button>
+      <p className="nav-section-label">学习</p>
+      <button className="app-nav-item" onClick={onOpenDictionary}><span aria-hidden="true">あ</span><strong>个人词库</strong></button>
+      <button className="app-nav-item" onClick={onOpenCards}><span aria-hidden="true">◇</span><strong>词语卡片</strong></button>
+      <button className="app-nav-item" onClick={onOpenReview}><span aria-hidden="true">✓</span><strong>今日复习</strong></button>
+      <p className="nav-section-label">账户</p>
+      {item('profile', '○', '个人主页')}
+      {item('settings', '⚙', '设置')}
+    </nav>
+    <button className="nav-user" onClick={() => onNavigate('profile')}>
+      <UserAvatar user={user} className="nav-avatar" />
+      <span><strong>{user.display_name}</strong><small>{user.is_guest ? '本机模式' : `@${user.username ?? 'local'}`}</small></span>
+    </button>
+  </aside>
+}

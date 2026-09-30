@@ -34,9 +34,11 @@ MAX_RETAINED_JOBS = 256
 @dataclass
 class _VoiceJob:
     id: str
+    owner_user_id: str
     status: str = "queued"
     message: str = "等待生成"
     audio_url: str | None = None
+    audio_path: Path | None = None
     cached: bool = False
     task: asyncio.Task | None = None
     cancel_requested: bool = False
@@ -400,7 +402,7 @@ def _status(job: _VoiceJob) -> VoiceJobStatus:
     )
 
 
-async def start_voice_job(text: str, force: bool = False) -> VoiceJobStatus:
+async def start_voice_job(user_id: str, text: str, force: bool = False) -> VoiceJobStatus:
     _prune_jobs()
     settings = get_voice_settings()
     if not settings.ready:
@@ -408,11 +410,12 @@ async def start_voice_job(text: str, force: bool = False) -> VoiceJobStatus:
     normalized = text.strip()
     cache_key = _cache_key(normalized, settings)
     cache_file = CACHE_DIR / f"{cache_key}.wav"
-    job = _VoiceJob(id=uuid.uuid4().hex)
+    job = _VoiceJob(id=uuid.uuid4().hex, owner_user_id=user_id)
     _jobs[job.id] = job
     if cache_file.is_file() and not force:
         _finish_job(job, "complete", "已从本地语音缓存读取")
-        job.audio_url = f"/api/voice/audio/{cache_file.name}"
+        job.audio_url = f"/api/voice/jobs/{job.id}/audio"
+        job.audio_path = cache_file
         job.cached = True
         _prune_jobs()
         return _status(job)
@@ -461,7 +464,8 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
                 raise RuntimeError("YMM4 配音桥生成的语音过短，请检查系统输出设备和 YMM4 预览音量")
             temporary.replace(cache_file)
             _finish_job(job, "complete", "配音已生成并保存到本地缓存")
-            job.audio_url = f"/api/voice/audio/{cache_file.name}"
+            job.audio_url = f"/api/voice/jobs/{job.id}/audio"
+            job.audio_path = cache_file
     except asyncio.CancelledError:
         _finish_job(job, "canceled", "配音任务已取消")
     except Exception as exc:
@@ -474,18 +478,29 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
         _prune_jobs()
 
 
-def get_voice_job(job_id: str) -> VoiceJobStatus:
+def get_voice_job(user_id: str, job_id: str) -> VoiceJobStatus:
     _prune_jobs()
     job = _jobs.get(job_id)
-    if not job:
+    if not job or job.owner_user_id != user_id:
         raise KeyError(job_id)
     return _status(job)
 
 
-async def cancel_voice_job(job_id: str) -> VoiceJobStatus:
+def get_voice_audio_path(user_id: str, job_id: str) -> Path:
     _prune_jobs()
     job = _jobs.get(job_id)
-    if not job:
+    if not job or job.owner_user_id != user_id or job.status != "complete" or not job.audio_path:
+        raise KeyError(job_id)
+    path = job.audio_path.resolve()
+    if path.parent != CACHE_DIR.resolve() or not path.is_file():
+        raise KeyError(job_id)
+    return path
+
+
+async def cancel_voice_job(user_id: str, job_id: str) -> VoiceJobStatus:
+    _prune_jobs()
+    job = _jobs.get(job_id)
+    if not job or job.owner_user_id != user_id:
         raise KeyError(job_id)
     if job.status in {"complete", "failed", "canceled"}:
         return _status(job)
