@@ -187,6 +187,7 @@ def _urllib_chat(url: str, api_key: str, payload: dict, timeout: float) -> dict:
 
 
 async def _chat_json(
+    user_id: str,
     api_key: str,
     base_url: str,
     model: str,
@@ -264,14 +265,14 @@ async def _chat_json(
             if not isinstance(result, dict):
                 raise ValueError("AI 返回的 JSON 顶层不是对象")
             record_usage(
-                operation, model, body.get("usage"),
+                user_id, operation, model, body.get("usage"),
                 round((time.perf_counter() - started) * 1000), item_count=item_count,
             )
             return result
         except (json.JSONDecodeError, ValueError) as exc:
             last_error = exc
             record_usage(
-                operation, model, body.get("usage") if body else None,
+                user_id, operation, model, body.get("usage") if body else None,
                 round((time.perf_counter() - started) * 1000), item_count=item_count,
                 success=False, error=str(exc),
             )
@@ -279,7 +280,7 @@ async def _chat_json(
                 continue
         except Exception as exc:
             record_usage(
-                operation, model, None, round((time.perf_counter() - started) * 1000),
+                user_id, operation, model, None, round((time.perf_counter() - started) * 1000),
                 item_count=item_count, success=False, error=str(exc),
             )
             if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, urllib.error.URLError)):
@@ -289,7 +290,7 @@ async def _chat_json(
 
 
 async def review_sentence_boundaries(
-    candidates: list[dict], api_key: str, base_url: str, model: str,
+    user_id: str, candidates: list[dict], api_key: str, base_url: str, model: str,
 ) -> set[str]:
     """Return uncertain boundary IDs whose right side belongs to the left sentence."""
     compact = [[row["id"], row["left"], row["right"]] for row in candidates]
@@ -300,7 +301,7 @@ async def review_sentence_boundaries(
         f"边界：{json.dumps(compact, ensure_ascii=False, separators=(',', ':'))}"
     )
     result = await _chat_json(
-        api_key, base_url, model,
+        user_id, api_key, base_url, model,
         "你只判断日语句界，保守处理。输出合法 JSON。",
         prompt, operation="sentence_boundary", item_count=len(candidates),
         timeout=45.0, max_tokens=min(256, max(64, len(candidates) * 8)),
@@ -310,6 +311,7 @@ async def review_sentence_boundaries(
 
 
 async def explain_sentences(
+    user_id: str,
     items: list[dict],
     api_key: str,
     base_url: str,
@@ -363,7 +365,7 @@ async def explain_sentences(
             f"{context_suffix}\n输入：{json.dumps(compact, ensure_ascii=False, separators=(',', ':'))}"
         )
     result = await _chat_json(
-        api_key, base_url, model, SYSTEM_PROMPT, prompt,
+        user_id, api_key, base_url, model, SYSTEM_PROMPT, prompt,
         operation="sentence_grammar" if annotation_mode == "grammar" else "sentence_explanation",
         item_count=len(items),
         max_tokens=(
@@ -384,6 +386,7 @@ async def explain_sentences(
 
 
 async def explain_sentence(
+    user_id: str,
     sentence: dict,
     tokens: list[dict],
     dictionary_by_token: dict[str, dict | None],
@@ -396,7 +399,7 @@ async def explain_sentence(
         token for token in tokens
         if token.get("is_content") and not (dictionary_by_token.get(token["id"]) or {}).get("senses_zh")
     ]
-    rows = await explain_sentences([{
+    rows = await explain_sentences(user_id, [{
         "sentence": sentence, "unresolved_tokens": unresolved,
     }], api_key, base_url, model)
     row = rows[0] if rows else {"id": sentence["id"], "meaning": "", "words": [], "annotations": []}

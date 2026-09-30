@@ -1,5 +1,8 @@
-from . import library_store
+from .modules.library import repository as library_store
 from .models import LibraryPatch, LibrarySnapshot
+
+
+USER_ID = "user-1"
 
 
 def test_library_snapshot_round_trip(tmp_path, monkeypatch):
@@ -10,8 +13,8 @@ def test_library_snapshot_round_trip(tmp_path, monkeypatch):
         chapters=[{"id": "chapter-1", "bookId": "book-1"}],
     )
 
-    library_store.save_library(snapshot)
-    restored = library_store.load_library()
+    library_store.save_library(USER_ID, snapshot)
+    restored = library_store.load_library(USER_ID)
 
     assert restored is not None
     assert restored.books[0]["id"] == "book-1"
@@ -21,7 +24,7 @@ def test_library_snapshot_round_trip(tmp_path, monkeypatch):
 def test_chapter_view_and_details_are_loaded_separately(tmp_path, monkeypatch):
     path = tmp_path / "data" / "library.sqlite3"
     monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
-    library_store.apply_library_patch(LibraryPatch(upserts={
+    library_store.apply_library_patch(USER_ID, LibraryPatch(upserts={
         "books": [{"id": "book-1", "title": "test"}],
         "chapters": [{"id": "chapter-1", "bookId": "book-1", "text": "猫。犬。", "order": 0}],
         "sentences": [
@@ -47,24 +50,24 @@ def test_chapter_view_and_details_are_loaded_separately(tmp_path, monkeypatch):
         ],
     }))
 
-    view = library_store.load_chapter_view("chapter-1")
+    view = library_store.load_chapter_view(USER_ID, "chapter-1")
     assert [row["id"] for row in view.sentences] == ["sentence-1", "sentence-2"]
     assert view.tokens == []
     assert view.annotations == []
 
-    details = library_store.load_chapter_details("chapter-1", offset=1, limit=1)
+    details = library_store.load_chapter_details(USER_ID, "chapter-1", offset=1, limit=1)
     assert details["sentence_ids"] == ["sentence-2"]
     assert [row["id"] for row in details["tokens"]] == ["token-2"]
     assert [row["id"] for row in details["annotations"]] == ["annotation-2"]
     assert details["contextSenses"] == [{"token_id": "token-2", "gloss_zh": "狗"}]
     assert [row["key"] for row in details["lexemes"]] == ["犬|イヌ|名詞"]
-    assert [row["sentenceId"] for row in library_store.load_bookmarks("book-1")] == ["sentence-2"]
+    assert [row["sentenceId"] for row in library_store.load_bookmarks(USER_ID, "book-1")] == ["sentence-2"]
 
 
 def test_translation_queue_is_stable_and_filters_by_detail(tmp_path, monkeypatch):
     path = tmp_path / "data" / "library.sqlite3"
     monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
-    library_store.apply_library_patch(LibraryPatch(upserts={
+    library_store.apply_library_patch(USER_ID, LibraryPatch(upserts={
         "books": [{"id": "book-1", "title": "test"}],
         "chapters": [{"id": "chapter-1", "bookId": "book-1", "title": "正文", "order": 0}],
         "sentences": [
@@ -79,21 +82,21 @@ def test_translation_queue_is_stable_and_filters_by_detail(tmp_path, monkeypatch
         ],
     }))
 
-    meaning_page = library_store.load_translation_queue("book-1", limit=1, detail_mode="meaning")
+    meaning_page = library_store.load_translation_queue(USER_ID, "book-1", limit=1, detail_mode="meaning")
     assert [item["sentence"]["id"] for item in meaning_page["items"]] == ["s2"]
     assert meaning_page["items"][0]["tokens"] == []
     assert meaning_page["contextBefore"] == ["一。"]
     assert meaning_page["nextCursor"] is None
 
     first_full_page = library_store.load_translation_queue(
-        "book-1", limit=1, detail_mode="full", include_tokens=True,
+        USER_ID, "book-1", limit=1, detail_mode="full", include_tokens=True,
     )
     assert [item["sentence"]["id"] for item in first_full_page["items"]] == ["s1"]
     assert [token["id"] for token in first_full_page["items"][0]["tokens"]] == ["t1"]
     assert first_full_page["nextCursor"]
 
     second_full_page = library_store.load_translation_queue(
-        "book-1", cursor=first_full_page["nextCursor"], limit=2,
+        USER_ID, "book-1", cursor=first_full_page["nextCursor"], limit=2,
         detail_mode="full", include_tokens=True,
     )
     assert [item["sentence"]["id"] for item in second_full_page["items"]] == ["s2"]
@@ -104,7 +107,7 @@ def test_translation_queue_is_stable_and_filters_by_detail(tmp_path, monkeypatch
 def test_library_index_marks_only_fully_translated_books(tmp_path, monkeypatch):
     path = tmp_path / "data" / "library.sqlite3"
     monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
-    library_store.apply_library_patch(LibraryPatch(upserts={
+    library_store.apply_library_patch(USER_ID, LibraryPatch(upserts={
         "books": [{"id": "book-1", "title": "test"}],
         "chapters": [
             {"id": "chapter-1", "bookId": "book-1", "text": "猫。", "order": 0},
@@ -116,18 +119,18 @@ def test_library_index_marks_only_fully_translated_books(tmp_path, monkeypatch):
         ],
     }))
 
-    assert library_store.load_library_index().books[0]["translationComplete"] is False
+    assert library_store.load_library_index(USER_ID).books[0]["translationComplete"] is False
 
-    library_store.apply_library_patch(LibraryPatch(upserts={"sentences": [
+    library_store.apply_library_patch(USER_ID, LibraryPatch(upserts={"sentences": [
         {"id": "s2", "chapter_id": "chapter-2", "start": 0, "original": "犬。", "translation_zh": "狗。", "explanation_status": "complete", "explanation_detail": "meaning"},
     ]}))
-    assert library_store.load_library_index().books[0]["translationComplete"] is True
+    assert library_store.load_library_index(USER_ID).books[0]["translationComplete"] is True
 
 
 def test_read_connection_does_not_repeat_schema_migration(tmp_path, monkeypatch):
     path = tmp_path / "data" / "library.sqlite3"
     monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
-    library_store.apply_library_patch(LibraryPatch(upserts={
+    library_store.apply_library_patch(USER_ID, LibraryPatch(upserts={
         "books": [{"id": "book-1", "title": "test"}],
     }))
 
@@ -140,7 +143,7 @@ def test_read_connection_does_not_repeat_schema_migration(tmp_path, monkeypatch)
         return connection
 
     monkeypatch.setattr(library_store.sqlite3, "connect", traced_connect)
-    library_store.load_library_index()
+    library_store.load_library_index(USER_ID)
 
     writes = ("BEGIN", "DELETE", "DROP", "CREATE", "INSERT", "UPDATE", "REPLACE")
     assert not [statement for statement in statements if statement.lstrip().upper().startswith(writes)]
@@ -150,7 +153,7 @@ def test_delete_book_only_releases_unreferenced_epub_resources(tmp_path, monkeyp
     path = tmp_path / "data" / "library.sqlite3"
     monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
     resource_key = "a" * 20
-    library_store.apply_library_patch(LibraryPatch(upserts={
+    library_store.apply_library_patch(USER_ID, LibraryPatch(upserts={
         "books": [
             {"id": "book-1", "title": "first"},
             {"id": "book-2", "title": "duplicate"},
@@ -161,8 +164,49 @@ def test_delete_book_only_releases_unreferenced_epub_resources(tmp_path, monkeyp
         ],
     }))
 
-    first = library_store.delete_book("book-1")
-    second = library_store.delete_book("book-2")
+    first = library_store.delete_book(USER_ID, "book-1")
+    second = library_store.delete_book(USER_ID, "book-2")
 
     assert first["resource_keys"] == []
     assert second["resource_keys"] == [resource_key]
+
+
+def test_repository_isolates_two_users_with_identical_record_ids(tmp_path, monkeypatch):
+    path = tmp_path / "data" / "library.sqlite3"
+    monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
+    library_store.apply_library_patch("user-a", LibraryPatch(upserts={
+        "books": [{"id": "shared-id", "title": "甲的书"}],
+        "lexemes": [{"key": "猫|ねこ|名詞", "lemma": "猫", "reading": "ねこ", "senses_zh": ["甲释义"]}],
+    }))
+    library_store.apply_library_patch("user-b", LibraryPatch(upserts={
+        "books": [{"id": "shared-id", "title": "乙的书"}],
+        "lexemes": [{"key": "猫|ねこ|名詞", "lemma": "猫", "reading": "ねこ", "senses_zh": ["乙释义"]}],
+    }))
+
+    assert library_store.load_library_index("user-a").books[0]["title"] == "甲的书"
+    assert library_store.load_library_index("user-b").books[0]["title"] == "乙的书"
+    assert library_store.find_personal_lexeme("user-a", "猫|ねこ|名詞", "猫", "ねこ")["senses_zh"] == ["甲释义"]
+    assert library_store.find_personal_lexeme("user-b", "猫|ねこ|名詞", "猫", "ねこ")["senses_zh"] == ["乙释义"]
+
+    library_store.delete_book("user-a", "shared-id")
+    assert library_store.load_library_index("user-a").books == []
+    assert library_store.load_library_index("user-b").books[0]["title"] == "乙的书"
+
+
+def test_v2_records_are_backed_up_and_migrated_idempotently(tmp_path, monkeypatch):
+    path = tmp_path / "data" / "library.sqlite3"
+    path.parent.mkdir(parents=True)
+    with library_store.sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE records(table_name TEXT NOT NULL, record_key TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(table_name, record_key))"
+        )
+        connection.execute(
+            "INSERT INTO records VALUES ('books', 'book-1', '{\"id\":\"book-1\",\"title\":\"旧书\"}')"
+        )
+        connection.execute("PRAGMA user_version = 2")
+    monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
+
+    assert library_store.load_library_index("migration-user").books[0]["title"] == "旧书"
+    assert library_store.load_library_index("other-user").books == []
+    assert (path.parent / "migration-backups" / "library.pre-user-boundary.sqlite3").is_file()
+    assert library_store.load_library_index("migration-user").books[0]["id"] == "book-1"

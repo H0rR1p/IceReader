@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { cancelVoiceJob, loadVoiceJob, lookupDictionary, startVoiceJob } from '../../api'
+import { cancelVoiceJob, createCardCandidate, loadKnowledgeStates, loadVoiceJob, lookupDictionary, recordActivityMetric, recordLearningEvents, startVoiceJob } from '../../api'
+import type { KnowledgeState } from '../../api'
 import { db, loadChapterDetails, syncRecords } from '../../db'
 import type {
   Annotation,
@@ -23,6 +24,10 @@ type ReaderBackgroundJob = {
 
 function containsKanji(value: string) {
   return /[一-龯々]/.test(value)
+}
+
+function normalizeGrammar(value: string) {
+  return value.normalize('NFKC').replace(/[「」『』\s]/g, '').replace(/[～〜]/g, '~').toLowerCase()
 }
 
 export default function Reader({ book, chapter, previousChapter, nextChapter, chapterNavigationLoading, showImages, onNavigateChapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground, bookmarks, onToggleBookmark }: {
@@ -52,6 +57,11 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState('')
   const [showFurigana, setShowFurigana] = useState(true)
+  const [assistanceMode, setAssistanceMode] = useState<'auto' | 'always' | 'challenge'>(() => {
+    const saved=localStorage.getItem('bingdu-assistance-mode')
+    return saved === 'always' || saved === 'challenge' ? saved : 'auto'
+  })
+  const [knowledgeStates, setKnowledgeStates] = useState<Record<string,KnowledgeState>>({})
   const [showAnnotations, setShowAnnotations] = useState(true)
   const [viewMode, setViewMode] = useState<'study' | 'original'>('study')
   const [readerLoading, setReaderLoading] = useState(true)
@@ -62,6 +72,10 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const voiceJobIdRef = useRef<string | null>(null)
   const voicePollAbortRef = useRef<AbortController | null>(null)
+  const lookupHistoryRef = useRef(new Set<string>())
+  const forcedAssistanceRef = useRef(new Set<string>())
+  const assistedSentenceIdsRef = useRef(new Set<string>())
+  const exposedSentenceIdsRef = useRef(new Set<string>())
   const sentenceAudioRef = useRef<HTMLAudioElement | null>(null)
   const detailsLoadedRef = useRef(0)
 
@@ -139,6 +153,23 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
     for (const values of map.values()) values.sort((a, b) => a.start - b.start)
     return map
   }, [tokens])
+
+  useEffect(() => {
+    const unique = new Map<string,{ id: string; type: 'vocabulary' | 'grammar'; canonical_key: string; lemma?: string; reading?: string; grammar_pattern?: string }>()
+    for (const token of tokens.filter((value) => value.is_content)) unique.set(`vocabulary:${token.lexemeKey}`,{
+      id:crypto.randomUUID(),type:'vocabulary',canonical_key:token.lexemeKey,lemma:token.lemma,reading:token.reading,
+    })
+    for (const note of annotations.filter((value) => value.type === 'grammar' && value.structure)) {
+      const key=normalizeGrammar(note.structure ?? '')
+      if (key) unique.set(`grammar:${key}`,{id:crypto.randomUUID(),type:'grammar',canonical_key:key,grammar_pattern:note.structure})
+    }
+    if (!unique.size) { setKnowledgeStates({}); return }
+    const controller=new AbortController()
+    void loadKnowledgeStates([...unique.values()],controller.signal).then((rows) => {
+      if (!controller.signal.aborted) setKnowledgeStates(Object.fromEntries(rows.map((row) => [`${row.type}:${row.canonical_key}`,row])))
+    }).catch(() => undefined)
+    return () => controller.abort()
+  }, [annotations,tokens])
   const selectedSentence = sentences.find((sentence) => sentence.id === selectedSentenceId) ?? null
   const selectedToken = tokens.find((token) => token.id === selectedTokenId) ?? null
   const selectedSentenceTokens = selectedSentenceId ? (tokensBySentence.get(selectedSentenceId) ?? []) : []
@@ -187,6 +218,77 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
     observer.observe(target)
     return () => observer.disconnect()
   }, [sentences.length, visibleSentenceCount])
+
+  useEffect(() => {
+    if (readerLoading || viewMode !== 'study') return
+    const visibleIds = new Set<string>()
+    const timers = new Map<string, number>()
+    const exposureSeconds = 8
+
+    const stopTimer = (sentenceId: string) => {
+      const timer = timers.get(sentenceId)
+      if (timer !== undefined) window.clearTimeout(timer)
+      timers.delete(sentenceId)
+    }
+    const startTimer = (sentenceId: string) => {
+      if (!document.hasFocus() || document.visibilityState !== 'visible'
+        || assistedSentenceIdsRef.current.has(sentenceId)
+        || exposedSentenceIdsRef.current.has(sentenceId)
+        || timers.has(sentenceId)) return
+      const sentenceTokens = tokensBySentence.get(sentenceId)?.filter((token) => token.is_content) ?? []
+      if (!sentenceTokens.length) return
+      timers.set(sentenceId, window.setTimeout(() => {
+        timers.delete(sentenceId)
+        if (!visibleIds.has(sentenceId) || !document.hasFocus() || document.visibilityState !== 'visible'
+          || assistedSentenceIdsRef.current.has(sentenceId) || exposedSentenceIdsRef.current.has(sentenceId)) return
+        exposedSentenceIdsRef.current.add(sentenceId)
+        void recordLearningEvents(sentenceTokens.map((token) => ({
+          id: crypto.randomUUID(),
+          item: {
+            id: crypto.randomUUID(), type: 'vocabulary' as const, canonical_key: token.lexemeKey,
+            lemma: token.lemma, reading: token.reading,
+          },
+          event_type: 'natural_exposure' as const,
+          occurred_at: Date.now() / 1000,
+          context: {
+            book_id: book.id, chapter_id: chapter.id, sentence_id: sentenceId,
+            token_id: token.id, visible_seconds: exposureSeconds,
+          },
+        }))).catch(() => undefined)
+        void recordActivityMetric('reading', { sentences_read: 1 }).catch(() => undefined)
+      }, exposureSeconds * 1000))
+    }
+    const reconcileTimers = () => {
+      for (const sentenceId of visibleIds) startTimer(sentenceId)
+      if (!document.hasFocus() || document.visibilityState !== 'visible') {
+        for (const sentenceId of [...timers.keys()]) stopTimer(sentenceId)
+      }
+    }
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const sentenceId = (entry.target as HTMLElement).dataset.sentenceId
+        if (!sentenceId) continue
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+          visibleIds.add(sentenceId)
+          startTimer(sentenceId)
+        } else {
+          visibleIds.delete(sentenceId)
+          stopTimer(sentenceId)
+        }
+      }
+    }, { threshold: [0, 0.6, 1] })
+    document.querySelectorAll<HTMLElement>('[data-sentence-id]').forEach((element) => observer.observe(element))
+    document.addEventListener('visibilitychange', reconcileTimers)
+    window.addEventListener('focus', reconcileTimers)
+    window.addEventListener('blur', reconcileTimers)
+    return () => {
+      observer.disconnect()
+      for (const timer of timers.values()) window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', reconcileTimers)
+      window.removeEventListener('focus', reconcileTimers)
+      window.removeEventListener('blur', reconcileTimers)
+    }
+  }, [book.id, chapter.id, readerLoading, tokensBySentence, viewMode, visibleSentenceCount])
 
   useEffect(() => {
     if (!selectedSentenceId) return
@@ -298,6 +400,27 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
     void syncRecords({ books: [nextBook] })
   }
 
+  function selectToken(sentence: Sentence, token: Token) {
+    setSelectedSentenceId(sentence.id)
+    if (!token.is_content) return
+    assistedSentenceIdsRef.current.add(sentence.id)
+    forcedAssistanceRef.current.add(token.lexemeKey)
+    setSelectedTokenId(token.id)
+    const repeated = lookupHistoryRef.current.has(token.lexemeKey)
+    lookupHistoryRef.current.add(token.lexemeKey)
+    void recordActivityMetric('dictionary', { lookup_count: 1 }).catch(() => undefined)
+    void recordLearningEvents([{
+      id: crypto.randomUUID(),
+      item: {
+        id: crypto.randomUUID(), type: 'vocabulary', canonical_key: token.lexemeKey,
+        lemma: token.lemma, reading: token.reading,
+      },
+      event_type: repeated ? 'repeated_lookup' : 'lookup',
+      occurred_at: Date.now() / 1000,
+      context: { book_id: book.id, chapter_id: chapter.id, sentence_id: sentence.id, token_id: token.id },
+    }]).catch(() => undefined)
+  }
+
   async function saveLexeme(senses: string[]) {
     if (!selectedToken) return
     const next: Lexeme = {
@@ -316,8 +439,23 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
     setLexemesByToken((current) => ({ ...current, [selectedToken.id]: next }))
   }
 
+  async function addCurrentCard() {
+    if (!selectedToken || !selectedSentence) return
+    await createCardCandidate({
+      item: {
+        id: crypto.randomUUID(), type: 'vocabulary', canonical_key: selectedToken.lexemeKey,
+        lemma: selectedToken.lemma, reading: selectedToken.reading,
+      },
+      lemma: selectedToken.lemma, reading: selectedToken.reading,
+      gloss: currentSense?.gloss_zh || lexeme?.senses_zh[0] || '', sentence: selectedSentence.original,
+      book_id: book.id, book_title: book.title, chapter_id: chapter.id, sentence_id: selectedSentence.id,
+    })
+    onNotice('已加入卡片收件箱。')
+  }
+
   async function explainCurrentSentence(annotationMode: 'none' | 'grammar' = 'none') {
     if (!selectedSentence || explaining) return
+    assistedSentenceIdsRef.current.add(selectedSentence.id)
     setExplaining(true)
     setExplainError('')
     setSentences((current) => current.map((sentence) => sentence.id === selectedSentence.id
@@ -342,6 +480,30 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
         else if (incoming) nextLexemes[token.id] = { ...incoming, firstKana: incoming.reading[0] || '未', updatedAt: Date.now() }
       }
       setLexemesByToken(nextLexemes)
+      if (annotationMode === 'grammar') {
+        void recordLearningEvents(result.annotations.filter((note) => note.structure).map((note) => ({
+          id: crypto.randomUUID(),
+          item: {
+            id: crypto.randomUUID(), type: 'grammar' as const,
+            canonical_key: normalizeGrammar(note.structure ?? note.quote),
+            grammar_pattern: note.structure ?? note.quote,
+          },
+          event_type: 'grammar_reveal' as const,
+          occurred_at: Date.now() / 1000,
+          context: { book_id: book.id, chapter_id: chapter.id, sentence_id: selectedSentence.id },
+        }))).catch(() => undefined)
+      } else {
+        void recordLearningEvents([{
+          id: crypto.randomUUID(),
+          item: {
+            id: crypto.randomUUID(), type: 'expression',
+            canonical_key: `sentence:${selectedSentence.id}`, lemma: selectedSentence.original,
+          },
+          event_type: 'translation_reveal',
+          occurred_at: Date.now() / 1000,
+          context: { book_id: book.id, chapter_id: chapter.id, sentence_id: selectedSentence.id },
+        }]).catch(() => undefined)
+      }
       onNotice(result.warnings.length ? `本句释义完成；${result.warnings.join('；')}` : annotationMode === 'grammar' ? '本句语法句法分析已保存。' : '本句句意与词典结果已保存。')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -354,6 +516,41 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
       setExplaining(false)
     }
   }
+
+  function assistanceLevel(token: Token) {
+    if (assistanceMode === 'always' || forcedAssistanceRef.current.has(token.lexemeKey)) return 3
+    if (assistanceMode === 'challenge') return 0
+    const state=knowledgeStates[`vocabulary:${token.lexemeKey}`]
+    if (!state || state.confidence < 0.2) return 3
+    if (state.mastery < 0.25) return 3
+    if (state.mastery < 0.55) return 2
+    if (state.mastery < 0.8 || state.confidence < 0.5) return 1
+    return 0
+  }
+
+  const chapterInsight = useMemo(() => {
+    const content=[...new Map(tokens.filter((token) => token.is_content).map((token) => [token.lexemeKey,token])).values()]
+    if (!content.length) return null
+    const unknown=content.filter((token) => {
+      const state=knowledgeStates[`vocabulary:${token.lexemeKey}`]
+      return !state || state.confidence < 0.2 || state.mastery < 0.55
+    })
+    const vocabularyCoverage=1-unknown.length/content.length
+    const grammarKeys=[...new Set(annotations.filter((note) => note.type==='grammar' && note.structure).map((note) => normalizeGrammar(note.structure ?? '')).filter(Boolean))]
+    const unknownGrammar=grammarKeys.filter((key) => {
+      const state=knowledgeStates[`grammar:${key}`]
+      return !state || state.confidence < 0.2 || state.mastery < 0.55
+    })
+    const unknownGrammarRatio=grammarKeys.length ? unknownGrammar.length/grammarKeys.length : null
+    const averageLength=sentences.length ? sentences.reduce((sum,sentence) => sum+sentence.original.length,0)/sentences.length : 0
+    const sentencePenalty=Math.min(1,Math.max(0,(averageLength-18)/35))
+    const syntaxComplexity=grammarKeys.length ? Math.min(1,grammarKeys.length/Math.max(1,sentences.length)*3) : 0
+    const score=unknownGrammarRatio === null
+      ? (0.75*(1-vocabularyCoverage)+0.15*sentencePenalty+0.1*syntaxComplexity)
+      : (0.55*(1-vocabularyCoverage)+0.25*unknownGrammarRatio+0.1*sentencePenalty+0.1*syntaxComplexity)
+    return { vocabularyCoverage,grammarCoverage:unknownGrammarRatio === null ? null : 1-unknownGrammarRatio,score,
+      suggestions:unknown.slice(0,5).map((token) => token.lemma) }
+  },[annotations,knowledgeStates,sentences,tokens])
 
   const renderSentence = (sentence: Sentence) => (
     <span
@@ -372,18 +569,17 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
       {(tokensBySentence.get(sentence.id) ?? []).length ? (tokensBySentence.get(sentence.id) ?? []).map((token) => (
         <span
           key={token.id}
-          className={`token ${token.is_content ? 'content' : ''} ${selectedTokenId === token.id ? 'selected' : ''}`}
-          onClick={(event) => { event.stopPropagation(); setSelectedSentenceId(sentence.id); if (token.is_content) setSelectedTokenId(token.id) }}
+          className={`token ${token.is_content ? 'content' : ''} ${token.is_content ? `assist-level-${assistanceLevel(token)}` : ''} ${selectedTokenId === token.id ? 'selected' : ''}`}
+          onClick={(event) => { event.stopPropagation(); selectToken(sentence, token) }}
           tabIndex={token.is_content ? 0 : -1}
           onKeyDown={(event) => {
             if (!token.is_content || (event.key !== 'Enter' && event.key !== ' ')) return
             event.preventDefault()
             event.stopPropagation()
-            setSelectedSentenceId(sentence.id)
-            setSelectedTokenId(token.id)
+            selectToken(sentence, token)
           }}
         >
-          {showFurigana && token.is_content && containsKanji(token.surface) ? <ruby>{token.surface}<rt>{toHiragana(token.reading)}</rt></ruby> : token.surface}
+          {showFurigana && token.is_content && containsKanji(token.surface) && assistanceLevel(token) > 0 ? <ruby>{token.surface}<rt className={assistanceLevel(token) === 1 ? 'faint' : ''}>{toHiragana(token.reading)}</rt></ruby> : token.surface}
         </span>
       )) : sentence.original}
     </span>
@@ -417,7 +613,7 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
           <div><p className="eyebrow">{book.title}</p><h1>{chapter.title}</h1></div>
           <div className="display-toggles">
             {chapter.originalHtmlUrl && <button className={`mode-button ${viewMode === 'original' ? 'active' : ''}`} onClick={() => setViewMode(viewMode === 'study' ? 'original' : 'study')}>{viewMode === 'study' ? '原书预览' : '冰读模式'}</button>}
-            <Toggle label="振假名" value={showFurigana} onChange={setShowFurigana} />
+            <label className="assistance-select"><span>阅读辅助</span><select value={assistanceMode} onChange={(event) => { const value=event.target.value as typeof assistanceMode; setAssistanceMode(value); setShowFurigana(true); localStorage.setItem('bingdu-assistance-mode',value) }}><option value="auto">自动渐退</option><option value="always">始终显示</option><option value="challenge">挑战模式</option></select></label>
             <Toggle label="语法" value={showAnnotations} onChange={setShowAnnotations} />
           </div>
         </div>
@@ -425,6 +621,7 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
           <button className="button small" disabled={backgroundJob?.running || chapter.status === 'processing'} onClick={() => onBackground('segment')}>后台切分本章</button>
           <button className="button small" disabled={backgroundJob?.running || chapter.status === 'processing'} onClick={() => onBackground('translate')}>后台翻译本章</button>
         </div>
+        {chapterInsight && <div className="chapter-insight"><div><strong>{chapterInsight.score < .28 ? '个人难度：舒适' : chapterInsight.score < .55 ? '个人难度：适中' : '个人难度：较难'}</strong><span>词汇覆盖 {Math.round(chapterInsight.vocabularyCoverage*100)}% · 语法覆盖 {chapterInsight.grammarCoverage === null ? '待分析' : `${Math.round(chapterInsight.grammarCoverage*100)}%`}</span></div>{!!chapterInsight.suggestions.length && <small>当前范围建议预习：{chapterInsight.suggestions.join('、')}</small>}</div>}
         {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章尚未切分。<button disabled={backgroundJob?.running} onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
         {chapter.status === 'processing' && <div className="inline-warning">正在切分本章。</div>}
         {readerLoading ? <div className="reader-loading" aria-live="polite"><div className="loading-dango" aria-hidden="true" /><span>正在整理本章内容…</span></div> : viewMode === 'original' && chapter.originalHtmlUrl
@@ -469,7 +666,7 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
             </div>
             {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
             {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
-            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} />}
+            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCurrentCard} />}
             {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>语法句法</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>语法结构</span><strong>{note.structure || note.quote}</strong><small className="annotation-quote" lang="ja">{note.quote}</small><p>{note.explanation_zh}</p></div>)}</section>}
           </>
         ) : <p className="muted">选择一个句子开始冰读。</p>}
@@ -479,9 +676,10 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
   )
 }
 
-function DictionaryCard({ token, lexeme, contextGloss, onSave }: {
+function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
   token: Token; lexeme: Lexeme | null; contextGloss: string
   onSave: (senses: string[]) => void
+  onAddCard: () => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
@@ -540,7 +738,7 @@ function DictionaryCard({ token, lexeme, contextGloss, onSave }: {
   }
   return (
     <section className="dictionary-card">
-      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}</div></div>
+      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" onClick={() => void onAddCard()}>加入词卡</button><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}</div></div>
       {wordVoice?.status === 'failed' && <small className="voice-status failed">{wordVoice.message}</small>}
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">

@@ -1,5 +1,17 @@
 export type ChapterStatus = 'pending' | 'local-ready' | 'processing' | 'complete' | 'partial-failed' | 'failed'
 
+export interface CurrentUser {
+  user_id: string
+  display_name: string
+  avatar_url?: string | null
+  created_at: number
+  session_id: string
+  device_id: string
+  auth_provider: string
+  username?: string | null
+  is_guest?: boolean
+}
+
 export interface ContentBlock {
   id: string
   type: 'heading' | 'paragraph' | 'quote' | 'list-item' | 'image' | 'page-break' | 'separator'

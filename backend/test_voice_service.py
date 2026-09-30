@@ -3,6 +3,8 @@ import json
 import struct
 import threading
 
+import pytest
+
 from . import voice_service
 from .models import VoiceSettingsInput
 
@@ -90,11 +92,11 @@ def test_cached_voice_does_not_start_ymm(tmp_path, monkeypatch):
     voice_service.CACHE_DIR.mkdir(parents=True)
     (voice_service.CACHE_DIR / f"{key}.wav").write_bytes(b"RIFF-cache")
 
-    job = asyncio.run(voice_service.start_voice_job("こんにちは。"))
+    job = asyncio.run(voice_service.start_voice_job("user-1", "こんにちは。"))
 
     assert job.status == "complete"
     assert job.cached is True
-    assert job.audio_url == f"/api/voice/audio/{key}.wav"
+    assert job.audio_url == f"/api/voice/jobs/{job.id}/audio"
 
 
 def test_bridge_install_copies_soundtouch_next_to_plugin(tmp_path, monkeypatch):
@@ -172,14 +174,14 @@ def test_bridge_voice_job_completes_and_caches_real_audio(tmp_path, monkeypatch)
     monkeypatch.setattr(voice_service, "_synthesize_with_bridge", fake_synthesis)
 
     async def run_job():
-        started = await voice_service.start_voice_job("今日は晴れです。")
+        started = await voice_service.start_voice_job("user-1", "今日は晴れです。")
         await voice_service._jobs[started.id].task
-        return voice_service.get_voice_job(started.id)
+        return voice_service.get_voice_job("user-1", started.id)
 
     result = asyncio.run(run_job())
 
     assert result.status == "complete"
-    assert result.audio_url and result.audio_url.endswith(".wav")
+    assert result.audio_url == f"/api/voice/jobs/{result.id}/audio"
     assert result.cached is False
 
 
@@ -202,10 +204,10 @@ def test_cancel_waits_for_worker_before_removing_job_directory(tmp_path, monkeyp
     monkeypatch.setattr(voice_service, "pronunciation_text", lambda value: value)
 
     async def run():
-        started = await voice_service.start_voice_job("今日は晴れです。", force=True)
+        started = await voice_service.start_voice_job("user-1", "今日は晴れです。", force=True)
         assert await asyncio.to_thread(entered.wait, 1)
         task = voice_service._jobs[started.id].task
-        canceled = await voice_service.cancel_voice_job(started.id)
+        canceled = await voice_service.cancel_voice_job("user-1", started.id)
         assert canceled.status == "canceled"
         assert voice_service._jobs[started.id].finished_at is None
         assert (voice_service.JOBS_DIR / started.id).is_dir()
@@ -217,7 +219,7 @@ def test_cancel_waits_for_worker_before_removing_job_directory(tmp_path, monkeyp
     job_id = asyncio.run(run())
 
     assert not (voice_service.JOBS_DIR / job_id).exists()
-    assert voice_service.get_voice_job(job_id).status == "canceled"
+    assert voice_service.get_voice_job("user-1", job_id).status == "canceled"
     assert voice_service._jobs[job_id].finished_at is not None
 
 
@@ -226,7 +228,7 @@ def test_finished_voice_jobs_are_bounded(monkeypatch):
     monkeypatch.setattr(voice_service, "MAX_RETAINED_JOBS", 2)
     monkeypatch.setattr(voice_service, "JOB_TTL_SECONDS", 3600)
     for index in range(4):
-        job = voice_service._VoiceJob(id=str(index))
+        job = voice_service._VoiceJob(id=str(index), owner_user_id="user-1")
         voice_service._jobs[job.id] = job
         voice_service._finish_job(job, "complete", "done")
         job.finished_at = float(index + 1)
@@ -234,3 +236,14 @@ def test_finished_voice_jobs_are_bounded(monkeypatch):
     voice_service._prune_jobs(now=4.0)
 
     assert set(voice_service._jobs) == {"2", "3"}
+
+
+def test_voice_jobs_are_private_to_owner():
+    voice_service._jobs.clear()
+    job = voice_service._VoiceJob(id="private-job", owner_user_id="user-a")
+    voice_service._finish_job(job, "complete", "done")
+    voice_service._jobs[job.id] = job
+
+    assert voice_service.get_voice_job("user-a", job.id).id == job.id
+    with pytest.raises(KeyError):
+        voice_service.get_voice_job("user-b", job.id)

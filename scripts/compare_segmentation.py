@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backend.ai import _chat_json
 from backend.app import _chapter_sentence_spans, _segment_chapter
-from backend.library_store import LIBRARY_PATH
+from backend.modules.library.repository import LIBRARY_PATH
 from backend.models import ImportedChapter
 from backend.nlp import CLOSERS, SentenceSpan, split_sentences
 from backend.settings_store import _read
