@@ -368,12 +368,48 @@ export async function rejectCardCandidate(id: string): Promise<void> {
   await parseResponse(await fetch(`/api/cards/candidates/${encodeURIComponent(id)}/reject`, { method: 'POST' }))
 }
 
-export async function loadCards(filters: { q?: string; status?: string; due?: string } = {}, signal?: AbortSignal): Promise<StudyCard[]> {
+export type CardPage = { items: StudyCard[]; total: number; limit: number; offset: number }
+
+export async function loadCards(filters: { q?: string; status?: string; due?: string; limit?: number; offset?: number } = {}, signal?: AbortSignal): Promise<CardPage> {
   const query = new URLSearchParams()
   if (filters.q) query.set('q', filters.q)
   if (filters.status) query.set('status', filters.status)
   if (filters.due) query.set('due', filters.due)
-  return parseResponse(await fetch(`/api/cards?${query}`, { signal }))
+  if (filters.limit) query.set('limit', String(filters.limit))
+  if (filters.offset) query.set('offset', String(filters.offset))
+  return parseResponse(await fetch(`/api/cards/page?${query}`, { signal }))
+}
+
+export async function updateCard(cardId: string, fields: Pick<StudyCard, 'lemma' | 'reading' | 'gloss' | 'sentence'>): Promise<StudyCard & { undo_id: string }> {
+  return parseResponse(await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields),
+  }))
+}
+
+export async function undoCardAction(undoId: string): Promise<{ restored: number }> {
+  return parseResponse(await fetch(`/api/cards/undo/${encodeURIComponent(undoId)}`, { method: 'POST' }))
+}
+
+export async function mergeCards(targetCardId: string, sourceCardIds: string[]): Promise<{ target_card_id: string; merged: number }> {
+  return parseResponse(await fetch('/api/cards/merge', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_card_id: targetCardId, source_card_ids: sourceCardIds }),
+  }))
+}
+
+export type CardTagSummary = { name: string; count: number }
+export async function loadCardTags(signal?: AbortSignal): Promise<CardTagSummary[]> {
+  return parseResponse(await fetch('/api/cards/tags', { signal }))
+}
+
+export type CardPreferences = { daily_new_limit: number; daily_review_limit: number }
+export async function loadCardPreferences(signal?: AbortSignal): Promise<CardPreferences> {
+  return parseResponse(await fetch('/api/cards/preferences', { signal }))
+}
+export async function saveCardPreferences(value: CardPreferences): Promise<CardPreferences> {
+  return parseResponse(await fetch('/api/cards/preferences', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value),
+  }))
 }
 
 export async function updateCardStatuses(cardIds: string[], status: 'active' | 'suspended' | 'archived'): Promise<{ updated: number; undo_id: string }> {
@@ -388,7 +424,7 @@ export async function updateCardTags(cardIds: string[], tag: string, remove = fa
   }))
 }
 
-export type CardSummary = { candidates: number; active: number; due_now: number; due_7_days: number; due_30_days: number; daily_new_limit: number }
+export type CardSummary = { candidates: number; active: number; due_now: number; due_7_days: number; due_30_days: number; new_today: number; daily_new_limit: number; daily_review_limit: number }
 
 export async function loadCardSummary(signal?: AbortSignal): Promise<CardSummary> {
   return parseResponse(await fetch('/api/cards/summary', { signal }))
@@ -406,6 +442,10 @@ export async function saveCardView(name: string, query: SavedCardView['query']):
   }))
 }
 
+export async function deleteCardView(id: string): Promise<void> {
+  await parseResponse(await fetch(`/api/cards/views/saved/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+}
+
 export async function loadDueCards(signal?: AbortSignal): Promise<StudyCard[]> {
   return parseResponse(await fetch('/api/cards/due', { signal }))
 }
@@ -416,6 +456,24 @@ export async function reviewCard(cardId: string, rating: 'again' | 'hard' | 'goo
     body: JSON.stringify({ id: crypto.randomUUID(), rating, reviewed_at: Date.now() / 1000 }),
   }))
   await recordActivityMetric('review', { cards_reviewed: 1 }).catch(() => undefined)
+}
+
+export async function downloadFullBackup(): Promise<void> {
+  const response = await fetch('/api/data/backup')
+  if (!response.ok) throw new Error((await response.text()) || '无法创建备份')
+  const blob = await response.blob()
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const encoded = disposition.match(/filename\*=utf-8''([^;]+)/i)?.[1]
+  const filename = encoded ? decodeURIComponent(encoded) : `冰读备份-${new Date().toISOString().slice(0, 10)}.zip`
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url; link.download = filename; link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export async function restoreFullBackup(file: File): Promise<{ restored_rows: number; safety_backup: string }> {
+  const form = new FormData(); form.append('file', file)
+  return parseResponse(await fetch('/api/data/restore', { method: 'POST', body: form }))
 }
 
 export type ActivityType = 'reading' | 'cards' | 'review' | 'dictionary'

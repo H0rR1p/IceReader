@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { loginLocalAccount, registerLocalAccount } from '../../app/session'
+import { loginLocalAccount, logoutCurrentAccount, registerLocalAccount } from '../../app/session'
 import type { CurrentUser } from '../../types'
 
 export default function LoginPage({ currentUser, serverReady, onEnter }: {
@@ -37,6 +37,17 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
     } finally { setBusy(false) }
   }
 
+  async function enterLocalMode() {
+    if (!serverReady || busy) return
+    setBusy(true); setError('')
+    try {
+      const user = currentUser?.is_guest ? currentUser : await logoutCurrentAccount()
+      await onEnter(user)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally { setBusy(false) }
+  }
+
   return <main className="login-page">
     <section className="login-intro">
       <button className={`login-brand ${logoBouncing ? 'is-bouncing' : ''}`} onClick={playLogoSound} onAnimationEnd={() => setLogoBouncing(false)} aria-label="播放冰读语音"><img src="/bingdu-logo.png" alt="" /><span><strong>冰读</strong><small>baka都能用的日语学习阅读器</small></span></button>
@@ -54,7 +65,8 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
         <label className="field"><span>密码</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="至少 8 个字符" onKeyDown={(event) => { if (event.key === 'Enter') void submit() }} /></label>
         {error && <div className="error-box">{error}</div>}
         <button className="button primary login-submit" disabled={busy || !serverReady || !username.trim() || password.length < 8 || (mode === 'register' && !displayName.trim())} onClick={() => void submit()}>{busy ? '正在处理…' : mode === 'login' ? '进入冰读' : '创建账号并进入'}</button>
-        {currentUser && <div className="local-entry"><span>{currentUser.is_guest ? '暂不创建账号？' : `已登录为 ${currentUser.display_name}`}</span><button disabled={!serverReady} onClick={() => void onEnter(currentUser)}>{currentUser.is_guest ? '使用本机模式进入' : '继续进入'}</button></div>}
+        {currentUser && !currentUser.is_guest && <div className="remembered-account" aria-label={`已记住账号 ${currentUser.display_name}`}><span><small>已记住的本地账号</small><strong>{currentUser.display_name}</strong>{currentUser.username && <em>@{currentUser.username}</em>}</span><button className="button ghost small" disabled={!serverReady || busy} onClick={() => void onEnter(currentUser)}>继续进入</button></div>}
+        <div className="local-entry"><span>{currentUser?.is_guest ? '不想创建账号？' : '只在这台电脑阅读和学习'}</span><button disabled={!serverReady || busy} onClick={() => void enterLocalMode()}>{busy ? '正在切换…' : '使用本机模式进入'}</button></div>
       </div>
     </section>
   </main>

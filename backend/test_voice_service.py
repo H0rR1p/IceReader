@@ -9,6 +9,9 @@ from . import voice_service
 from .models import VoiceSettingsInput
 
 
+USER_ID = "user-1"
+
+
 def _template() -> bytes:
     return json.dumps({
         "Characters": [
@@ -46,8 +49,8 @@ def test_template_install_reads_character_and_settings(tmp_path, monkeypatch):
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
     fake_ymm.write_bytes(b"exe")
-    voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm), playback_rate=125, volume=72))
-    status = voice_service.install_template(_template())
+    voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(ymm_path=str(fake_ymm), playback_rate=125, volume=72))
+    status = voice_service.install_template(USER_ID, _template())
 
     assert status.ready is True
     assert status.character_name == "琪露诺"
@@ -60,37 +63,53 @@ def test_voice_character_can_override_template_character(tmp_path, monkeypatch):
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
     fake_ymm.write_bytes(b"exe")
-    voice_service.install_template(_template())
-    status = voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm), character_name="灵梦", playback_rate=85))
+    voice_service.install_template(USER_ID, _template())
+    status = voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(ymm_path=str(fake_ymm), character_name="灵梦", playback_rate=85))
 
     assert status.character_name == "灵梦"
+
+
+def test_legacy_voice_settings_migrate_only_to_requested_user(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
+    fake_ymm.write_bytes(b"exe")
+    voice_service.SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    voice_service.SETTINGS_PATH.write_text(json.dumps({"ymm_path": str(fake_ymm)}), encoding="utf-8")
+    voice_service.TEMPLATE_PATH.write_bytes(_template())
+
+    voice_service.migrate_legacy_voice_settings("migration-user")
+
+    assert voice_service.get_voice_settings("migration-user").ready is True
+    assert voice_service.get_voice_settings("other-user").ready is False
 
 
 def test_voice_cache_key_changes_with_character(tmp_path, monkeypatch):
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
     fake_ymm.write_bytes(b"exe")
-    voice_service.install_template(_template())
-    cirno = voice_service.save_voice_settings(VoiceSettingsInput(
+    voice_service.install_template(USER_ID, _template())
+    cirno = voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(
         ymm_path=str(fake_ymm), character_name="琪露诺", playback_rate=85, volume=50,
     ))
-    reimu = voice_service.save_voice_settings(VoiceSettingsInput(
+    reimu = voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(
         ymm_path=str(fake_ymm), character_name="博丽灵梦", playback_rate=85, volume=50,
     ))
 
-    assert voice_service._cache_key("こんにちは。", cirno) != voice_service._cache_key("こんにちは。", reimu)
+    template_path = voice_service._user_paths(USER_ID)[1]
+    assert voice_service._cache_key("こんにちは。", cirno, template_path) != voice_service._cache_key("こんにちは。", reimu, template_path)
 
 
 def test_cached_voice_does_not_start_ymm(tmp_path, monkeypatch):
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
     fake_ymm.write_bytes(b"exe")
-    voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm)))
-    voice_service.install_template(_template())
-    settings = voice_service.get_voice_settings()
-    key = voice_service._cache_key("こんにちは。", settings)
-    voice_service.CACHE_DIR.mkdir(parents=True)
-    (voice_service.CACHE_DIR / f"{key}.wav").write_bytes(b"RIFF-cache")
+    voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(ymm_path=str(fake_ymm)))
+    voice_service.install_template(USER_ID, _template())
+    settings = voice_service.get_voice_settings(USER_ID)
+    template_path, cache_dir = voice_service._user_paths(USER_ID)[1:]
+    key = voice_service._cache_key("こんにちは。", settings, template_path)
+    cache_dir.mkdir(parents=True)
+    (cache_dir / f"{key}.wav").write_bytes(b"RIFF-cache")
 
     job = asyncio.run(voice_service.start_voice_job("user-1", "こんにちは。"))
 
@@ -106,8 +125,8 @@ def test_bridge_install_copies_soundtouch_next_to_plugin(tmp_path, monkeypatch):
     ymm_dir.mkdir()
     fake_ymm.write_bytes(b"exe")
     (ymm_dir / "SoundTouch.Net.dll").write_bytes(b"soundtouch")
-    voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm)))
-    voice_service.install_template(_template())
+    voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(ymm_path=str(fake_ymm)))
+    voice_service.install_template(USER_ID, _template())
 
     bridge_source = tmp_path / "bridge-source"
     bridge_source.mkdir()
@@ -118,7 +137,7 @@ def test_bridge_install_copies_soundtouch_next_to_plugin(tmp_path, monkeypatch):
     monkeypatch.setattr(voice_service, "_bridge_ready", lambda: next(readiness))
     monkeypatch.setattr(voice_service.subprocess, "Popen", lambda *args, **kwargs: object())
 
-    voice_service._ensure_bridge(voice_service.get_voice_settings())
+    voice_service._ensure_bridge(voice_service.get_voice_settings(USER_ID), voice_service._user_paths(USER_ID)[1])
 
     plugin_dir = ymm_dir / "user" / "plugin" / "BingduYmmBridge"
     assert (plugin_dir / "BingduYmmBridge.dll").read_bytes() == b"bridge"
@@ -156,10 +175,10 @@ def test_bridge_voice_job_completes_and_caches_real_audio(tmp_path, monkeypatch)
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
     fake_ymm.write_bytes(b"exe")
-    voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm)))
-    voice_service.install_template(_template())
+    voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(ymm_path=str(fake_ymm)))
+    voice_service.install_template(USER_ID, _template())
 
-    def fake_synthesis(text, character, output, settings, job_id):
+    def fake_synthesis(text, character, output, settings, job_id, _template_path):
         assert text == "きょうははれです。"
         assert settings.playback_rate == 85
         assert character == "琪露诺"
@@ -189,12 +208,12 @@ def test_cancel_waits_for_worker_before_removing_job_directory(tmp_path, monkeyp
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
     fake_ymm.write_bytes(b"exe")
-    voice_service.save_voice_settings(VoiceSettingsInput(ymm_path=str(fake_ymm)))
-    voice_service.install_template(_template())
+    voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(ymm_path=str(fake_ymm)))
+    voice_service.install_template(USER_ID, _template())
     entered = threading.Event()
     release = threading.Event()
 
-    def slow_synthesis(_text, _character, output, _settings, _job_id):
+    def slow_synthesis(_text, _character, output, _settings, _job_id, _template_path):
         entered.set()
         assert release.wait(timeout=3)
         output.write_bytes(b"unused")

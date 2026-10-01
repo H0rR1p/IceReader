@@ -7,10 +7,14 @@ from fastapi.responses import FileResponse
 
 from ...core.request_context import RequestContext, current_request_context
 from .repository import (
+    change_local_password,
     create_local_user,
     avatar_filename,
     login_local_user,
     revoke_session,
+    revoke_other_session,
+    revoke_other_sessions,
+    list_user_sessions,
     update_user_profile,
     user_profile,
 )
@@ -128,3 +132,39 @@ async def logout_current_user(
     await asyncio.to_thread(revoke_session, context.session_id, context.user_id)
     response.delete_cookie("bingdu_session")
     return {"logged_out": True}
+
+
+@router.get("/me/sessions")
+async def read_sessions(context: RequestContext = Depends(current_request_context)) -> list[dict]:
+    rows = await asyncio.to_thread(list_user_sessions, context.user_id)
+    for row in rows:
+        row["current"] = row["id"] == context.session_id
+    return rows
+
+
+@router.delete("/me/sessions/{session_id}")
+async def delete_session(session_id: str, context: RequestContext = Depends(current_request_context)) -> dict:
+    try:
+        revoked = await asyncio.to_thread(revoke_other_session, context.user_id, session_id, context.session_id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if not revoked:
+        raise HTTPException(404, "会话不存在")
+    return {"revoked": True}
+
+
+@router.delete("/me/sessions")
+async def delete_other_sessions(context: RequestContext = Depends(current_request_context)) -> dict:
+    return {"revoked": await asyncio.to_thread(revoke_other_sessions, context.user_id, context.session_id)}
+
+
+@router.post("/me/password")
+async def update_password(payload: dict, context: RequestContext = Depends(current_request_context)) -> dict:
+    try:
+        await asyncio.to_thread(
+            change_local_password, context.user_id,
+            str(payload.get("current_password") or ""), str(payload.get("new_password") or ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"changed": True}

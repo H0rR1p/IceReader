@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
@@ -20,24 +22,32 @@ router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 
 @router.get("/settings", response_model=VoiceSettingsStatus)
-async def read_voice_settings() -> VoiceSettingsStatus:
-    return get_voice_settings()
+async def read_voice_settings(
+    context: RequestContext = Depends(current_request_context),
+) -> VoiceSettingsStatus:
+    return await asyncio.to_thread(get_voice_settings, context.user_id)
 
 
 @router.put("/settings", response_model=VoiceSettingsStatus)
-async def update_voice_settings(settings: VoiceSettingsInput) -> VoiceSettingsStatus:
+async def update_voice_settings(
+    settings: VoiceSettingsInput,
+    context: RequestContext = Depends(current_request_context),
+) -> VoiceSettingsStatus:
     try:
-        return save_voice_settings(settings)
+        return await asyncio.to_thread(save_voice_settings, context.user_id, settings)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
 
 @router.post("/template", response_model=VoiceSettingsStatus)
-async def upload_voice_template(file: UploadFile = File(...)) -> VoiceSettingsStatus:
+async def upload_voice_template(
+    file: UploadFile = File(...),
+    context: RequestContext = Depends(current_request_context),
+) -> VoiceSettingsStatus:
     if not (file.filename or "").lower().endswith(".ymmp"):
         raise HTTPException(400, "请选择 .ymmp 配音模板")
     try:
-        return install_template(await file.read())
+        return await asyncio.to_thread(install_template, context.user_id, await file.read())
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 

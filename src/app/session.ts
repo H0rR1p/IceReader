@@ -72,3 +72,29 @@ export async function uploadCurrentUserAvatar(file: File): Promise<CurrentUser> 
   resetCurrentUserSession()
   return loadCurrentUser(true)
 }
+
+
+export type LocalSession = {
+  id: string; device_id: string; label: string; auth_provider: string
+  created_at: number; last_seen_at: number; expires_at: number; current: boolean
+}
+
+export async function loadLocalSessions(signal?: AbortSignal): Promise<LocalSession[]> {
+  return parseResponse(await fetch('/api/me/sessions', { signal }))
+}
+
+export async function revokeLocalSession(sessionId: string): Promise<void> {
+  await parseResponse(await fetch(`/api/me/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }))
+}
+
+export async function revokeOtherLocalSessions(): Promise<number> {
+  const result = await parseResponse<{ revoked: number }>(await fetch('/api/me/sessions', { method: 'DELETE' }))
+  return result.revoked
+}
+
+export async function changeLocalPassword(currentPassword: string, newPassword: string): Promise<void> {
+  await parseResponse(await fetch('/api/me/password', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  }))
+}

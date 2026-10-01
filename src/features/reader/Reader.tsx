@@ -30,7 +30,8 @@ function normalizeGrammar(value: string) {
   return value.normalize('NFKC').replace(/[「」『』\s]/g, '').replace(/[～〜]/g, '~').toLowerCase()
 }
 
-export default function Reader({ book, chapter, previousChapter, nextChapter, chapterNavigationLoading, showImages, onNavigateChapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground, bookmarks, onToggleBookmark }: {
+export default function Reader({ userId, book, chapter, previousChapter, nextChapter, chapterNavigationLoading, showImages, onNavigateChapter, onNotice, onRetry, onExplainSentence, backgroundJob, dataRevision, onBackground, bookmarks, onToggleBookmark }: {
+  userId: string
   book: Book
   chapter: Chapter
   previousChapter: Chapter | null
@@ -58,7 +59,7 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
   const [explainError, setExplainError] = useState('')
   const [showFurigana, setShowFurigana] = useState(true)
   const [assistanceMode, setAssistanceMode] = useState<'auto' | 'always' | 'challenge'>(() => {
-    const saved=localStorage.getItem('bingdu-assistance-mode')
+    const saved=localStorage.getItem(`bingdu:${userId}:assistance-mode`)
     return saved === 'always' || saved === 'challenge' ? saved : 'auto'
   })
   const [knowledgeStates, setKnowledgeStates] = useState<Record<string,KnowledgeState>>({})
@@ -613,7 +614,7 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
           <div><p className="eyebrow">{book.title}</p><h1>{chapter.title}</h1></div>
           <div className="display-toggles">
             {chapter.originalHtmlUrl && <button className={`mode-button ${viewMode === 'original' ? 'active' : ''}`} onClick={() => setViewMode(viewMode === 'study' ? 'original' : 'study')}>{viewMode === 'study' ? '原书预览' : '冰读模式'}</button>}
-            <label className="assistance-select"><span>阅读辅助</span><select value={assistanceMode} onChange={(event) => { const value=event.target.value as typeof assistanceMode; setAssistanceMode(value); setShowFurigana(true); localStorage.setItem('bingdu-assistance-mode',value) }}><option value="auto">自动渐退</option><option value="always">始终显示</option><option value="challenge">挑战模式</option></select></label>
+            <label className="assistance-select"><span>阅读辅助</span><select value={assistanceMode} onChange={(event) => { const value=event.target.value as typeof assistanceMode; setAssistanceMode(value); setShowFurigana(true); localStorage.setItem(`bingdu:${userId}:assistance-mode`,value) }}><option value="auto">自动渐退</option><option value="always">始终显示</option><option value="challenge">挑战模式</option></select></label>
             <Toggle label="语法" value={showAnnotations} onChange={setShowAnnotations} />
           </div>
         </div>
@@ -666,7 +667,7 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
             </div>
             {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
             {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
-            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCurrentCard} />}
+            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} knowledge={knowledgeStates[`vocabulary:${selectedToken.lexemeKey}`]} assistanceMode={assistanceMode} assistanceLevel={assistanceLevel(selectedToken)} forced={forcedAssistanceRef.current.has(selectedToken.lexemeKey)} onSave={saveLexeme} onAddCard={addCurrentCard} />}
             {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>语法句法</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>语法结构</span><strong>{note.structure || note.quote}</strong><small className="annotation-quote" lang="ja">{note.quote}</small><p>{note.explanation_zh}</p></div>)}</section>}
           </>
         ) : <p className="muted">选择一个句子开始冰读。</p>}
@@ -676,8 +677,9 @@ export default function Reader({ book, chapter, previousChapter, nextChapter, ch
   )
 }
 
-function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
+function DictionaryCard({ token, lexeme, contextGloss, knowledge, assistanceMode, assistanceLevel, forced, onSave, onAddCard }: {
   token: Token; lexeme: Lexeme | null; contextGloss: string
+  knowledge?: KnowledgeState; assistanceMode: 'auto' | 'always' | 'challenge'; assistanceLevel: number; forced: boolean
   onSave: (senses: string[]) => void
   onAddCard: () => Promise<void>
 }) {
@@ -740,6 +742,7 @@ function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard }: {
     <section className="dictionary-card">
       <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" onClick={() => void onAddCard()}>加入词卡</button><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}</div></div>
       {wordVoice?.status === 'failed' && <small className="voice-status failed">{wordVoice.message}</small>}
+      <div className="assistance-explanation"><small>辅助依据</small><p>{forced ? '你刚刚主动查询了这个词，本句内会保留完整辅助并记录为一次学习证据。' : assistanceMode === 'always' ? '当前选择始终显示辅助。' : assistanceMode === 'challenge' ? '挑战模式已隐藏自动辅助。' : !knowledge || knowledge.confidence < .2 ? '学习证据还不充分，暂时保留完整辅助。' : assistanceLevel >= 2 ? `熟练度约 ${Math.round(knowledge.mastery * 100)}%，继续显示读音和释义提示。` : assistanceLevel === 1 ? `熟练度约 ${Math.round(knowledge.mastery * 100)}%，辅助已减弱。` : `熟练度约 ${Math.round(knowledge.mastery * 100)}%，当前词已自动隐藏辅助。`}</p></div>
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
         <div className="section-title"><h3>日中词典</h3><button className="text-button" onClick={() => setEditing(!editing)}>{editing ? '取消' : '修正'}</button></div>

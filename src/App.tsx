@@ -1,23 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { checkHealth, loadApiSettings, loadVoiceSettings, saveApiSettings, saveVoiceSettings, uploadVoiceTemplate } from './api'
 import AppNavigation from './app/AppNavigation'
 import type { AppPage } from './app/AppNavigation'
 import { loadCurrentUser, logoutCurrentAccount } from './app/session'
-import ProfilePage from './features/activity/ProfilePage'
 import { useActivityTracker } from './features/activity/useActivityTracker'
 import LoginPage from './features/auth/LoginPage'
-import CardCenterPage from './features/cards/CardCenterPage'
-import ReviewPage from './features/cards/ReviewPage'
 import Library from './features/library/Library'
 import { useLibraryController } from './features/library/useLibraryController'
 import Workspace from './features/reader/Workspace'
-import { ImportDialog } from './features/settings/Dialogs'
-import SettingsPage from './features/settings/SettingsPage'
-import StudyDataPage from './features/study/StudyDataPage'
 import { useAnalysisController } from './features/translation/useAnalysisController'
 import type { ApiSettings, CurrentUser, VoiceSettings } from './types'
 import type { Book } from './types'
 import UserAvatar from './app/UserAvatar'
+import { useAppRoute } from './app/useAppRoute'
+
+const ProfilePage = lazy(() => import('./features/activity/ProfilePage'))
+const CardCenterPage = lazy(() => import('./features/cards/CardCenterPage'))
+const ReviewPage = lazy(() => import('./features/cards/ReviewPage'))
+const SettingsPage = lazy(() => import('./features/settings/SettingsPage'))
+const StudyDataPage = lazy(() => import('./features/study/StudyDataPage'))
+const ImportDialog = lazy(() => import('./features/settings/Dialogs').then((module) => ({ default: module.ImportDialog })))
 
 const DEFAULT_SETTINGS: ApiSettings = { apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', hasStoredApiKey: false, cacheHitUsdPerMillion: 0, cacheMissUsdPerMillion: 0, outputUsdPerMillion: 0 }
 const DEFAULT_VOICE_SETTINGS: VoiceSettings = { ymmPath: '', ymmFound: false, templateFound: false, characterName: '', characterNames: [], playbackRate: 85, volume: 50, ready: false }
@@ -32,7 +34,7 @@ function App() {
 }
 
 function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { currentUser: CurrentUser; serverReady: boolean | null; onUserChange: (user: CurrentUser) => void; onExit: (user: CurrentUser) => void }) {
-  const [page, setPage] = useState<AppPage>('library')
+  const { page, setPage } = useAppRoute()
   const [showImport, setShowImport] = useState(false)
   const [settings, setSettings] = useState<ApiSettings>(DEFAULT_SETTINGS)
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS)
@@ -42,7 +44,7 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
   const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
   const library = useLibraryController(setNotice)
   const { books, activeBook, activeChapter, loadingBookId, loadingChapterId, libraryLoading, setActiveBook, setActiveChapter, refreshBooks, returnToLibrary, saveImportedBook, openBook, selectChapter, deleteBook, changeBookCover, setBookImageVisibility, saveBookCollection, dissolveBookCollection } = library
-  const analysis = useAnalysisController({ activeBook, settings, setActiveBook, setActiveChapter, refreshBooks, setNotice })
+  const analysis = useAnalysisController({ userId: currentUser.user_id, activeBook, settings, setActiveBook, setActiveChapter, refreshBooks, setNotice })
   const { backgroundJob, dataRevision, translationMode, translationConcurrency, setTranslationMode, setTranslationConcurrency, processChapter, explainAndStoreSentence, runBackground, cancelBackground } = analysis
 
   useActivityTracker(currentUser.user_id, page === 'review' ? 'review' : page === 'cards' ? 'cards' : page === 'dictionary' ? 'dictionary' : activeBook && activeChapter ? 'reading' : null)
@@ -59,8 +61,8 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
     setPage('library')
     void openBook(latest)
   }
-  function updateTranslationMode(mode: typeof translationMode) { setTranslationMode(mode); localStorage.setItem('bingdu-translation-mode', mode) }
-  function updateTranslationConcurrency(value: number) { setTranslationConcurrency(value); localStorage.setItem('bingdu-translation-concurrency', String(value)) }
+  function updateTranslationMode(mode: typeof translationMode) { setTranslationMode(mode); localStorage.setItem(`bingdu:${currentUser.user_id}:translation-mode`, mode) }
+  function updateTranslationConcurrency(value: number) { setTranslationConcurrency(value); localStorage.setItem(`bingdu:${currentUser.user_id}:translation-concurrency`, String(value)) }
   function bounceLogoAndOpenLibrary() {
     navigate('library')
     const audio = new Audio('/bingdu-logo-click.wav'); logoAudiosRef.current.add(audio)
@@ -69,14 +71,14 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
   }
   async function logout() { cancelBackground(); const guest = await logoutCurrentAccount(); onUserChange(guest); onExit(guest) }
 
-  const overlays = <>
+  const overlays = <Suspense fallback={null}>
     {showImport && <ImportDialog onClose={() => setShowImport(false)} onImported={async (book) => { setShowImport(false); await saveImportedBook(book) }} />}
-  </>
+  </Suspense>
 
   if (activeBook) return <div className="app-shell">
     <header className="topbar reader-topbar"><button className="brand" onClick={bounceLogoAndOpenLibrary}><span className={`brand-mark ${logoBouncing ? 'is-bouncing' : ''}`} onAnimationEnd={() => setLogoBouncing(false)}><img src="/bingdu-logo.png" alt="" /></span><span><strong>冰读</strong><small>baka都能用的日语学习阅读器</small></span></button><div className="top-actions"><span className={`server-dot ${serverReady ? 'ready' : 'down'}`} /><button className="reader-user-avatar" onClick={() => navigate('profile')} aria-label={`打开${currentUser.display_name}的个人主页`} title={currentUser.display_name}><UserAvatar user={currentUser} /></button><button className="button ghost" onClick={() => navigate('settings')}>设置</button><button className="button primary" onClick={() => setShowImport(true)}>导入书籍</button></div></header>
     {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
-    <Workspace book={activeBook} activeChapter={activeChapter} loadingChapterId={loadingChapterId} onSelectChapter={(chapter, sentenceId) => void selectChapter(chapter, sentenceId)} onProcessChapter={processChapter} onExplainSentence={explainAndStoreSentence} backgroundJob={backgroundJob} onCancelBackground={cancelBackground} dataRevision={dataRevision} onBackgroundBook={(kind) => void runBackground(kind, 'book')} onBackgroundChapter={(kind, chapter) => void runBackground(kind, 'chapter', chapter)} onNotice={setNotice} />
+    <Workspace userId={currentUser.user_id} book={activeBook} activeChapter={activeChapter} loadingChapterId={loadingChapterId} onSelectChapter={(chapter, sentenceId) => void selectChapter(chapter, sentenceId)} onProcessChapter={processChapter} onExplainSentence={explainAndStoreSentence} backgroundJob={backgroundJob} onCancelBackground={cancelBackground} dataRevision={dataRevision} onBackgroundBook={(kind) => void runBackground(kind, 'book')} onBackgroundChapter={(kind, chapter) => void runBackground(kind, 'chapter', chapter)} onNotice={setNotice} />
     {overlays}
   </div>
 
@@ -84,12 +86,14 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
     <AppNavigation page={page} user={currentUser} bookCount={books.length} canResumeReading={Boolean(resumeBook)} onResumeReading={resumeReading} onNavigate={navigate} onImport={() => setShowImport(true)} />
     <div className="app-page-column">
       {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
-      {page === 'library' && <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} onSaveCollection={saveBookCollection} onDissolveCollection={dissolveBookCollection} />}
-      {page === 'dictionary' && <StudyDataPage />}
-      {page === 'cards' && <CardCenterPage onNotice={setNotice} onStartReview={() => setPage('review')} />}
-      {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} />}
-      {page === 'profile' && <ProfilePage user={currentUser} books={books} onUserChange={onUserChange} onLogout={logout} onOpenCards={() => setPage('cards')} onOpenReview={() => setPage('review')} />}
-      {page === 'settings' && <SettingsPage apiSettings={settings} voiceSettings={voiceSettings} books={books} translationMode={translationMode} translationConcurrency={translationConcurrency} onTranslationModeChange={updateTranslationMode} onTranslationConcurrencyChange={updateTranslationConcurrency} onBookImageVisibility={setBookImageVisibility} onSaveApi={async (next) => setSettings(await saveApiSettings(next))} onSaveVoice={async (next, template) => { if (template) await uploadVoiceTemplate(template); setVoiceSettings(await saveVoiceSettings(next)) }} onNotice={setNotice} />}
+      <Suspense fallback={<section className="page-loading" aria-live="polite"><div className="loading-dango" /><span>正在打开页面…</span></section>}>
+        {page === 'library' && <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} onSaveCollection={saveBookCollection} onDissolveCollection={dissolveBookCollection} />}
+        {page === 'dictionary' && <StudyDataPage />}
+        {page === 'cards' && <CardCenterPage onNotice={setNotice} onStartReview={() => setPage('review')} />}
+        {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} />}
+        {page === 'profile' && <ProfilePage user={currentUser} books={books} onUserChange={onUserChange} onLogout={logout} onOpenCards={() => setPage('cards')} onOpenReview={() => setPage('review')} />}
+        {page === 'settings' && <SettingsPage apiSettings={settings} voiceSettings={voiceSettings} books={books} translationMode={translationMode} translationConcurrency={translationConcurrency} onTranslationModeChange={updateTranslationMode} onTranslationConcurrencyChange={updateTranslationConcurrency} onBookImageVisibility={setBookImageVisibility} onSaveApi={async (next) => setSettings(await saveApiSettings(next))} onSaveVoice={async (next, template) => { if (template) await uploadVoiceTemplate(template); setVoiceSettings(await saveVoiceSettings(next)) }} onNotice={setNotice} />}
+      </Suspense>
     </div>
     {overlays}
   </div>
