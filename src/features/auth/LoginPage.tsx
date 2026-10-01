@@ -57,6 +57,10 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
     <section className="login-panel">
       <div className="login-form-wrap">
         <div className="login-status"><i className={serverReady ? 'ready' : ''} />{serverReady === null ? '正在连接本地服务' : serverReady ? '本地服务已连接' : '本地服务未连接'}</div>
+        <div className="local-mode-card">
+          <div><strong>本机模式</strong><span>无需创建账号，数据只保存在这台电脑</span></div>
+          <button className="button primary" disabled={!serverReady || busy} onClick={() => void enterLocalMode()}>{busy ? '正在切换…' : '使用本机模式进入'}</button>
+        </div>
         <h2>{mode === 'login' ? '欢迎回来' : '创建本地账号'}</h2>
         <p>{mode === 'login' ? '登录后继续你的阅读与学习记录。' : '账号只保存在这台电脑，之后可以绑定云账号。'}</p>
         <div className="login-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>登录</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>注册</button></div>
@@ -66,7 +70,6 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
         {error && <div className="error-box">{error}</div>}
         <button className="button primary login-submit" disabled={busy || !serverReady || !username.trim() || password.length < 8 || (mode === 'register' && !displayName.trim())} onClick={() => void submit()}>{busy ? '正在处理…' : mode === 'login' ? '进入冰读' : '创建账号并进入'}</button>
         {currentUser && !currentUser.is_guest && <div className="remembered-account" aria-label={`已记住账号 ${currentUser.display_name}`}><span><small>已记住的本地账号</small><strong>{currentUser.display_name}</strong>{currentUser.username && <em>@{currentUser.username}</em>}</span><button className="button ghost small" disabled={!serverReady || busy} onClick={() => void onEnter(currentUser)}>继续进入</button></div>}
-        <div className="local-entry"><span>{currentUser?.is_guest ? '不想创建账号？' : '只在这台电脑阅读和学习'}</span><button disabled={!serverReady || busy} onClick={() => void enterLocalMode()}>{busy ? '正在切换…' : '使用本机模式进入'}</button></div>
       </div>
     </section>
   </main>
