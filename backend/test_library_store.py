@@ -193,6 +193,50 @@ def test_repository_isolates_two_users_with_identical_record_ids(tmp_path, monke
     assert library_store.load_library_index("user-b").books[0]["title"] == "乙的书"
 
 
+def test_typed_user_tables_are_authoritative_for_progress_and_bookmarks(tmp_path, monkeypatch):
+    path = tmp_path / "data" / "library.sqlite3"
+    monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
+    library_store.apply_library_patch(USER_ID, LibraryPatch(upserts={
+        "books": [{
+            "id": "book-1", "title": "test", "createdAt": 10, "updatedAt": 20,
+            "currentChapterId": "chapter-2", "currentSentenceId": "sentence-3", "lastOpenedAt": 30,
+        }],
+        "bookmarks": [{
+            "id": "bookmark-1", "bookId": "book-1", "chapterId": "chapter-2",
+            "sentenceId": "sentence-3", "chapterOrder": 2, "sentenceStart": 12,
+            "text": "猫である。", "createdAt": 40,
+        }],
+    }))
+
+    with library_store.sqlite3.connect(path) as connection:
+        stored_metadata = connection.execute(
+            "SELECT metadata_json FROM user_library_items WHERE user_id = ? AND book_id = ?",
+            (USER_ID, "book-1"),
+        ).fetchone()[0]
+        assert "currentChapterId" not in stored_metadata
+        connection.execute(
+            "UPDATE records SET payload = json_set(payload, '$.currentChapterId', 'stale-chapter') "
+            "WHERE owner_user_id = ? AND table_name = 'books' AND record_key = 'book-1'",
+            (USER_ID,),
+        )
+        connection.execute(
+            "UPDATE records SET payload = json_set(payload, '$.text', 'stale bookmark') "
+            "WHERE owner_user_id = ? AND table_name = 'bookmarks' AND record_key = 'bookmark-1'",
+            (USER_ID,),
+        )
+        connection.commit()
+
+    restored = library_store.load_library(USER_ID)
+    assert restored is not None
+    assert restored.books[0]["currentChapterId"] == "chapter-2"
+    assert restored.books[0]["currentSentenceId"] == "sentence-3"
+    assert restored.bookmarks[0]["text"] == "猫である。"
+    assert library_store.load_bookmarks(USER_ID, "book-1")[0]["text"] == "猫である。"
+
+    library_store.apply_library_patch(USER_ID, LibraryPatch(deletes={"bookmarks": ["bookmark-1"]}))
+    assert library_store.load_bookmarks(USER_ID, "book-1") == []
+
+
 def test_v2_records_are_backed_up_and_migrated_idempotently(tmp_path, monkeypatch):
     path = tmp_path / "data" / "library.sqlite3"
     path.parent.mkdir(parents=True)

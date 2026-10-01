@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { loadAiUsage } from '../../api'
+import { downloadFullBackup, loadAiUsage, restoreFullBackup } from '../../api'
 import type { AiUsageSummary, ApiSettings, Book, VoiceSettings } from '../../types'
 import type { TranslationMode } from '../translation/pipeline'
 
@@ -26,6 +26,8 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
   const [usage, setUsage] = useState<AiUsageSummary | null>(null)
   const [saving, setSaving] = useState<'api' | 'voice' | null>(null)
   const [error, setError] = useState('')
+  const [backupBusy, setBackupBusy] = useState<'export' | 'restore' | null>(null)
+  const [pendingRestore, setPendingRestore] = useState<File | null>(null)
   useEffect(() => setApiDraft(apiSettings), [apiSettings])
   useEffect(() => setVoiceDraft(voiceSettings), [voiceSettings])
   useEffect(() => { void loadAiUsage().then(setUsage).catch(() => undefined) }, [])
@@ -57,6 +59,24 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
     finally { setSaving(null) }
   }
 
+  async function exportBackup() {
+    setBackupBusy('export'); setError('')
+    try { await downloadFullBackup(); onNotice('完整备份已导出。') }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
+    finally { setBackupBusy(null) }
+  }
+
+  async function importBackup(file: File | null) {
+    if (!file) return
+    setBackupBusy('restore'); setError('')
+    try {
+      const result = await restoreFullBackup(file)
+      onNotice(`已恢复 ${result.restored_rows} 条数据，恢复前备份为 ${result.safety_backup}。`)
+      window.setTimeout(() => window.location.reload(), 800)
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
+    finally { setBackupBusy(null); setPendingRestore(null) }
+  }
+
   return <main className="app-page settings-page">
     <header className="page-heading"><div><p className="eyebrow">偏好与连接</p><h1>设置</h1><span>集中管理阅读处理、AI 服务和本机配音。</span></div></header>
     {error && <div className="error-box page-error">{error}</div>}
@@ -66,6 +86,9 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
     </SettingsSection>
     <SettingsSection title="书籍插图" description="统一管理每本书的插图显示状态，换章后会继续沿用。">
       {books.length ? <div className="book-image-settings-list">{books.map((book) => <div className="setting-row" key={book.id}><div><strong>{book.title}</strong><span>{book.author || '作者未知'}</span></div><select value={book.showImages === false ? 'hidden' : 'visible'} onChange={(event) => void onBookImageVisibility(book, event.target.value === 'visible').catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))}><option value="visible">显示插图</option><option value="hidden">隐藏插图</option></select></div>)}</div> : <p className="settings-empty">导入书籍后可以在这里统一管理插图。</p>}
+    </SettingsSection>
+    <SettingsSection title="数据备份与恢复" description="导出当前账号的书籍资源、阅读进度、词库、卡片、复习记录和本机设置。备份包含 API Key，请妥善保存。">
+      <div className="setting-row"><div><strong>完整本地备份</strong><span>备份带版本清单和 SHA-256 校验；恢复前会自动保留当前数据副本。</span></div><div className="settings-inline-actions"><button className="button" disabled={backupBusy !== null} onClick={() => void exportBackup()}>{backupBusy === 'export' ? '正在导出…' : '导出 ZIP'}</button><label className={`button primary ${backupBusy ? 'disabled' : ''}`}>恢复备份<input hidden type="file" accept=".zip,application/zip" disabled={backupBusy !== null} onChange={(event) => { setPendingRestore(event.target.files?.[0] ?? null); event.currentTarget.value = '' }} /></label></div></div>
     </SettingsSection>
     <SettingsSection title="AI 服务" description="API Key 只保存在本机，并仅发送给你配置的兼容接口。">
       <div className="settings-form-grid"><label className="field wide"><span>API Key</span><input type="password" autoComplete="off" value={apiDraft.apiKey} onChange={(event) => setApiDraft({ ...apiDraft, apiKey: event.target.value })} placeholder={apiDraft.hasStoredApiKey ? '已保存；留空保持不变' : 'sk-…'} /></label><label className="field"><span>Base URL</span><input value={apiDraft.baseUrl} onChange={(event) => setApiDraft({ ...apiDraft, baseUrl: event.target.value })} /></label><label className="field"><span>模型</span><input value={apiDraft.model} onChange={(event) => setApiDraft({ ...apiDraft, model: event.target.value })} /></label><label className="field"><span>缓存命中价 / 百万 token</span><input type="number" min="0" step="0.001" value={apiDraft.cacheHitUsdPerMillion} onChange={(event) => setApiDraft({ ...apiDraft, cacheHitUsdPerMillion: Number(event.target.value) })} /></label><label className="field"><span>缓存未命中价</span><input type="number" min="0" step="0.001" value={apiDraft.cacheMissUsdPerMillion} onChange={(event) => setApiDraft({ ...apiDraft, cacheMissUsdPerMillion: Number(event.target.value) })} /></label><label className="field"><span>输出价</span><input type="number" min="0" step="0.001" value={apiDraft.outputUsdPerMillion} onChange={(event) => setApiDraft({ ...apiDraft, outputUsdPerMillion: Number(event.target.value) })} /></label></div>
@@ -77,5 +100,6 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
       <div className="setting-health"><span className={voiceSettings.ymmFound ? 'ok' : ''}>YMM4 {voiceSettings.ymmFound ? '已连接' : '未找到'}</span><span className={voiceSettings.templateFound ? 'ok' : ''}>模板 {voiceSettings.templateFound ? '已导入' : '未导入'}</span></div>
       <div className="settings-actions"><button className="button primary" disabled={saving !== null} onClick={() => void saveVoice()}>{saving === 'voice' ? '正在保存…' : '保存配音设置'}</button></div>
     </SettingsSection>
+    {pendingRestore && <div className="dialog-backdrop"><section className="dialog restore-confirm" role="alertdialog" aria-modal="true" aria-labelledby="restore-confirm-title"><header><div><small>数据恢复</small><h2 id="restore-confirm-title">替换当前账号的数据？</h2></div><button aria-label="关闭" onClick={() => setPendingRestore(null)}>×</button></header><p>将从“{pendingRestore.name}”恢复书库、学习记录、卡片和设置。开始前会自动创建当前数据的安全备份。</p><footer><button className="button" onClick={() => setPendingRestore(null)}>取消</button><button className="button primary" disabled={backupBusy !== null} onClick={() => void importBackup(pendingRestore)}>{backupBusy === 'restore' ? '正在恢复…' : '确认恢复'}</button></footer></section></div>}
   </main>
 }

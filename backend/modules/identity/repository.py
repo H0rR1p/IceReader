@@ -15,6 +15,7 @@ from ...paths import DATA_DIR
 IDENTITY_PATH = DATA_DIR / "identity.sqlite3"
 IDENTITY_SCHEMA_VERSION = 1
 SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+MAX_ACTIVE_SESSIONS_PER_USER = 12
 MIGRATION_AUTH_KEY = "local:migrated"
 
 
@@ -170,6 +171,13 @@ def _create_session(connection: sqlite3.Connection, user_id: str, device_id: str
            ) VALUES (?, ?, ?, ?, 'local', ?, ?, ?)""",
         (session_id, user_id, actual_device_id, _token_hash(token), now, now, now + SESSION_TTL_SECONDS),
     )
+    connection.execute(
+        """UPDATE sessions SET revoked_at=? WHERE id IN (
+               SELECT id FROM sessions WHERE user_id=? AND revoked_at IS NULL
+               ORDER BY last_seen_at DESC LIMIT -1 OFFSET ?
+           )""",
+        (now, user_id, MAX_ACTIVE_SESSIONS_PER_USER),
+    )
     return SessionIdentity(user_id, session_id, actual_device_id, "local", token)
 
 
@@ -245,6 +253,55 @@ def revoke_session(session_id: str, user_id: str) -> None:
         connection.execute(
             "UPDATE sessions SET revoked_at = ? WHERE id = ? AND user_id = ?",
             (_now(), session_id, user_id),
+        )
+
+
+def list_user_sessions(user_id: str) -> list[dict]:
+    with _connect() as connection:
+        rows = connection.execute(
+            """SELECT s.id,s.device_id,d.label,s.auth_provider,s.created_at,s.last_seen_at,s.expires_at
+               FROM sessions s JOIN devices d ON d.id=s.device_id
+               WHERE s.user_id=? AND s.revoked_at IS NULL AND s.expires_at>?
+               ORDER BY s.last_seen_at DESC LIMIT ?""",
+            (user_id, _now(), MAX_ACTIVE_SESSIONS_PER_USER),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def revoke_other_session(user_id: str, session_id: str, current_session_id: str) -> bool:
+    if session_id == current_session_id:
+        raise ValueError("不能在这里注销当前会话")
+    with _connect() as connection:
+        return bool(connection.execute(
+            "UPDATE sessions SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL",
+            (_now(), session_id, user_id),
+        ).rowcount)
+
+
+def revoke_other_sessions(user_id: str, current_session_id: str) -> int:
+    with _connect() as connection:
+        return int(connection.execute(
+            "UPDATE sessions SET revoked_at=? WHERE user_id=? AND id<>? AND revoked_at IS NULL",
+            (_now(), user_id, current_session_id),
+        ).rowcount)
+
+
+def change_local_password(user_id: str, current_password: str, new_password: str) -> None:
+    if len(new_password) < 8:
+        raise ValueError("新密码至少需要 8 个字符")
+    with _connect() as connection:
+        row = connection.execute(
+            """SELECT id,password_hash,provider_subject FROM auth_identities
+               WHERE user_id=? AND provider='local' ORDER BY created_at LIMIT 1""",
+            (user_id,),
+        ).fetchone()
+        if not row or row["provider_subject"] == MIGRATION_AUTH_KEY or not row["password_hash"]:
+            raise ValueError("本机访客模式没有可修改的密码")
+        if not _password_matches(current_password, str(row["password_hash"])):
+            raise AuthenticationError("当前密码不正确")
+        connection.execute(
+            "UPDATE auth_identities SET password_hash=? WHERE id=? AND user_id=?",
+            (_password_hash(new_password), row["id"], user_id),
         )
 
 

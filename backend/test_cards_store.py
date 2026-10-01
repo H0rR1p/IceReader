@@ -81,3 +81,60 @@ def test_bulk_tags_and_ten_thousand_card_fts_search(tmp_path, monkeypatch):
     assert result[0]["id"] == "card-9999"
     assert cards_store.update_card_tags("user-a",["card-9999"],"主题::测试")["updated"] == 1
     assert cards_store.search_cards("user-a","主题")[0]["id"] == "card-9999"
+
+
+def test_card_edit_bulk_changes_and_undo(tmp_path, monkeypatch):
+    _isolated_store(tmp_path, monkeypatch)
+    card = cards_store.accept_candidate("user-a", _candidate()["id"])
+
+    edited = cards_store.update_card_note("user-a", card["id"], {
+        "lemma": "吾輩", "reading": "わがはい", "gloss": "我、本大爷", "sentence": "吾輩は猫である。",
+    })
+    assert cards_store.search_cards("user-a", "本大爷")[0]["lemma"] == "吾輩"
+    assert cards_store.undo_card_action("user-a", edited["undo_id"])["restored"] == 1
+    assert cards_store.search_cards("user-a", "猫")[0]["lemma"] == "猫"
+
+    tagged = cards_store.update_card_tags("user-a", [card["id"]], "作品::猫")
+    assert cards_store.list_tags("user-a") == [{"name": "作品::猫", "count": 1}]
+    assert cards_store.undo_card_action("user-a", tagged["undo_id"])["restored"] == 1
+    assert cards_store.list_tags("user-a") == []
+
+    changed = cards_store.update_card_statuses("user-a", [card["id"]], "suspended")
+    assert cards_store.search_cards("user-a", status="suspended")[0]["id"] == card["id"]
+    cards_store.undo_card_action("user-a", changed["undo_id"])
+    assert cards_store.search_cards("user-a", status="active")[0]["id"] == card["id"]
+
+
+def test_daily_new_and_review_limits_are_enforced(tmp_path, monkeypatch):
+    _isolated_store(tmp_path, monkeypatch)
+    assert cards_store.update_card_preferences("user-a", 1, 1) == {
+        "daily_new_limit": 1, "daily_review_limit": 1,
+    }
+    first = cards_store.accept_candidate("user-a", _candidate(sentence_id="sentence-1")["id"])
+    second = _candidate(sentence_id="sentence-2")
+    try:
+        cards_store.accept_candidate("user-a", second["id"])
+        assert False, "daily new-card limit should reject the second card"
+    except cards_store.DailyNewLimitError:
+        pass
+    assert [card["id"] for card in cards_store.due_cards("user-a", limit=100)] == [first["id"]]
+    summary = cards_store.card_summary("user-a")
+    assert summary["new_today"] == 1
+    assert summary["daily_new_limit"] == 1
+    assert summary["daily_review_limit"] == 1
+
+
+def test_merge_cards_preserves_review_history_and_tags(tmp_path, monkeypatch):
+    path = _isolated_store(tmp_path, monkeypatch)
+    first = cards_store.accept_candidate("user-a", _candidate(sentence_id="sentence-1")["id"])
+    second = cards_store.accept_candidate("user-a", _candidate(sentence_id="sentence-2")["id"])
+    cards_store.update_card_tags("user-a", [first["id"]], "来源::一")
+    cards_store.update_card_tags("user-a", [second["id"]], "来源::二")
+    cards_store.review_card("user-a", "device-a", second["id"], "good", time.time(), "merge-review")
+
+    result = cards_store.merge_cards("user-a", first["id"], [second["id"]])
+    assert result == {"target_card_id": first["id"], "merged": 1}
+    assert cards_store.search_cards("user-a", status="active")[0]["tags"] == ["来源::一", "来源::二"]
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT card_id FROM review_logs WHERE id='merge-review'").fetchone()[0] == first["id"]
+        assert connection.execute("SELECT deleted_at FROM cards WHERE id=?", (second["id"],)).fetchone()[0] is not None

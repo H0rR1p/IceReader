@@ -14,7 +14,7 @@ from ..jobs.service import record_observation
 
 LIBRARY_PATH = DATA_DIR / "library.sqlite3"
 LEGACY_PATH = DATA_DIR / "library.json"
-LIBRARY_SCHEMA_VERSION = 4
+LIBRARY_SCHEMA_VERSION = 5
 _initialization_lock = threading.Lock()
 _initialized_paths: set[Path] = set()
 _RESOURCE_KEY_PATTERN = re.compile(r"/api/assets/([0-9a-f]{20})(?:/|$)")
@@ -81,6 +81,21 @@ def _initialize_connection(connection: sqlite3.Connection, path: Path, migration
                 updated_at REAL NOT NULL,
                 PRIMARY KEY (user_id, book_id)
             );
+            CREATE TABLE IF NOT EXISTS user_bookmarks (
+                user_id TEXT NOT NULL,
+                bookmark_id TEXT NOT NULL,
+                book_id TEXT NOT NULL,
+                chapter_id TEXT NOT NULL,
+                sentence_id TEXT NOT NULL,
+                chapter_order INTEGER NOT NULL DEFAULT 0,
+                sentence_start INTEGER NOT NULL DEFAULT 0,
+                payload_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY (user_id, bookmark_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_user_bookmarks_book_order
+                ON user_bookmarks(user_id, book_id, chapter_order, sentence_start);
             CREATE TABLE IF NOT EXISTS outbox (
                 id TEXT PRIMARY KEY,
                 owner_user_id TEXT NOT NULL,
@@ -121,6 +136,22 @@ def _initialize_connection(connection: sqlite3.Connection, path: Path, migration
                           json_extract(payload, '$.lastOpenedAt'),
                           COALESCE(json_extract(payload, '$.updatedAt'), 0)
                    FROM records WHERE table_name = 'books'"""
+            )
+            connection.execute(
+                """INSERT OR IGNORE INTO user_bookmarks(
+                       user_id, bookmark_id, book_id, chapter_id, sentence_id,
+                       chapter_order, sentence_start, payload_json, created_at, updated_at
+                   )
+                   SELECT owner_user_id, record_key,
+                          COALESCE(json_extract(payload, '$.bookId'), ''),
+                          COALESCE(json_extract(payload, '$.chapterId'), ''),
+                          COALESCE(json_extract(payload, '$.sentenceId'), record_key),
+                          COALESCE(json_extract(payload, '$.chapterOrder'), 0),
+                          COALESCE(json_extract(payload, '$.sentenceStart'), 0),
+                          payload,
+                          COALESCE(json_extract(payload, '$.createdAt'), 0),
+                          COALESCE(json_extract(payload, '$.updatedAt'), json_extract(payload, '$.createdAt'), 0)
+                   FROM records WHERE table_name = 'bookmarks'"""
             )
             connection.execute(f"PRAGMA user_version = {LIBRARY_SCHEMA_VERSION}")
         connection.commit()
@@ -179,6 +210,40 @@ def _migrate_legacy(user_id: str) -> None:
     LEGACY_PATH.replace(LEGACY_PATH.with_suffix(".json.migrated"))
 
 
+_PROGRESS_FIELDS = {"currentChapterId", "currentSentenceId", "lastOpenedAt"}
+
+
+def _book_metadata(book: dict) -> dict:
+    """Keep reusable book metadata separate from per-user reading progress."""
+    return {key: value for key, value in book.items() if key not in _PROGRESS_FIELDS}
+
+
+def _load_user_books(connection: sqlite3.Connection, user_id: str) -> list[dict]:
+    rows = connection.execute(
+        """SELECT item.metadata_json, progress.chapter_id, progress.sentence_id,
+                  progress.last_opened_at
+           FROM user_library_items AS item
+           LEFT JOIN user_book_progress AS progress
+             ON progress.user_id = item.user_id AND progress.book_id = item.book_id
+           WHERE item.user_id = ?
+           ORDER BY item.created_at, item.rowid""",
+        (user_id,),
+    ).fetchall()
+    books: list[dict] = []
+    for metadata_json, chapter_id, sentence_id, last_opened_at in rows:
+        book = json.loads(metadata_json)
+        for field in _PROGRESS_FIELDS:
+            book.pop(field, None)
+        if chapter_id:
+            book["currentChapterId"] = chapter_id
+        if sentence_id:
+            book["currentSentenceId"] = sentence_id
+        if last_opened_at is not None:
+            book["lastOpenedAt"] = last_opened_at
+        books.append(book)
+    return books
+
+
 def load_library(user_id: str) -> LibrarySnapshot | None:
     _migrate_legacy(user_id)
     if not LIBRARY_PATH.exists():
@@ -190,6 +255,11 @@ def load_library(user_id: str) -> LibrarySnapshot | None:
         ):
             if table_name in values:
                 values[table_name].append(json.loads(payload))
+        values["books"] = _load_user_books(connection, user_id)
+        values["bookmarks"] = [json.loads(row[0]) for row in connection.execute(
+            "SELECT payload_json FROM user_bookmarks WHERE user_id = ? ORDER BY chapter_order, sentence_start",
+            (user_id,),
+        )]
     return LibrarySnapshot(**values)
 
 
@@ -226,7 +296,7 @@ def load_library_index(user_id: str) -> LibraryIndex:
         for chapter in chapters:
             if str(chapter.get("text", "")).strip():
                 chapters_by_book.setdefault(str(chapter.get("bookId", "")), []).append(chapter)
-        books = _load_rows(connection, user_id, "books")
+        books = _load_user_books(connection, user_id)
         for book in books:
             text_chapters = chapters_by_book.get(str(book.get("id", "")), [])
             book["translationComplete"] = bool(text_chapters) and all(
@@ -473,10 +543,9 @@ def load_bookmarks(user_id: str, book_id: str) -> list[dict]:
     _migrate_legacy(user_id)
     with _connect(user_id) as connection:
         return [json.loads(row[0]) for row in connection.execute(
-            """SELECT payload FROM records
-               WHERE owner_user_id = ? AND table_name = 'bookmarks' AND json_extract(payload, '$.bookId') = ?
-               ORDER BY CAST(json_extract(payload, '$.chapterOrder') AS INTEGER),
-                        CAST(json_extract(payload, '$.sentenceStart') AS INTEGER)""",
+            """SELECT payload_json FROM user_bookmarks
+               WHERE user_id = ? AND book_id = ?
+               ORDER BY chapter_order, sentence_start""",
             (user_id, book_id),
         )]
 
@@ -500,7 +569,7 @@ def find_personal_lexeme(user_id: str, exact_key: str, lemma: str, reading: str,
 def owns_book(user_id: str, book_id: str) -> bool:
     with _connect(user_id) as connection:
         return connection.execute(
-            "SELECT 1 FROM records WHERE owner_user_id = ? AND table_name = 'books' AND record_key = ?",
+            "SELECT 1 FROM user_library_items WHERE user_id = ? AND book_id = ?",
             (user_id, book_id),
         ).fetchone() is not None
 
@@ -535,6 +604,11 @@ def apply_library_patch(user_id: str, patch: LibraryPatch) -> dict[str, int]:
                     "DELETE FROM user_book_progress WHERE user_id = ? AND book_id = ?",
                     ((user_id, str(key)) for key in keys),
                 )
+            elif table_name == "bookmarks":
+                connection.executemany(
+                    "DELETE FROM user_bookmarks WHERE user_id = ? AND bookmark_id = ?",
+                    ((user_id, str(key)) for key in keys),
+                )
             changed += len(keys)
         for table_name, rows in patch.upserts.items():
             key_name = TABLE_KEYS.get(table_name)
@@ -558,7 +632,7 @@ def apply_library_patch(user_id: str, patch: LibraryPatch) -> dict[str, int]:
                     (
                         (
                             user_id, str(row[key_name]),
-                            json.dumps(row, ensure_ascii=False, separators=(",", ":")),
+                            json.dumps(_book_metadata(row), ensure_ascii=False, separators=(",", ":")),
                             float(row.get("createdAt") or 0), float(row.get("updatedAt") or 0),
                         )
                         for row in rows
@@ -575,6 +649,29 @@ def apply_library_patch(user_id: str, patch: LibraryPatch) -> dict[str, int]:
                             user_id, str(row[key_name]), row.get("currentChapterId"),
                             row.get("currentSentenceId"), row.get("lastOpenedAt"),
                             float(row.get("updatedAt") or 0),
+                        )
+                        for row in rows
+                    ),
+                )
+            elif table_name == "bookmarks":
+                connection.executemany(
+                    """INSERT INTO user_bookmarks(
+                           user_id, bookmark_id, book_id, chapter_id, sentence_id,
+                           chapter_order, sentence_start, payload_json, created_at, updated_at
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(user_id, bookmark_id) DO UPDATE SET
+                           book_id = excluded.book_id, chapter_id = excluded.chapter_id,
+                           sentence_id = excluded.sentence_id, chapter_order = excluded.chapter_order,
+                           sentence_start = excluded.sentence_start, payload_json = excluded.payload_json,
+                           updated_at = excluded.updated_at""",
+                    (
+                        (
+                            user_id, str(row[key_name]), str(row.get("bookId") or ""),
+                            str(row.get("chapterId") or ""), str(row.get("sentenceId") or row[key_name]),
+                            int(row.get("chapterOrder") or 0), int(row.get("sentenceStart") or 0),
+                            json.dumps(row, ensure_ascii=False, separators=(",", ":")),
+                            float(row.get("createdAt") or 0),
+                            float(row.get("updatedAt") or row.get("createdAt") or 0),
                         )
                         for row in rows
                     ),
@@ -647,6 +744,7 @@ def delete_book(user_id: str, book_id: str) -> dict[str, Any]:
         connection.execute("DELETE FROM records WHERE owner_user_id = ? AND table_name = 'books' AND record_key = ?", (user_id, book_id))
         connection.execute("DELETE FROM user_library_items WHERE user_id = ? AND book_id = ?", (user_id, book_id))
         connection.execute("DELETE FROM user_book_progress WHERE user_id = ? AND book_id = ?", (user_id, book_id))
+        connection.execute("DELETE FROM user_bookmarks WHERE user_id = ? AND book_id = ?", (user_id, book_id))
         connection.execute(
             "INSERT INTO outbox(id, owner_user_id, topic, payload_json, created_at) VALUES (?, ?, ?, ?, ?)",
             (
@@ -680,5 +778,31 @@ def save_library(user_id: str, snapshot: LibrarySnapshot) -> LibrarySnapshot:
                 "INSERT INTO records (owner_user_id, table_name, record_key, payload) VALUES (?, ?, ?, ?) ON CONFLICT(owner_user_id, table_name, record_key) DO UPDATE SET payload = excluded.payload",
                 ((user_id, table_name, str(row[key_name]), json.dumps(row, ensure_ascii=False, separators=(",", ":"))) for row in rows),
             )
-    apply_library_patch(user_id, LibraryPatch(upserts={"books": values.get("books", [])}))
+    with _connect(user_id) as connection:
+        book_ids = {str(row["id"]) for row in values.get("books", [])}
+        bookmark_ids = {str(row["id"]) for row in values.get("bookmarks", [])}
+        if book_ids:
+            placeholders = ",".join("?" for _ in book_ids)
+            connection.execute(
+                f"DELETE FROM user_library_items WHERE user_id = ? AND book_id NOT IN ({placeholders})",
+                (user_id, *book_ids),
+            )
+            connection.execute(
+                f"DELETE FROM user_book_progress WHERE user_id = ? AND book_id NOT IN ({placeholders})",
+                (user_id, *book_ids),
+            )
+        else:
+            connection.execute("DELETE FROM user_library_items WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM user_book_progress WHERE user_id = ?", (user_id,))
+        if bookmark_ids:
+            placeholders = ",".join("?" for _ in bookmark_ids)
+            connection.execute(
+                f"DELETE FROM user_bookmarks WHERE user_id = ? AND bookmark_id NOT IN ({placeholders})",
+                (user_id, *bookmark_ids),
+            )
+        else:
+            connection.execute("DELETE FROM user_bookmarks WHERE user_id = ?", (user_id,))
+    apply_library_patch(user_id, LibraryPatch(upserts={
+        "books": values.get("books", []), "bookmarks": values.get("bookmarks", []),
+    }))
     return snapshot

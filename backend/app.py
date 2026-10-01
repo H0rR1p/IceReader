@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import time
 import uuid
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +23,7 @@ from .modules.activity.router import router as activity_router
 from .modules.cards.repository import initialize_store as initialize_cards_store
 from .modules.cards.router import router as cards_router
 from .modules.content.router import router as content_router
+from .modules.data_portability.router import router as data_portability_router
 from .modules.identity.repository import (
     initialize_store as initialize_identity_store,
     resolve_or_bootstrap_session,
@@ -39,6 +41,7 @@ from .modules.sync.router import router as sync_router
 from .modules.voice.router import router as voice_router
 from .paths import DIST_DIR
 from .settings_store import migrate_legacy_settings
+from .voice_service import migrate_legacy_voice_settings
 
 
 @asynccontextmanager
@@ -46,6 +49,7 @@ async def lifespan(_app: FastAPI):
     try:
         migration_user_id = await asyncio.to_thread(initialize_identity_store)
         await asyncio.to_thread(migrate_legacy_settings, migration_user_id)
+        await asyncio.to_thread(migrate_legacy_voice_settings, migration_user_id)
         await asyncio.to_thread(initialize_library_store, migration_user_id)
         await asyncio.to_thread(initialize_job_store)
         await asyncio.to_thread(initialize_learning_store)
@@ -63,6 +67,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="冰读本地 API", version="0.2.0", lifespan=lifespan)
 app.include_router(identity_router)
 app.include_router(content_router)
+app.include_router(data_portability_router)
 app.include_router(library_router)
 app.include_router(settings_router)
 app.include_router(voice_router)
@@ -92,6 +97,21 @@ async def handle_domain_error(_request: Request, error: DomainError) -> JSONResp
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
     started_at = time.perf_counter()
+    host = (request.url.hostname or "").casefold()
+    if host not in {"127.0.0.1", "localhost", "::1", "testserver"}:
+        return JSONResponse(status_code=400, content={"detail": "无效的本地服务主机名", "code": "invalid_host"})
+    if request.url.path.startswith("/api/") and request.method not in {"GET", "HEAD", "OPTIONS"}:
+        origin = request.headers.get("origin")
+        fetch_site = (request.headers.get("sec-fetch-site") or "").casefold()
+        if fetch_site == "cross-site":
+            return JSONResponse(status_code=403, content={"detail": "已拒绝跨站写入请求", "code": "cross_site_request"})
+        if origin:
+            origin_host = (urlsplit(origin).hostname or "").casefold()
+            if origin_host not in {"127.0.0.1", "localhost", "::1", "testserver"}:
+                return JSONResponse(status_code=403, content={"detail": "已拒绝非本机来源", "code": "invalid_origin"})
+        content_type = (request.headers.get("content-type") or "").casefold()
+        if content_type.startswith("text/plain") or content_type.startswith("application/x-www-form-urlencoded"):
+            return JSONResponse(status_code=415, content={"detail": "写入接口不接受简单表单内容", "code": "unsafe_content_type"})
     identity = await asyncio.to_thread(
         resolve_or_bootstrap_session,
         request.cookies.get("bingdu_session"),
@@ -124,6 +144,15 @@ async def request_context_middleware(request: Request, call_next):
             httponly=True, samesite="strict", secure=False,
         )
     response.headers["X-Request-ID"] = context.request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; "
+        "frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+    )
     duration_ms = (time.perf_counter() - started_at) * 1000
     if duration_ms >= 250 or response.status_code >= 400:
         await asyncio.to_thread(

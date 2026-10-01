@@ -18,6 +18,7 @@ import type { BackgroundJob, TranslationBatch, TranslationMode } from './pipelin
 type SaveDelta = { upserts: RecordChanges; deletes: RecordDeletes }
 
 type AnalysisControllerOptions = {
+  userId: string
   activeBook: Book | null
   settings: ApiSettings
   setActiveBook: Dispatch<SetStateAction<Book | null>>
@@ -31,6 +32,7 @@ function makeLexemeKey(token: Pick<Token, 'lemma' | 'reading' | 'part_of_speech'
 }
 
 export function useAnalysisController({
+  userId,
   activeBook,
   settings,
   setActiveBook,
@@ -41,10 +43,10 @@ export function useAnalysisController({
   const [backgroundJob, setBackgroundJob] = useState<BackgroundJob | null>(null)
   const [dataRevision, setDataRevision] = useState(0)
   const [translationMode, setTranslationMode] = useState<TranslationMode>(() =>
-    localStorage.getItem('bingdu-translation-mode') === 'full' ? 'full' : 'meaning',
+    localStorage.getItem(`bingdu:${userId}:translation-mode`) === 'full' ? 'full' : 'meaning',
   )
   const [translationConcurrency, setTranslationConcurrency] = useState(() => {
-    const stored = Number(localStorage.getItem('bingdu-translation-concurrency') || 4)
+    const stored = Number(localStorage.getItem(`bingdu:${userId}:translation-concurrency`) || 4)
     return Math.min(8, Math.max(1, Number.isFinite(stored) ? stored : 4))
   })
   const backgroundAbortRef = useRef<AbortController | null>(null)

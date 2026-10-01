@@ -4,6 +4,7 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 
 from ...paths import DATA_DIR
@@ -14,6 +15,10 @@ from .scheduler import MODEL_VERSION, retrievability, schedule_review
 CARDS_PATH = DATA_DIR / "learning.sqlite3"
 _lock = threading.Lock()
 _initialized_path: Path | None = None
+
+
+class DailyNewLimitError(ValueError):
+    pass
 
 
 def _raw_connection() -> sqlite3.Connection:
@@ -89,6 +94,12 @@ def initialize_store() -> None:
                     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, action TEXT NOT NULL,
                     snapshot_json TEXT NOT NULL, created_at REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS card_preferences (
+                    user_id TEXT PRIMARY KEY,
+                    daily_new_limit INTEGER NOT NULL DEFAULT 20,
+                    daily_review_limit INTEGER NOT NULL DEFAULT 200,
+                    updated_at REAL NOT NULL
+                );
                 CREATE VIRTUAL TABLE IF NOT EXISTS card_search USING fts5(
                     card_id UNINDEXED, user_id UNINDEXED, lemma, reading, gloss, sentence, book_title, tags,
                     tokenize='unicode61'
@@ -161,8 +172,16 @@ def list_candidates(user_id: str, status: str = "candidate", limit: int = 100) -
 def accept_candidate(user_id: str, candidate_id: str) -> dict:
     now = time.time()
     with _connect() as connection:
+        preferences = _preferences(connection, user_id)
+        day_start = datetime.fromtimestamp(now).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+        accepted_today = int(connection.execute(
+            "SELECT COUNT(*) FROM cards WHERE user_id=? AND deleted_at IS NULL AND created_at>=?",
+            (user_id, day_start),
+        ).fetchone()[0])
+        if accepted_today >= preferences["daily_new_limit"]:
+            raise DailyNewLimitError("今日新卡上限已达到，请先完成复习或在卡片设置中调整上限")
         candidate = connection.execute(
-            "SELECT * FROM card_candidates WHERE id=? AND user_id=? AND deleted_at IS NULL",
+            "SELECT * FROM card_candidates WHERE id=? AND user_id=? AND status='candidate' AND deleted_at IS NULL",
             (candidate_id,user_id),
         ).fetchone()
         if candidate is None:
@@ -226,6 +245,75 @@ def search_cards(user_id: str, query: str = "", status: str = "", due: str = "",
     return [_row(row) or {} for row in rows]
 
 
+def count_cards(user_id: str, query: str = "", status: str = "", due: str = "") -> int:
+    clauses = ["c.user_id=?", "c.deleted_at IS NULL", "n.deleted_at IS NULL"]
+    values: list[object] = [user_id]
+    if status:
+        clauses.append("c.status=?")
+        values.append(status)
+    if due == "today":
+        clauses.append("m.due_at<=?")
+        values.append(time.time())
+    if query.strip():
+        clauses.append("c.id IN (SELECT card_id FROM card_search WHERE user_id=? AND card_search MATCH ?)")
+        values.extend([user_id, " AND ".join(f'\"{part.replace(chr(34), chr(34)*2)}\"*' for part in query.split())])
+    with _connect() as connection:
+        return int(connection.execute(
+            f"""SELECT COUNT(*) FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id
+                  WHERE {' AND '.join(clauses)}""",
+            values,
+        ).fetchone()[0])
+
+
+def merge_cards(user_id: str, target_card_id: str, source_card_ids: list[str]) -> dict:
+    source_ids = [card_id for card_id in dict.fromkeys(source_card_ids) if card_id != target_card_id]
+    if not source_ids:
+        raise ValueError("至少选择两张不同卡片")
+    now = time.time()
+    with _connect() as connection:
+        ids = [target_card_id, *source_ids]
+        placeholders = ",".join("?" for _ in ids)
+        rows = connection.execute(
+            f"""SELECT c.id,c.note_id,c.status,n.tags_json,n.gloss,n.sentence,m.due_at,m.reps,m.lapses
+                  FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id
+                  WHERE c.user_id=? AND c.deleted_at IS NULL AND c.id IN ({placeholders})""",
+            [user_id, *ids],
+        ).fetchall()
+        by_id = {row["id"]: row for row in rows}
+        if any(card_id not in by_id for card_id in ids):
+            raise KeyError("card_not_found")
+        target = by_id[target_card_id]
+        tags = list(json.loads(target["tags_json"] or "[]"))
+        for source_id in source_ids:
+            for tag in json.loads(by_id[source_id]["tags_json"] or "[]"):
+                if tag not in tags:
+                    tags.append(tag)
+        connection.execute(
+            "UPDATE notes SET tags_json=?,updated_at=?,version=version+1 WHERE id=? AND user_id=?",
+            (json.dumps(tags, ensure_ascii=False), now, target["note_id"], user_id),
+        )
+        source_placeholders = ",".join("?" for _ in source_ids)
+        connection.execute(
+            f"UPDATE review_logs SET card_id=? WHERE user_id=? AND card_id IN ({source_placeholders})",
+            [target_card_id, user_id, *source_ids],
+        )
+        total_reps = sum(int(by_id[card_id]["reps"]) for card_id in ids)
+        total_lapses = sum(int(by_id[card_id]["lapses"]) for card_id in ids)
+        earliest_due = min(float(by_id[card_id]["due_at"]) for card_id in ids)
+        connection.execute(
+            "UPDATE memory_states SET reps=?,lapses=?,due_at=?,updated_at=? WHERE card_id=? AND user_id=?",
+            (total_reps, total_lapses, earliest_due, now, target_card_id, user_id),
+        )
+        connection.execute(
+            f"UPDATE cards SET status='archived',deleted_at=?,updated_at=?,version=version+1 WHERE user_id=? AND id IN ({source_placeholders})",
+            [now, now, user_id, *source_ids],
+        )
+        for source_id in source_ids:
+            connection.execute("DELETE FROM card_search WHERE card_id=? AND user_id=?", (source_id, user_id))
+        _index_card(connection, user_id, target_card_id)
+    return {"target_card_id": target_card_id, "merged": len(source_ids)}
+
+
 def update_card_statuses(user_id: str, card_ids: list[str], status: str) -> dict:
     now = time.time()
     with _connect() as connection:
@@ -250,7 +338,7 @@ def update_card_tags(user_id: str, card_ids: list[str], tag: str, remove: bool =
         snapshots = []
         for row in rows:
             tags = json.loads(row["tags_json"] or "[]")
-            snapshots.append({"card_id":row["id"],"note_id":row["note_id"],"tags":tags})
+            snapshots.append({"card_id":row["id"],"note_id":row["note_id"],"tags":list(tags)})
             if remove:
                 tags = [value for value in tags if value != tag]
             elif tag not in tags:
@@ -269,6 +357,121 @@ def update_card_tags(user_id: str, card_ids: list[str], tag: str, remove: bool =
     return {"updated":updated,"undo_id":undo_id}
 
 
+def update_card_note(user_id: str, card_id: str, fields: dict) -> dict:
+    allowed = {"lemma", "reading", "gloss", "sentence"}
+    changes = {key: str(value).strip() for key, value in fields.items() if key in allowed}
+    if not changes or not changes.get("lemma", "x"):
+        raise ValueError("卡片内容无效")
+    now = time.time()
+    with _connect() as connection:
+        row = connection.execute(
+            """SELECT c.id, c.note_id, n.lemma, n.reading, n.gloss, n.sentence
+               FROM cards c JOIN notes n ON n.id=c.note_id
+               WHERE c.id=? AND c.user_id=? AND c.deleted_at IS NULL""",
+            (card_id, user_id),
+        ).fetchone()
+        if row is None:
+            raise KeyError("card_not_found")
+        snapshot = {key: row[key] for key in allowed}
+        undo_id = str(uuid.uuid4())
+        connection.execute(
+            "INSERT INTO card_undo_log(id,user_id,action,snapshot_json,created_at) VALUES(?,?,?,?,?)",
+            (undo_id, user_id, "note", json.dumps({"card_id": card_id, "note_id": row["note_id"], "fields": snapshot}, ensure_ascii=False), now),
+        )
+        assignments = ",".join(f"{key}=?" for key in changes)
+        connection.execute(
+            f"UPDATE notes SET {assignments},updated_at=?,version=version+1 WHERE id=? AND user_id=?",
+            [*changes.values(), now, row["note_id"], user_id],
+        )
+        connection.execute("UPDATE cards SET updated_at=?,version=version+1 WHERE id=? AND user_id=?", (now, card_id, user_id))
+        _index_card(connection, user_id, card_id)
+        updated = connection.execute(
+            """SELECT c.*,n.lemma,n.reading,n.gloss,n.sentence,n.book_id,n.book_title,n.chapter_id,n.sentence_id,n.tags_json,
+                      m.difficulty,m.stability,m.due_at,m.last_review_at,m.reps,m.lapses
+               FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id
+               WHERE c.id=? AND c.user_id=?""",
+            (card_id, user_id),
+        ).fetchone()
+    result = _row(updated) or {}
+    result["undo_id"] = undo_id
+    return result
+
+
+def undo_card_action(user_id: str, undo_id: str) -> dict:
+    with _connect() as connection:
+        undo = connection.execute(
+            "SELECT action,snapshot_json FROM card_undo_log WHERE id=? AND user_id=?",
+            (undo_id, user_id),
+        ).fetchone()
+        if undo is None:
+            raise KeyError("undo_not_found")
+        snapshot = json.loads(undo["snapshot_json"])
+        restored = 0
+        if undo["action"] == "status":
+            for row in snapshot:
+                restored += connection.execute(
+                    "UPDATE cards SET status=?,updated_at=?,version=version+1 WHERE id=? AND user_id=?",
+                    (row["status"], time.time(), row["id"], user_id),
+                ).rowcount
+        elif undo["action"] == "tags":
+            for row in snapshot:
+                restored += connection.execute(
+                    "UPDATE notes SET tags_json=?,updated_at=?,version=version+1 WHERE id=? AND user_id=?",
+                    (json.dumps(row["tags"], ensure_ascii=False), time.time(), row["note_id"], user_id),
+                ).rowcount
+                _index_card(connection, user_id, row["card_id"])
+        elif undo["action"] == "note":
+            fields = snapshot["fields"]
+            restored = connection.execute(
+                """UPDATE notes SET lemma=?,reading=?,gloss=?,sentence=?,updated_at=?,version=version+1
+                   WHERE id=? AND user_id=?""",
+                (fields["lemma"], fields["reading"], fields["gloss"], fields["sentence"], time.time(), snapshot["note_id"], user_id),
+            ).rowcount
+            _index_card(connection, user_id, snapshot["card_id"])
+        connection.execute("DELETE FROM card_undo_log WHERE id=? AND user_id=?", (undo_id, user_id))
+    return {"restored": restored}
+
+
+def list_tags(user_id: str) -> list[dict]:
+    counts: dict[str, int] = {}
+    with _connect() as connection:
+        rows = connection.execute(
+            """SELECT n.tags_json FROM notes n JOIN cards c ON c.note_id=n.id
+               WHERE c.user_id=? AND c.deleted_at IS NULL AND n.deleted_at IS NULL""",
+            (user_id,),
+        ).fetchall()
+    for row in rows:
+        for tag in json.loads(row[0] or "[]"):
+            counts[str(tag)] = counts.get(str(tag), 0) + 1
+    return [{"name": name, "count": count} for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
+
+
+def _preferences(connection: sqlite3.Connection, user_id: str) -> dict[str, int]:
+    row = connection.execute(
+        "SELECT daily_new_limit,daily_review_limit FROM card_preferences WHERE user_id=?",
+        (user_id,),
+    ).fetchone()
+    return {"daily_new_limit": int(row[0]), "daily_review_limit": int(row[1])} if row else {
+        "daily_new_limit": 20, "daily_review_limit": 200,
+    }
+
+
+def get_card_preferences(user_id: str) -> dict[str, int]:
+    with _connect() as connection:
+        return _preferences(connection, user_id)
+
+
+def update_card_preferences(user_id: str, daily_new_limit: int, daily_review_limit: int) -> dict[str, int]:
+    with _connect() as connection:
+        connection.execute(
+            """INSERT INTO card_preferences(user_id,daily_new_limit,daily_review_limit,updated_at)
+               VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+               daily_new_limit=excluded.daily_new_limit,daily_review_limit=excluded.daily_review_limit,updated_at=excluded.updated_at""",
+            (user_id, daily_new_limit, daily_review_limit, time.time()),
+        )
+        return _preferences(connection, user_id)
+
+
 def card_summary(user_id: str) -> dict[str,int]:
     now = time.time()
     with _connect() as connection:
@@ -282,7 +485,13 @@ def card_summary(user_id: str) -> dict[str,int]:
                WHERE c.user_id=? AND c.deleted_at IS NULL""",
             (now,now+7*86400,now+30*86400,user_id),
         ).fetchone()
-    return {"candidates":int(candidate),"active":int(row["active"] or 0),"due_now":int(row["due_now"] or 0),"due_7_days":int(row["due_7_days"] or 0),"due_30_days":int(row["due_30_days"] or 0),"daily_new_limit":20}
+        preferences = _preferences(connection, user_id)
+        day_start = datetime.fromtimestamp(now).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+        new_today = int(connection.execute(
+            "SELECT COUNT(*) FROM cards WHERE user_id=? AND deleted_at IS NULL AND created_at>=?",
+            (user_id, day_start),
+        ).fetchone()[0])
+    return {"candidates":int(candidate),"active":int(row["active"] or 0),"due_now":int(row["due_now"] or 0),"due_7_days":int(row["due_7_days"] or 0),"due_30_days":int(row["due_30_days"] or 0),"new_today":new_today,**preferences}
 
 
 def save_view(user_id: str, name: str, query: dict) -> dict:
@@ -303,6 +512,11 @@ def list_views(user_id: str) -> list[dict]:
     for row in rows:
         value=dict(row); value["query"]=json.loads(value.pop("query_json")); result.append(value)
     return result
+
+
+def delete_view(user_id: str, view_id: str) -> bool:
+    with _connect() as connection:
+        return bool(connection.execute("DELETE FROM saved_card_views WHERE id=? AND user_id=?", (view_id, user_id)).rowcount)
 
 
 def review_card(user_id: str, device_id: str, card_id: str, rating: str, reviewed_at: float, review_id: str) -> dict:
@@ -326,4 +540,5 @@ def review_card(user_id: str, device_id: str, card_id: str, rating: str, reviewe
 
 
 def due_cards(user_id: str, limit: int = 100) -> list[dict]:
-    return search_cards(user_id,status="active",due="today",limit=limit)
+    preferences = get_card_preferences(user_id)
+    return search_cards(user_id,status="active",due="today",limit=min(limit, preferences["daily_review_limit"]))

@@ -81,9 +81,27 @@ def _prune_jobs(now: float | None = None) -> None:
             _jobs.pop(job_id, None)
 
 
-def _read_settings() -> dict:
+def _user_voice_dir(user_id: str) -> Path:
+    return VOICE_DIR / "users" / user_id
+
+
+def _user_paths(user_id: str) -> tuple[Path, Path, Path]:
+    directory = _user_voice_dir(user_id)
+    return directory / "settings.json", directory / "template.ymmp", directory / "cache"
+
+
+def migrate_legacy_voice_settings(user_id: str) -> None:
+    settings_path, template_path, _ = _user_paths(user_id)
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    for source, target in ((SETTINGS_PATH, settings_path), (TEMPLATE_PATH, template_path)):
+        if not target.exists() and source.is_file():
+            shutil.copy2(source, target)
+
+
+def _read_settings(user_id: str) -> dict:
+    settings_path, _, _ = _user_paths(user_id)
     try:
-        value = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        value = json.loads(settings_path.read_text(encoding="utf-8"))
         return value if isinstance(value, dict) else {}
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
@@ -102,8 +120,8 @@ def _candidate_roots() -> list[Path]:
     return unique
 
 
-def _detect_ymm() -> Path | None:
-    configured = str(_read_settings().get("ymm_path") or "").strip()
+def _detect_ymm(user_id: str) -> Path | None:
+    configured = str(_read_settings(user_id).get("ymm_path") or "").strip()
     if configured:
         candidate = Path(configured).expanduser()
         if candidate.is_file():
@@ -145,9 +163,10 @@ def _template_characters(project: dict) -> list[str]:
     return names
 
 
-def _read_template() -> dict:
+def _read_template(user_id: str) -> dict:
+    _, template_path, _ = _user_paths(user_id)
     try:
-        value = json.loads(TEMPLATE_PATH.read_text(encoding="utf-8-sig"))
+        value = json.loads(template_path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError as exc:
         raise ValueError("尚未导入 YMM4 配音模板") from exc
     except (json.JSONDecodeError, OSError) as exc:
@@ -158,15 +177,16 @@ def _read_template() -> dict:
     return value
 
 
-def get_voice_settings() -> VoiceSettingsStatus:
-    data = _read_settings()
-    ymm = _detect_ymm()
+def get_voice_settings(user_id: str) -> VoiceSettingsStatus:
+    data = _read_settings(user_id)
+    ymm = _detect_ymm(user_id)
     character = ""
     characters: list[str] = []
-    template_found = TEMPLATE_PATH.is_file()
+    _, template_path, _ = _user_paths(user_id)
+    template_found = template_path.is_file()
     if template_found:
         try:
-            project = _read_template()
+            project = _read_template(user_id)
             characters = _template_characters(project)
             character = str(data.get("character_name") or "").strip() or _template_character(project)
             if character and character not in characters:
@@ -185,24 +205,25 @@ def get_voice_settings() -> VoiceSettingsStatus:
     )
 
 
-def save_voice_settings(incoming: VoiceSettingsInput) -> VoiceSettingsStatus:
+def save_voice_settings(user_id: str, incoming: VoiceSettingsInput) -> VoiceSettingsStatus:
     requested = incoming.ymm_path.strip()
     if requested and not Path(requested).expanduser().is_file():
         raise ValueError("找不到指定的 YukkuriMovieMaker.exe")
-    VOICE_DIR.mkdir(parents=True, exist_ok=True)
+    settings_path, _, _ = _user_paths(user_id)
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "ymm_path": str(Path(requested).expanduser().resolve()) if requested else "",
         "character_name": incoming.character_name.strip(),
         "playback_rate": incoming.playback_rate,
         "volume": incoming.volume,
     }
-    temporary = SETTINGS_PATH.with_suffix(".tmp")
+    temporary = settings_path.with_suffix(".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    temporary.replace(SETTINGS_PATH)
-    return get_voice_settings()
+    temporary.replace(settings_path)
+    return get_voice_settings(user_id)
 
 
-def install_template(payload: bytes) -> VoiceSettingsStatus:
+def install_template(user_id: str, payload: bytes) -> VoiceSettingsStatus:
     if len(payload) > 5 * 1024 * 1024:
         raise ValueError("YMM4 配音模板不能超过 5 MB")
     try:
@@ -212,18 +233,19 @@ def install_template(payload: bytes) -> VoiceSettingsStatus:
     if not isinstance(project, dict):
         raise ValueError("YMM4 配音模板格式不正确")
     _voice_item(project)
-    VOICE_DIR.mkdir(parents=True, exist_ok=True)
-    temporary = TEMPLATE_PATH.with_suffix(".tmp")
+    _, template_path, _ = _user_paths(user_id)
+    template_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = template_path.with_suffix(".tmp")
     temporary.write_text(json.dumps(project, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    temporary.replace(TEMPLATE_PATH)
-    return get_voice_settings()
+    temporary.replace(template_path)
+    return get_voice_settings(user_id)
 
 
-def _cache_key(text: str, settings: VoiceSettingsStatus) -> str:
+def _cache_key(text: str, settings: VoiceSettingsStatus, template_path: Path) -> str:
     digest = hashlib.sha256()
     digest.update(CACHE_VERSION)
     digest.update(text.strip().encode("utf-8"))
-    digest.update(TEMPLATE_PATH.read_bytes())
+    digest.update(template_path.read_bytes())
     digest.update(b"\0character\0")
     digest.update(settings.character_name.strip().encode("utf-8"))
     digest.update(f"{settings.playback_rate}:{settings.volume}".encode("ascii"))
@@ -340,7 +362,7 @@ def _cancel_bridge_job(job_id: str) -> bool:
         return False
 
 
-def _ensure_bridge(settings: VoiceSettingsStatus) -> None:
+def _ensure_bridge(settings: VoiceSettingsStatus, template_path: Path) -> None:
     if _bridge_ready():
         return
     source = resource_path("ymm4-bridge")
@@ -360,7 +382,7 @@ def _ensure_bridge(settings: VoiceSettingsStatus) -> None:
     except PermissionError as exc:
         raise RuntimeError("配音桥需要更新，请先保存项目并完全退出 YMM4 后重试") from exc
     subprocess.Popen(
-        [settings.ymm_path, str(TEMPLATE_PATH)],
+        [settings.ymm_path, str(template_path)],
         cwd=str(Path(settings.ymm_path).parent),
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         stdout=subprocess.DEVNULL,
@@ -376,8 +398,9 @@ def _ensure_bridge(settings: VoiceSettingsStatus) -> None:
 
 def _synthesize_with_bridge(
     text: str, character: str, output: Path, settings: VoiceSettingsStatus, job_id: str,
+    template_path: Path,
 ) -> None:
-    _ensure_bridge(settings)
+    _ensure_bridge(settings, template_path)
     result = _bridge_request("POST", "/synthesize", {
         "text": text,
         "character": character,
@@ -404,12 +427,13 @@ def _status(job: _VoiceJob) -> VoiceJobStatus:
 
 async def start_voice_job(user_id: str, text: str, force: bool = False) -> VoiceJobStatus:
     _prune_jobs()
-    settings = get_voice_settings()
+    settings = get_voice_settings(user_id)
     if not settings.ready:
         raise ValueError("配音尚未配置，请先设置 YMM4 路径并导入配音模板")
     normalized = text.strip()
-    cache_key = _cache_key(normalized, settings)
-    cache_file = CACHE_DIR / f"{cache_key}.wav"
+    _, template_path, cache_dir = _user_paths(user_id)
+    cache_key = _cache_key(normalized, settings, template_path)
+    cache_file = cache_dir / f"{cache_key}.wav"
     job = _VoiceJob(id=uuid.uuid4().hex, owner_user_id=user_id)
     _jobs[job.id] = job
     if cache_file.is_file() and not force:
@@ -419,11 +443,11 @@ async def start_voice_job(user_id: str, text: str, force: bool = False) -> Voice
         job.cached = True
         _prune_jobs()
         return _status(job)
-    job.task = asyncio.create_task(_run_job(job, normalized, cache_key, settings))
+    job.task = asyncio.create_task(_run_job(job, normalized, cache_key, settings, template_path, cache_dir))
     return _status(job)
 
 
-async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSettingsStatus) -> None:
+async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSettingsStatus, template_path: Path, cache_dir: Path) -> None:
     job_dir = JOBS_DIR / job.id
     try:
         async with _lock():
@@ -440,7 +464,7 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
                 _finish_job(job, "canceled", "配音任务已取消")
                 return
             worker = asyncio.create_task(asyncio.to_thread(
-                _synthesize_with_bridge, pronunciation_text(text), character, output_file, settings, job.id,
+                _synthesize_with_bridge, pronunciation_text(text), character, output_file, settings, job.id, template_path,
             ))
             try:
                 await asyncio.shield(worker)
@@ -455,8 +479,8 @@ async def _run_job(job: _VoiceJob, text: str, cache_key: str, settings: VoiceSet
             if job.cancel_requested:
                 _finish_job(job, "canceled", "配音任务已取消")
                 return
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            cache_file = CACHE_DIR / f"{cache_key}.wav"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_file = cache_dir / f"{cache_key}.wav"
             temporary = cache_file.with_suffix(".tmp")
             shutil.copyfile(output_file, temporary)
             duration = _trim_wave(temporary)
@@ -492,7 +516,8 @@ def get_voice_audio_path(user_id: str, job_id: str) -> Path:
     if not job or job.owner_user_id != user_id or job.status != "complete" or not job.audio_path:
         raise KeyError(job_id)
     path = job.audio_path.resolve()
-    if path.parent != CACHE_DIR.resolve() or not path.is_file():
+    _, _, cache_dir = _user_paths(user_id)
+    if path.parent != cache_dir.resolve() or not path.is_file():
         raise KeyError(job_id)
     return path
 
