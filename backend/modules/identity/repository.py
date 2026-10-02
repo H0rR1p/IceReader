@@ -10,6 +10,7 @@ from pathlib import Path
 
 from ...core.errors import AuthenticationError, ConflictError
 from ...paths import DATA_DIR
+from ...runtime_config import PUBLIC_MODE
 
 
 IDENTITY_PATH = DATA_DIR / "identity.sqlite3"
@@ -17,6 +18,7 @@ IDENTITY_SCHEMA_VERSION = 1
 SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 MAX_ACTIVE_SESSIONS_PER_USER = 12
 MIGRATION_AUTH_KEY = "local:migrated"
+GUEST_AUTH_PROVIDER = "guest"
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,7 +146,12 @@ def migration_user_id() -> str:
     return initialize_store()
 
 
-def _create_session(connection: sqlite3.Connection, user_id: str, device_id: str | None) -> SessionIdentity:
+def _create_session(
+    connection: sqlite3.Connection,
+    user_id: str,
+    device_id: str | None,
+    auth_provider: str = "local",
+) -> SessionIdentity:
     now = _now()
     actual_device_id = device_id or str(uuid.uuid4())
     existing_device = connection.execute(
@@ -168,8 +175,8 @@ def _create_session(connection: sqlite3.Connection, user_id: str, device_id: str
         """INSERT INTO sessions(
                id, user_id, device_id, token_hash, auth_provider,
                created_at, last_seen_at, expires_at
-           ) VALUES (?, ?, ?, ?, 'local', ?, ?, ?)""",
-        (session_id, user_id, actual_device_id, _token_hash(token), now, now, now + SESSION_TTL_SECONDS),
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (session_id, user_id, actual_device_id, _token_hash(token), auth_provider, now, now, now + SESSION_TTL_SECONDS),
     )
     connection.execute(
         """UPDATE sessions SET revoked_at=? WHERE id IN (
@@ -178,7 +185,7 @@ def _create_session(connection: sqlite3.Connection, user_id: str, device_id: str
            )""",
         (now, user_id, MAX_ACTIVE_SESSIONS_PER_USER),
     )
-    return SessionIdentity(user_id, session_id, actual_device_id, "local", token)
+    return SessionIdentity(user_id, session_id, actual_device_id, auth_provider, token)
 
 
 def resolve_or_bootstrap_session(token: str | None, device_id: str | None) -> SessionIdentity:
@@ -202,6 +209,20 @@ def resolve_or_bootstrap_session(token: str | None, device_id: str | None) -> Se
                     str(row["user_id"]), str(row["id"]), str(row["device_id"]),
                     str(row["auth_provider"]), None,
                 )
+        if PUBLIC_MODE:
+            user_id = str(uuid.uuid4())
+            now = _now()
+            connection.execute(
+                "INSERT INTO users(id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (user_id, "访客", now, now),
+            )
+            connection.execute(
+                """INSERT INTO auth_identities(
+                       id, user_id, provider, provider_subject, password_hash, created_at
+                   ) VALUES (?, ?, ?, ?, NULL, ?)""",
+                (str(uuid.uuid4()), user_id, GUEST_AUTH_PROVIDER, f"guest:{user_id}", now),
+            )
+            return _create_session(connection, user_id, device_id, GUEST_AUTH_PROVIDER)
         return _create_session(connection, default_user_id, device_id)
 
 
@@ -309,12 +330,15 @@ def user_profile(user_id: str) -> dict:
     with _connect() as connection:
         row = connection.execute(
             """SELECT u.id, u.display_name, u.avatar_filename, u.created_at, u.updated_at,
-                      a.provider_subject AS username
+                      a.provider, a.provider_subject AS username
                FROM users AS u
                LEFT JOIN auth_identities AS a
-                 ON a.user_id = u.id AND a.provider = 'local'
+                 ON a.user_id = u.id AND a.provider IN ('local', 'guest')
                WHERE u.id = ? AND u.disabled_at IS NULL
-               ORDER BY CASE WHEN a.provider_subject = ? THEN 1 ELSE 0 END
+               ORDER BY CASE
+                   WHEN a.provider = 'local' AND a.provider_subject <> ? THEN 0
+                   WHEN a.provider = 'guest' THEN 1
+                   ELSE 2 END
                LIMIT 1""",
             (user_id, MIGRATION_AUTH_KEY),
         ).fetchone()
@@ -325,8 +349,8 @@ def user_profile(user_id: str) -> dict:
             "display_name": str(row["display_name"]),
             "avatar_url": f"/api/me/avatar?v={int(float(row['updated_at']) * 1000)}" if row["avatar_filename"] else None,
             "created_at": float(row["created_at"]),
-            "username": None if row["username"] == MIGRATION_AUTH_KEY else row["username"],
-            "is_guest": row["username"] == MIGRATION_AUTH_KEY,
+            "username": row["username"] if row["provider"] == "local" and row["username"] != MIGRATION_AUTH_KEY else None,
+            "is_guest": row["provider"] == GUEST_AUTH_PROVIDER or row["username"] == MIGRATION_AUTH_KEY,
         }
 
 
@@ -361,3 +385,4 @@ def avatar_filename(user_id: str) -> str | None:
             "SELECT avatar_filename FROM users WHERE id = ? AND disabled_at IS NULL", (user_id,),
         ).fetchone()
         return str(row["avatar_filename"]) if row and row["avatar_filename"] else None
+

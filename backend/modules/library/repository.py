@@ -8,13 +8,14 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 from ...models import ChapterSnapshot, LibraryIndex, LibraryPatch, LibrarySnapshot, StudyDataSnapshot
+from ...nlp import kata
 from ...paths import DATA_DIR
 from ..jobs.service import record_observation
 
 
 LIBRARY_PATH = DATA_DIR / "library.sqlite3"
 LEGACY_PATH = DATA_DIR / "library.json"
-LIBRARY_SCHEMA_VERSION = 5
+LIBRARY_SCHEMA_VERSION = 7
 _initialization_lock = threading.Lock()
 _initialized_paths: set[Path] = set()
 _RESOURCE_KEY_PATTERN = re.compile(r"/api/assets/([0-9a-f]{20})(?:/|$)")
@@ -35,6 +36,7 @@ INDEX_DEFINITIONS = {
     "idx_sentences_chapter_start_v3": "CREATE INDEX idx_sentences_chapter_start_v3 ON records(owner_user_id, table_name, json_extract(payload, '$.chapter_id'), CAST(json_extract(payload, '$.start') AS INTEGER))",
     "idx_records_sentence_v3": "CREATE INDEX idx_records_sentence_v3 ON records(owner_user_id, table_name, json_extract(payload, '$.sentence_id'))",
     "idx_lexemes_reading_lemma_v3": "CREATE INDEX idx_lexemes_reading_lemma_v3 ON records(owner_user_id, table_name, json_extract(payload, '$.reading'), json_extract(payload, '$.lemma'))",
+    "idx_lexemes_first_kana_v4": "CREATE INDEX idx_lexemes_first_kana_v4 ON records(owner_user_id, table_name, json_extract(payload, '$.firstKana')) WHERE table_name = 'lexemes'",
 }
 
 
@@ -121,6 +123,17 @@ def _initialize_connection(connection: sqlite3.Connection, path: Path, migration
             for index_name, statement in INDEX_DEFINITIONS.items():
                 if index_name not in existing_indexes:
                     connection.execute(statement)
+            if schema_version < 7:
+                for owner_user_id, record_key, encoded in connection.execute(
+                    "SELECT owner_user_id,record_key,payload FROM records WHERE table_name='lexemes'"
+                ).fetchall():
+                    payload = json.loads(encoded)
+                    reading = kata(str(payload.get("reading") or payload.get("lemma") or ""))
+                    payload["firstKana"] = reading[:1] or "未"
+                    connection.execute(
+                        "UPDATE records SET payload=? WHERE owner_user_id=? AND table_name='lexemes' AND record_key=?",
+                        (json.dumps(payload, ensure_ascii=False, separators=(",", ":")), owner_user_id, record_key),
+                    )
             connection.execute(
                 """INSERT OR IGNORE INTO user_library_items(user_id, book_id, metadata_json, created_at, updated_at)
                    SELECT owner_user_id, record_key, payload,
@@ -539,6 +552,108 @@ def load_study_data(user_id: str) -> StudyDataSnapshot:
         )
 
 
+def page_lexemes(
+    user_id: str, *, q: str = "", kana: str = "", source: str = "",
+    part_of_speech: str = "", group: str = "", corrected: bool | None = None,
+    limit: int = 80, offset: int = 0,
+) -> dict:
+    """Return one stable server-side page plus facets used by the kana tree."""
+    where = ["owner_user_id = ?", "table_name = 'lexemes'"]
+    params: list[Any] = [user_id]
+    if q.strip():
+        where.append("(json_extract(payload,'$.lemma') LIKE ? OR json_extract(payload,'$.reading') LIKE ? OR payload LIKE ?)")
+        term = f"%{q.strip()}%"
+        params.extend((term, term, term))
+    if kana:
+        where.append("json_extract(payload,'$.firstKana') = ?")
+        params.append(kana)
+    if source:
+        where.append("json_extract(payload,'$.source') = ?")
+        params.append(source)
+    if part_of_speech:
+        where.append("json_extract(payload,'$.part_of_speech') = ?")
+        params.append(part_of_speech)
+    if corrected is not None:
+        where.append("COALESCE(json_extract(payload,'$.correctedByUser'),0) = ?")
+        params.append(1 if corrected else 0)
+    if group:
+        where.append("EXISTS (SELECT 1 FROM json_each(COALESCE(json_extract(payload,'$.groups'),'[]')) WHERE value = ?)")
+        params.append(group)
+    predicate = " AND ".join(where)
+    with _connect(user_id) as connection:
+        total = int(connection.execute(f"SELECT COUNT(*) FROM records WHERE {predicate}", params).fetchone()[0])
+        rows = [json.loads(row[0]) for row in connection.execute(
+            f"""SELECT payload FROM records WHERE {predicate}
+                ORDER BY json_extract(payload,'$.firstKana'),json_extract(payload,'$.reading'),
+                         json_extract(payload,'$.lemma'),record_key LIMIT ? OFFSET ?""",
+            (*params, limit, offset),
+        )]
+        kana_tree = [{"kana": str(row[0] or "未"), "count": int(row[1])} for row in connection.execute(
+            """SELECT COALESCE(json_extract(payload,'$.firstKana'),'未'),COUNT(*) FROM records
+               WHERE owner_user_id=? AND table_name='lexemes' GROUP BY 1 ORDER BY 1""", (user_id,),
+        )]
+        sources = [{"name": str(row[0] or "未知"), "count": int(row[1])} for row in connection.execute(
+            """SELECT COALESCE(json_extract(payload,'$.source'),'未知'),COUNT(*) FROM records
+               WHERE owner_user_id=? AND table_name='lexemes' GROUP BY 1 ORDER BY 2 DESC,1 LIMIT 100""", (user_id,),
+        )]
+        parts = [{"name": str(row[0] or "未知"), "count": int(row[1])} for row in connection.execute(
+            """SELECT COALESCE(json_extract(payload,'$.part_of_speech'),'未知'),COUNT(*) FROM records
+               WHERE owner_user_id=? AND table_name='lexemes' GROUP BY 1 ORDER BY 2 DESC,1 LIMIT 100""", (user_id,),
+        )]
+        groups = [{"name": str(row[0]), "count": int(row[1])} for row in connection.execute(
+            """SELECT value,COUNT(*) FROM records,json_each(COALESCE(json_extract(payload,'$.groups'),'[]'))
+               WHERE owner_user_id=? AND table_name='lexemes' GROUP BY value ORDER BY 2 DESC,1 LIMIT 100""", (user_id,),
+        )]
+    return {"items": rows, "total": total, "limit": limit, "offset": offset,
+            "facets": {"kana": kana_tree, "sources": sources, "parts": parts, "groups": groups}}
+
+
+def bulk_update_lexemes(user_id: str, keys: list[str], operation: str, value: Any = None) -> list[dict]:
+    if not keys or len(keys) > 500:
+        raise ValueError("每次必须选择 1 到 500 个词条")
+    updated: list[dict] = []
+    now_ms = time.time() * 1000
+    with _connect(user_id) as connection:
+        for key in dict.fromkeys(keys):
+            row = connection.execute(
+                "SELECT payload FROM records WHERE owner_user_id=? AND table_name='lexemes' AND record_key=?",
+                (user_id, key),
+            ).fetchone()
+            if not row:
+                continue
+            item = json.loads(row[0])
+            if operation == "replace_senses":
+                senses = [str(part).strip() for part in (value or []) if str(part).strip()]
+                if not senses:
+                    raise ValueError("释义不能为空")
+                item["senses_zh"] = senses
+                item["correctedByUser"] = True
+                item["source"] = "用户修正"
+            elif operation in {"add_group", "remove_group"}:
+                name = str(value or "").strip()
+                if not name:
+                    raise ValueError("分组名称不能为空")
+                groups = [str(group_name) for group_name in item.get("groups", []) if str(group_name).strip()]
+                if operation == "add_group" and name not in groups:
+                    groups.append(name)
+                if operation == "remove_group":
+                    groups = [group_name for group_name in groups if group_name != name]
+                item["groups"] = groups
+            elif operation == "mark_corrected":
+                item["correctedByUser"] = bool(value)
+                if value:
+                    item["source"] = "用户修正"
+            else:
+                raise ValueError("不支持的批量操作")
+            item["updatedAt"] = now_ms
+            connection.execute(
+                "UPDATE records SET payload=? WHERE owner_user_id=? AND table_name='lexemes' AND record_key=?",
+                (json.dumps(item, ensure_ascii=False, separators=(",", ":")), user_id, key),
+            )
+            updated.append(item)
+    return updated
+
+
 def load_bookmarks(user_id: str, book_id: str) -> list[dict]:
     _migrate_legacy(user_id)
     with _connect(user_id) as connection:
@@ -548,6 +663,35 @@ def load_bookmarks(user_id: str, book_id: str) -> list[dict]:
                ORDER BY chapter_order, sentence_start""",
             (user_id, book_id),
         )]
+
+
+def apply_synced_progress(user_id: str, payload: dict, updated_at: float) -> bool:
+    """Apply remote progress only when this device owns the corresponding book content."""
+    book_id = str(payload.get("book_id") or "")
+    if not book_id:
+        return False
+    with _connect(user_id) as connection:
+        if not connection.execute(
+            "SELECT 1 FROM user_library_items WHERE user_id=? AND book_id=?", (user_id, book_id),
+        ).fetchone():
+            return False
+        connection.execute(
+            """INSERT INTO user_book_progress(user_id,book_id,chapter_id,sentence_id,last_opened_at,updated_at)
+               VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,book_id) DO UPDATE SET
+               chapter_id=excluded.chapter_id,sentence_id=excluded.sentence_id,
+               last_opened_at=excluded.last_opened_at,updated_at=excluded.updated_at""",
+            (user_id, book_id, payload.get("chapter_id"), payload.get("sentence_id"),
+             payload.get("last_opened_at"), updated_at),
+        )
+        connection.execute(
+            """UPDATE records SET payload=json_set(
+                   payload,'$.currentChapterId',?,'$.currentSentenceId',?,
+                   '$.lastOpenedAt',?,'$.updatedAt',?
+               ) WHERE owner_user_id=? AND table_name='books' AND record_key=?""",
+            (payload.get("chapter_id"), payload.get("sentence_id"), payload.get("last_opened_at"),
+             updated_at * 1000, user_id, book_id),
+        )
+    return True
 
 
 def find_personal_lexeme(user_id: str, exact_key: str, lemma: str, reading: str, surface: str = "") -> dict | None:
@@ -614,6 +758,11 @@ def apply_library_patch(user_id: str, patch: LibraryPatch) -> dict[str, int]:
             key_name = TABLE_KEYS.get(table_name)
             if not key_name:
                 raise ValueError(f"未知数据表：{table_name}")
+            if table_name == "lexemes":
+                rows = [dict(row) for row in rows]
+                for row in rows:
+                    reading = kata(str(row.get("reading") or row.get("lemma") or ""))
+                    row["firstKana"] = reading[:1] or "未"
             values = []
             for row in rows:
                 if key_name not in row:
@@ -806,3 +955,4 @@ def save_library(user_id: str, snapshot: LibrarySnapshot) -> LibrarySnapshot:
         "books": values.get("books", []), "bookmarks": values.get("bookmarks", []),
     }))
     return snapshot
+

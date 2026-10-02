@@ -19,6 +19,7 @@ from .repository import (
     user_profile,
 )
 from ...paths import DATA_DIR
+from ...runtime_config import COOKIE_SECURE
 
 
 router = APIRouter(prefix="/api", tags=["identity"])
@@ -28,11 +29,11 @@ AVATAR_DIR = DATA_DIR / "users"
 def _set_identity_cookies(response: Response, token: str, device_id: str) -> None:
     response.set_cookie(
         "bingdu_session", token, max_age=30 * 24 * 60 * 60,
-        httponly=True, samesite="strict", secure=False,
+        httponly=True, samesite="strict", secure=COOKIE_SECURE,
     )
     response.set_cookie(
         "bingdu_device", device_id, max_age=365 * 24 * 60 * 60,
-        httponly=True, samesite="strict", secure=False,
+        httponly=True, samesite="strict", secure=COOKIE_SECURE,
     )
 
 
@@ -168,3 +169,4 @@ async def update_password(payload: dict, context: RequestContext = Depends(curre
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     return {"changed": True}
+

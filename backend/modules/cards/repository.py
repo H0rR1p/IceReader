@@ -245,6 +245,22 @@ def search_cards(user_id: str, query: str = "", status: str = "", due: str = "",
     return [_row(row) or {} for row in rows]
 
 
+def cards_by_ids(user_id: str, card_ids: list[str]) -> list[dict]:
+    ids = list(dict.fromkeys(card_ids))
+    if not ids:
+        return []
+    placeholders = ",".join("?" for _ in ids)
+    with _connect() as connection:
+        rows = connection.execute(
+            f"""SELECT c.*,n.version AS note_version,n.lemma,n.reading,n.gloss,n.sentence,n.book_id,n.book_title,
+                       n.chapter_id,n.sentence_id,n.tags_json,m.difficulty,m.stability,
+                       m.retrievability,m.due_at,m.last_review_at,m.reps,m.lapses,m.model_version
+                FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id
+                WHERE c.user_id=? AND c.id IN ({placeholders})""", [user_id, *ids],
+        ).fetchall()
+    return [_row(row) or {} for row in rows]
+
+
 def count_cards(user_id: str, query: str = "", status: str = "", due: str = "") -> int:
     clauses = ["c.user_id=?", "c.deleted_at IS NULL", "n.deleted_at IS NULL"]
     values: list[object] = [user_id]
@@ -542,3 +558,72 @@ def review_card(user_id: str, device_id: str, card_id: str, rating: str, reviewe
 def due_cards(user_id: str, limit: int = 100) -> list[dict]:
     preferences = get_card_preferences(user_id)
     return search_cards(user_id,status="active",due="today",limit=min(limit, preferences["daily_review_limit"]))
+
+
+def delete_synced_card(user_id: str, card_id: str, deleted_at: float) -> bool:
+    with _connect() as connection:
+        row = connection.execute("SELECT note_id FROM cards WHERE id=? AND user_id=?", (card_id, user_id)).fetchone()
+        if not row:
+            return False
+        connection.execute(
+            "UPDATE cards SET status='archived',deleted_at=?,updated_at=?,version=version+1 WHERE id=? AND user_id=?",
+            (deleted_at, deleted_at, card_id, user_id),
+        )
+        connection.execute("DELETE FROM card_search WHERE card_id=? AND user_id=?", (card_id, user_id))
+    return True
+
+
+def upsert_synced_card(user_id: str, payload: dict) -> bool:
+    """Materialize a remotely synchronized card and its note idempotently."""
+    card_id = str(payload.get("id") or "")
+    note_id = str(payload.get("note_id") or "")
+    knowledge_item_id = str(payload.get("knowledge_item_id") or f"synced:{card_id}")
+    if not card_id or not note_id:
+        return False
+    now = float(payload.get("updated_at") or time.time())
+    created = float(payload.get("created_at") or now)
+    tags = payload.get("tags") if isinstance(payload.get("tags"), list) else []
+    with _connect() as connection:
+        note_owner = connection.execute("SELECT user_id FROM notes WHERE id=?", (note_id,)).fetchone()
+        card_owner = connection.execute("SELECT user_id FROM cards WHERE id=?", (card_id,)).fetchone()
+        if (note_owner and str(note_owner[0]) != user_id) or (card_owner and str(card_owner[0]) != user_id):
+            return False
+        connection.execute(
+            """INSERT INTO notes(
+                id,user_id,knowledge_item_id,lemma,reading,gloss,sentence,book_id,book_title,
+                chapter_id,sentence_id,tags_json,created_at,updated_at,version,deleted_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET lemma=excluded.lemma,reading=excluded.reading,
+                gloss=excluded.gloss,sentence=excluded.sentence,book_id=excluded.book_id,
+                book_title=excluded.book_title,chapter_id=excluded.chapter_id,
+                sentence_id=excluded.sentence_id,tags_json=excluded.tags_json,
+                updated_at=excluded.updated_at,version=MAX(notes.version,excluded.version),
+                deleted_at=excluded.deleted_at""",
+            (note_id,user_id,knowledge_item_id,str(payload.get("lemma") or ""),str(payload.get("reading") or ""),
+             str(payload.get("gloss") or ""),str(payload.get("sentence") or ""),str(payload.get("book_id") or ""),
+             str(payload.get("book_title") or ""),str(payload.get("chapter_id") or ""),str(payload.get("sentence_id") or ""),
+             json.dumps(tags,ensure_ascii=False),created,now,int(payload.get("version") or 1),payload.get("deleted_at")),
+        )
+        connection.execute(
+            """INSERT INTO cards(id,user_id,note_id,knowledge_item_id,card_template,status,priority,created_at,updated_at,version,deleted_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+               status=excluded.status,priority=excluded.priority,updated_at=excluded.updated_at,
+               version=MAX(cards.version,excluded.version),deleted_at=excluded.deleted_at""",
+            (card_id,user_id,note_id,knowledge_item_id,str(payload.get("card_template") or "context-recognition"),
+             str(payload.get("status") or "active"),int(payload.get("priority") or 0),created,now,
+             int(payload.get("version") or 1),payload.get("deleted_at")),
+        )
+        connection.execute(
+            """INSERT INTO memory_states(card_id,user_id,difficulty,stability,retrievability,due_at,last_review_at,reps,lapses,model_version,updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(card_id) DO UPDATE SET
+               difficulty=excluded.difficulty,stability=excluded.stability,
+               retrievability=excluded.retrievability,due_at=excluded.due_at,
+               last_review_at=excluded.last_review_at,reps=excluded.reps,lapses=excluded.lapses,
+               model_version=excluded.model_version,updated_at=excluded.updated_at""",
+            (card_id,user_id,float(payload.get("difficulty") or 5),float(payload.get("stability") or 0),
+             float(payload.get("retrievability") or 0),float(payload.get("due_at") or now),payload.get("last_review_at"),
+             int(payload.get("reps") or 0),int(payload.get("lapses") or 0),str(payload.get("model_version") or MODEL_VERSION),now),
+        )
+        _index_card(connection,user_id,card_id)
+    return True
+

@@ -1,6 +1,7 @@
 import io
 import json
 import sqlite3
+import time
 import unicodedata
 import zipfile
 from pathlib import Path
@@ -18,6 +19,11 @@ def _connect() -> sqlite3.Connection:
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, lemma TEXT NOT NULL, reading TEXT NOT NULL, senses TEXT NOT NULL, source TEXT NOT NULL)")
     connection.execute("CREATE INDEX IF NOT EXISTS idx_entries_lemma_reading ON entries (lemma, reading)")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_entries_source ON entries (source)")
+    connection.execute("""CREATE TABLE IF NOT EXISTS dictionary_sources(
+        source TEXT PRIMARY KEY, package_id TEXT, version TEXT, license TEXT,
+        homepage TEXT, entries INTEGER NOT NULL, installed_at REAL NOT NULL
+    )""")
     return connection
 
 
@@ -33,26 +39,29 @@ def _plain_gloss(value: object) -> list[str]:
     return []
 
 
-def import_yomitan(payload: bytes, filename: str) -> dict:
-    if len(payload) > 200 * 1024 * 1024:
-        raise ValueError("词典 ZIP 不能超过 200 MB")
-    rows: list[tuple[str, str, str, str]] = []
-    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-        total_size = sum(item.file_size for item in archive.infolist())
-        if total_size > 800 * 1024 * 1024:
-            raise ValueError("词典解压后不能超过 800 MB")
-        source = Path(filename).stem
-        if "index.json" in archive.namelist():
-            try:
-                metadata = json.loads(archive.read("index.json"))
-                source = str(metadata.get("title") or source)
-            except (ValueError, UnicodeDecodeError):
-                pass
-        banks = sorted(name for name in archive.namelist() if Path(name).name.startswith("term_bank_") and name.endswith(".json"))
-        if not banks:
-            raise ValueError("没有找到 Yomitan term_bank_*.json")
+def _import_archive(archive: zipfile.ZipFile, filename: str, metadata_override: dict | None = None) -> dict:
+    total_size = sum(item.file_size for item in archive.infolist())
+    if total_size > 800 * 1024 * 1024:
+        raise ValueError("词典解压后不能超过 800 MB")
+    source = Path(filename).stem
+    metadata: dict = {}
+    if "index.json" in archive.namelist():
+        try:
+            metadata = json.loads(archive.read("index.json"))
+            source = str(metadata.get("title") or source)
+        except (ValueError, UnicodeDecodeError):
+            metadata = {}
+    metadata.update(metadata_override or {})
+    source = str(metadata.get("source") or source)
+    banks = sorted(name for name in archive.namelist() if Path(name).name.startswith("term_bank_") and name.endswith(".json"))
+    if not banks:
+        raise ValueError("没有找到 Yomitan term_bank_*.json")
+    inserted = 0
+    with _connect() as connection:
+        connection.execute("DELETE FROM entries WHERE source = ?", (source,))
         for name in banks:
             entries = json.loads(archive.read(name))
+            rows: list[tuple[str, str, str, str]] = []
             for entry in entries:
                 if not isinstance(entry, list) or len(entry) < 6:
                     continue
@@ -61,10 +70,40 @@ def import_yomitan(payload: bytes, filename: str) -> dict:
                 senses = list(dict.fromkeys(_plain_gloss(entry[5])))
                 if lemma and senses:
                     rows.append((lemma, reading, json.dumps(senses, ensure_ascii=False), source))
+            connection.executemany("INSERT INTO entries (lemma, reading, senses, source) VALUES (?, ?, ?, ?)", rows)
+            inserted += len(rows)
+        connection.execute(
+            """INSERT INTO dictionary_sources(source,package_id,version,license,homepage,entries,installed_at)
+               VALUES(?,?,?,?,?,?,?) ON CONFLICT(source) DO UPDATE SET package_id=excluded.package_id,
+               version=excluded.version,license=excluded.license,homepage=excluded.homepage,
+               entries=excluded.entries,installed_at=excluded.installed_at""",
+            (source, str(metadata.get("package_id") or ""), str(metadata.get("version") or metadata.get("revision") or ""),
+             str(metadata.get("license") or ""), str(metadata.get("homepage") or ""), inserted, time.time()),
+        )
+    return {"source": source, "entries": inserted}
+
+
+def import_yomitan(payload: bytes, filename: str, metadata: dict | None = None) -> dict:
+    if len(payload) > 200 * 1024 * 1024:
+        raise ValueError("词典 ZIP 不能超过 200 MB")
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        return _import_archive(archive, filename, metadata)
+
+
+def import_yomitan_path(path: Path, metadata: dict | None = None) -> dict:
+    if path.stat().st_size > 200 * 1024 * 1024:
+        raise ValueError("词典 ZIP 不能超过 200 MB")
+    with zipfile.ZipFile(path) as archive:
+        return _import_archive(archive, path.name, metadata)
+
+
+def dictionary_sources() -> list[dict]:
+    if not DICTIONARY_PATH.exists():
+        return []
     with _connect() as connection:
-        connection.execute("DELETE FROM entries WHERE source = ?", (source,))
-        connection.executemany("INSERT INTO entries (lemma, reading, senses, source) VALUES (?, ?, ?, ?)", rows)
-    return {"source": source, "entries": len(rows)}
+        return [{"source": row[0], "package_id": row[1], "version": row[2], "license": row[3],
+                 "homepage": row[4], "entries": int(row[5]), "installed_at": float(row[6])}
+                for row in connection.execute("SELECT source,package_id,version,license,homepage,entries,installed_at FROM dictionary_sources ORDER BY installed_at DESC")]
 
 
 def _forms(lemma: str, surface: str = "") -> list[str]:
@@ -100,3 +139,4 @@ def lookup(lemma: str, reading: str, surface: str = "") -> dict | None:
         senses.extend(json.loads(encoded))
         sources.append(source)
     return {"lemma": matched_lemma, "reading": matched_reading or normalized, "senses_zh": list(dict.fromkeys(senses)), "source": " / ".join(dict.fromkeys(sources))}
+

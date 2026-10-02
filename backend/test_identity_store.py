@@ -45,6 +45,20 @@ def test_revoked_session_is_not_reused(tmp_path, monkeypatch):
     assert replacement.token
 
 
+def test_public_mode_gives_each_new_browser_an_isolated_guest(tmp_path, monkeypatch):
+    monkeypatch.setattr(identity_store, "IDENTITY_PATH", tmp_path / "identity.sqlite3")
+    monkeypatch.setattr(identity_store, "PUBLIC_MODE", True)
+
+    first = identity_store.resolve_or_bootstrap_session(None, None)
+    second = identity_store.resolve_or_bootstrap_session(None, None)
+    resumed = identity_store.resolve_or_bootstrap_session(first.token, first.device_id)
+
+    assert first.user_id != second.user_id
+    assert resumed.user_id == first.user_id
+    assert first.auth_provider == "guest"
+    assert identity_store.user_profile(first.user_id)["is_guest"] is True
+
+
 def test_identity_api_switches_browser_session(tmp_path, monkeypatch):
     monkeypatch.setattr(identity_store, "IDENTITY_PATH", tmp_path / "identity.sqlite3")
     client = TestClient(app)
@@ -143,3 +157,4 @@ def test_local_api_rejects_cross_site_writes_and_sets_security_headers(tmp_path,
     response = client.get("/api/health")
     assert response.headers["x-content-type-options"] == "nosniff"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+

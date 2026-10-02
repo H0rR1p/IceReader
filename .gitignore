@@ -7,6 +7,7 @@ __pycache__/
 *.pyc
 *.log
 .env
+cloud.env
 data/
 .pytest_cache/
 *.tsbuildinfo
@@ -16,3 +17,8 @@ vite.config.d.ts
 /build/
 ymm4-bridge/bin/
 ymm4-bridge/obj/
+*.ymmp
+/幻想乡口音剪辑器/
+
+.runtime/
+

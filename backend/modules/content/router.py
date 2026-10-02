@@ -3,13 +3,22 @@ import zipfile
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from ...dictionary_store import import_yomitan, lookup
+from ...dictionary_store import dictionary_sources, import_yomitan, lookup
+from ...builtin_dictionary import install as install_builtin_dictionary, status as builtin_dictionary_status
 from ...epub import parse_epub
 from ...models import ContentBlock, ImportedBook, ImportedChapter, TextImportRequest
 from ...nlp import stable_id
 
 
 router = APIRouter(prefix="/api", tags=["content"])
+
+
+async def _run_builtin_dictionary_install() -> None:
+    try:
+        await asyncio.to_thread(install_builtin_dictionary)
+    except Exception:
+        # The installer records the failure in its observable job state.
+        pass
 
 
 @router.post("/import/text", response_model=ImportedBook)
@@ -77,3 +86,22 @@ async def import_dictionary(file: UploadFile = File(...)) -> dict:
 @router.get("/dictionary/lookup")
 async def lookup_dictionary(lemma: str, reading: str = "", surface: str = "") -> dict:
     return {"entry": lookup(lemma, reading, surface)}
+
+
+@router.get("/dictionary/sources")
+async def read_dictionary_sources() -> list[dict]:
+    return await asyncio.to_thread(dictionary_sources)
+
+
+@router.get("/dictionary/builtin")
+async def read_builtin_dictionary() -> dict:
+    return await asyncio.to_thread(builtin_dictionary_status)
+
+
+@router.post("/dictionary/builtin/install")
+async def start_builtin_dictionary_install() -> dict:
+    state = await asyncio.to_thread(builtin_dictionary_status)
+    if state["job"]["status"] not in {"downloading", "importing"}:
+        asyncio.create_task(_run_builtin_dictionary_install())
+    return await asyncio.to_thread(builtin_dictionary_status)
+

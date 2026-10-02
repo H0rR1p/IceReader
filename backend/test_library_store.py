@@ -5,6 +5,25 @@ from .models import LibraryPatch, LibrarySnapshot
 USER_ID = "user-1"
 
 
+def test_lexeme_pages_kana_facets_groups_and_bulk_correction(tmp_path, monkeypatch):
+    path = tmp_path / "lexicon" / "library.sqlite3"
+    monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
+    lexemes = [
+        {"key":"猫|ネコ|名詞","lemma":"猫","reading":"ネコ","firstKana":"ネ","part_of_speech":"名詞","senses_zh":["猫"],"source":"Jitendex"},
+        {"key":"寝る|ネル|動詞","lemma":"寝る","reading":"ネル","firstKana":"ネ","part_of_speech":"動詞","senses_zh":["睡觉"],"source":"AI"},
+        {"key":"犬|イヌ|名詞","lemma":"犬","reading":"イヌ","firstKana":"イ","part_of_speech":"名詞","senses_zh":["狗"],"source":"Jitendex"},
+    ]
+    library_store.apply_library_patch(USER_ID, LibraryPatch(upserts={"lexemes": lexemes}))
+    page = library_store.page_lexemes(USER_ID, kana="ネ", limit=20)
+    assert page["total"] == 2
+    assert {row["kana"]: row["count"] for row in page["facets"]["kana"]} == {"イ":1,"ネ":2}
+    changed = library_store.bulk_update_lexemes(USER_ID, [row["key"] for row in page["items"]], "add_group", "N1")
+    assert len(changed) == 2 and all(row["groups"] == ["N1"] for row in changed)
+    corrected = library_store.bulk_update_lexemes(USER_ID, ["猫|ネコ|名詞"], "replace_senses", ["猫科动物"])
+    assert corrected[0]["senses_zh"] == ["猫科动物"] and corrected[0]["correctedByUser"] is True
+    assert library_store.page_lexemes(USER_ID, group="N1", limit=20)["total"] == 2
+
+
 def test_library_snapshot_round_trip(tmp_path, monkeypatch):
     path = tmp_path / "data" / "library.json"
     monkeypatch.setattr(library_store, "LIBRARY_PATH", path)
@@ -254,3 +273,4 @@ def test_v2_records_are_backed_up_and_migrated_idempotently(tmp_path, monkeypatc
     assert library_store.load_library_index("other-user").books == []
     assert (path.parent / "migration-backups" / "library.pre-user-boundary.sqlite3").is_file()
     assert library_store.load_library_index("migration-user").books[0]["id"] == "book-1"
+

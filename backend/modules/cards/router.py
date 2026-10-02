@@ -1,5 +1,6 @@
 import asyncio
 import time
+import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,6 +13,23 @@ from ..sync.repository import push_changes
 
 
 router = APIRouter(prefix="/api/cards",tags=["cards"])
+
+
+async def _sync_cards(context: RequestContext, card_ids: list[str]) -> None:
+    rows = await asyncio.to_thread(repository.cards_by_ids, context.user_id, card_ids)
+    mutations = []
+    for card in rows:
+        updated = float(card.get("updated_at") or time.time())
+        deleted = card.get("deleted_at")
+        mutations.extend([
+            {"change_id": str(uuid.uuid4()), "entity_type": "note", "entity_id": str(card["note_id"]), "payload": card, "updated_at": updated,
+             "base_version": max(0, int(card.get("note_version") or 1) - 1)},
+            {"change_id": str(uuid.uuid4()), "entity_type": "card", "entity_id": str(card["id"]), "payload": card, "updated_at": updated,
+             "base_version": max(0, int(card.get("version") or 1) - 1),
+             **({"deleted_at": float(deleted)} if deleted is not None else {})},
+        ])
+    if mutations:
+        await asyncio.to_thread(push_changes, context.user_id, context.device_id, mutations)
 
 
 class CandidateInput(BaseModel):
@@ -79,8 +97,8 @@ async def accept_candidate(candidate_id: str,context: RequestContext=Depends(cur
     except repository.DailyNewLimitError as exc: raise HTTPException(409,str(exc)) from None
     now=float(card.get("updated_at") or time.time())
     await asyncio.to_thread(push_changes,context.user_id,context.device_id,[
-        {"change_id":f"note:{card['note_id']}:1","entity_type":"note","entity_id":card["note_id"],"payload":card,"updated_at":now},
-        {"change_id":f"card:{card['id']}:1","entity_type":"card","entity_id":card["id"],"payload":card,"updated_at":now},
+        {"change_id":f"note:{card['note_id']}:1","entity_type":"note","entity_id":card["note_id"],"payload":card,"updated_at":now,"base_version":0},
+        {"change_id":f"card:{card['id']}:1","entity_type":"card","entity_id":card["id"],"payload":card,"updated_at":now,"base_version":0},
     ])
     return card
 
@@ -114,18 +132,24 @@ async def read_card_summary(context: RequestContext=Depends(current_request_cont
 
 @router.post("/bulk-status")
 async def bulk_status(payload: BulkInput,context: RequestContext=Depends(current_request_context)) -> dict:
-    return await asyncio.to_thread(repository.update_card_statuses,context.user_id,payload.card_ids,payload.status)
+    result=await asyncio.to_thread(repository.update_card_statuses,context.user_id,payload.card_ids,payload.status)
+    await _sync_cards(context,payload.card_ids)
+    return result
 
 
 @router.post("/bulk-tags")
 async def bulk_tags(payload: BulkTagInput,context: RequestContext=Depends(current_request_context)) -> dict:
-    return await asyncio.to_thread(repository.update_card_tags,context.user_id,payload.card_ids,payload.tag.strip(),payload.remove)
+    result=await asyncio.to_thread(repository.update_card_tags,context.user_id,payload.card_ids,payload.tag.strip(),payload.remove)
+    await _sync_cards(context,payload.card_ids)
+    return result
 
 
 @router.patch("/{card_id}")
 async def edit_card(card_id: str,payload: CardNoteInput,context: RequestContext=Depends(current_request_context)) -> dict:
     try:
-        return await asyncio.to_thread(repository.update_card_note,context.user_id,card_id,payload.model_dump())
+        result=await asyncio.to_thread(repository.update_card_note,context.user_id,card_id,payload.model_dump())
+        await _sync_cards(context,[card_id])
+        return result
     except KeyError:
         raise HTTPException(404,"卡片不存在") from None
     except ValueError as exc:
@@ -150,13 +174,20 @@ async def read_card_preferences(context: RequestContext=Depends(current_request_
 
 @router.put("/preferences")
 async def write_card_preferences(payload: CardPreferencesInput,context: RequestContext=Depends(current_request_context)) -> dict:
-    return await asyncio.to_thread(repository.update_card_preferences,context.user_id,payload.daily_new_limit,payload.daily_review_limit)
+    result=await asyncio.to_thread(repository.update_card_preferences,context.user_id,payload.daily_new_limit,payload.daily_review_limit)
+    await asyncio.to_thread(push_changes,context.user_id,context.device_id,[{
+        "change_id":str(uuid.uuid4()),"entity_type":"preference","entity_id":"card-limits",
+        "payload":{"kind":"card_limits",**result},"updated_at":time.time(),
+    }])
+    return result
 
 
 @router.post("/merge")
 async def merge_duplicate_cards(payload: MergeCardsInput,context: RequestContext=Depends(current_request_context)) -> dict:
     try:
-        return await asyncio.to_thread(repository.merge_cards,context.user_id,payload.target_card_id,payload.source_card_ids)
+        result=await asyncio.to_thread(repository.merge_cards,context.user_id,payload.target_card_id,payload.source_card_ids)
+        await _sync_cards(context,[payload.target_card_id,*payload.source_card_ids])
+        return result
     except KeyError:
         raise HTTPException(404,"待合并卡片不存在") from None
     except ValueError as exc:
@@ -202,3 +233,4 @@ async def remove_view(view_id: str,context: RequestContext=Depends(current_reque
     if not await asyncio.to_thread(repository.delete_view,context.user_id,view_id):
         raise HTTPException(404,"筛选视图不存在")
     return {"deleted":True}
+
