@@ -59,6 +59,28 @@ def test_template_install_reads_character_and_settings(tmp_path, monkeypatch):
     assert status.volume == 72
 
 
+def test_server_voice_defaults_are_available_to_every_user(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    ymm_dir = tmp_path / "server-ymm"
+    ymm_dir.mkdir()
+    fake_ymm = ymm_dir / "YukkuriMovieMaker.exe"
+    fake_ymm.write_bytes(b"exe")
+    shared_template = tmp_path / "server-template.ymmp"
+    shared_template.write_bytes(_template())
+    monkeypatch.setenv("BINGDU_VOICE_YMM_PATH", str(fake_ymm))
+    monkeypatch.setenv("BINGDU_VOICE_TEMPLATE_PATH", str(shared_template))
+    monkeypatch.setenv("BINGDU_VOICE_CHARACTER", "博丽灵梦")
+
+    status = voice_service.get_voice_settings("new-server-user")
+
+    assert status.ready is True
+    assert status.ymm_path == str(fake_ymm.resolve())
+    assert status.template_found is True
+    assert status.character_name == "博丽灵梦"
+    assert status.character_names == ["琪露诺", "博丽灵梦"]
+    assert voice_service._template_path_for_user("new-server-user") == shared_template.resolve()
+
+
 def test_voice_character_can_override_template_character(tmp_path, monkeypatch):
     _paths(tmp_path, monkeypatch)
     fake_ymm = tmp_path / "YukkuriMovieMaker.exe"
