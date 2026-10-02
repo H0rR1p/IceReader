@@ -13,8 +13,15 @@ $runtime = (Resolve-Path $RuntimeRoot).Path
 $ymmDirectory = Join-Path $runtime "幻想乡口音剪辑器"
 $ymm = Join-Path $ymmDirectory "YukkuriMovieMaker.exe"
 $template = Join-Path $runtime "幻想乡口音.ymmp"
-$bridgeSource = Join-Path $app "assets\ymm4-bridge"
 $bridgeTarget = Join-Path $ymmDirectory "user\plugin\BingduYmmBridge"
+$bridgeSource = Join-Path $app "assets\ymm4-bridge"
+$bundledBridge = $bridgeTarget
+
+# 目录版安装可直接使用运行包内的桥接插件；开发目录则优先复制打包资源。
+# 这样服务器部署不依赖冰读 EXE 的临时解包目录。
+if (-not (Test-Path -LiteralPath (Join-Path $bridgeSource "BingduYmmBridge.dll") -PathType Leaf)) {
+    $bridgeSource = $bundledBridge
+}
 
 foreach ($required in @($ymm, $template, (Join-Path $bridgeSource "BingduYmmBridge.dll"), (Join-Path $bridgeSource "BingduYmmBridge.deps.json"), (Join-Path $ymmDirectory "SoundTouch.Net.dll"))) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
@@ -23,8 +30,10 @@ foreach ($required in @($ymm, $template, (Join-Path $bridgeSource "BingduYmmBrid
 }
 
 New-Item -ItemType Directory -Path $bridgeTarget -Force | Out-Null
-Copy-Item -LiteralPath (Join-Path $bridgeSource "BingduYmmBridge.dll") -Destination $bridgeTarget -Force
-Copy-Item -LiteralPath (Join-Path $bridgeSource "BingduYmmBridge.deps.json") -Destination $bridgeTarget -Force
+if ((Resolve-Path $bridgeSource).Path -ne (Resolve-Path $bridgeTarget).Path) {
+    Copy-Item -LiteralPath (Join-Path $bridgeSource "BingduYmmBridge.dll") -Destination $bridgeTarget -Force
+    Copy-Item -LiteralPath (Join-Path $bridgeSource "BingduYmmBridge.deps.json") -Destination $bridgeTarget -Force
+}
 Copy-Item -LiteralPath (Join-Path $ymmDirectory "SoundTouch.Net.dll") -Destination $bridgeTarget -Force
 
 $variables = @{
