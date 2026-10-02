@@ -90,6 +90,19 @@ def _user_paths(user_id: str) -> tuple[Path, Path, Path]:
     return directory / "settings.json", directory / "template.ymmp", directory / "cache"
 
 
+def _configured_file(environment_name: str) -> Path | None:
+    value = os.environ.get(environment_name, "").strip()
+    if not value:
+        return None
+    candidate = Path(value).expanduser()
+    return candidate.resolve() if candidate.is_file() else None
+
+
+def _template_path_for_user(user_id: str) -> Path:
+    user_template = _user_paths(user_id)[1]
+    return user_template if user_template.is_file() else (_configured_file("BINGDU_VOICE_TEMPLATE_PATH") or user_template)
+
+
 def migrate_legacy_voice_settings(user_id: str) -> None:
     settings_path, template_path, _ = _user_paths(user_id)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -126,6 +139,9 @@ def _detect_ymm(user_id: str) -> Path | None:
         candidate = Path(configured).expanduser()
         if candidate.is_file():
             return candidate.resolve()
+    server_default = _configured_file("BINGDU_VOICE_YMM_PATH")
+    if server_default:
+        return server_default
     for root in _candidate_roots():
         candidate = root / YMM_DIRECTORY_NAME / "YukkuriMovieMaker.exe"
         if candidate.is_file():
@@ -164,7 +180,7 @@ def _template_characters(project: dict) -> list[str]:
 
 
 def _read_template(user_id: str) -> dict:
-    _, template_path, _ = _user_paths(user_id)
+    template_path = _template_path_for_user(user_id)
     try:
         value = json.loads(template_path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError as exc:
@@ -182,13 +198,17 @@ def get_voice_settings(user_id: str) -> VoiceSettingsStatus:
     ymm = _detect_ymm(user_id)
     character = ""
     characters: list[str] = []
-    _, template_path, _ = _user_paths(user_id)
+    template_path = _template_path_for_user(user_id)
     template_found = template_path.is_file()
     if template_found:
         try:
             project = _read_template(user_id)
             characters = _template_characters(project)
-            character = str(data.get("character_name") or "").strip() or _template_character(project)
+            character = (
+                str(data.get("character_name") or "").strip()
+                or os.environ.get("BINGDU_VOICE_CHARACTER", "").strip()
+                or _template_character(project)
+            )
             if character and character not in characters:
                 characters.insert(0, character)
         except ValueError:
@@ -431,7 +451,8 @@ async def start_voice_job(user_id: str, text: str, force: bool = False) -> Voice
     if not settings.ready:
         raise ValueError("配音尚未配置，请先设置 YMM4 路径并导入配音模板")
     normalized = text.strip()
-    _, template_path, cache_dir = _user_paths(user_id)
+    _, _, cache_dir = _user_paths(user_id)
+    template_path = _template_path_for_user(user_id)
     cache_key = _cache_key(normalized, settings, template_path)
     cache_file = cache_dir / f"{cache_key}.wav"
     job = _VoiceJob(id=uuid.uuid4().hex, owner_user_id=user_id)
