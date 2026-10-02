@@ -51,8 +51,7 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
     </nav>
     <button className="nav-user" onClick={() => onNavigate('profile')}>
       <UserAvatar user={user} className="nav-avatar" />
-      <span><strong>{user.display_name}</strong><small>{user.is_guest ? (isOnlineDeployment ? '访客模式' : '本机模式') : `@${user.username ?? 'local'}`}</small></span>
+      <span><strong>{user.display_name}</strong><small>{isOnlineDeployment ? '访客模式' : '本机模式'}</small></span>
     </button>
   </aside>
 }
-

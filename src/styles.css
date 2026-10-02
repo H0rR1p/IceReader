@@ -37,6 +37,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .login-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 22px; border-bottom: 1px solid var(--line); }.login-tabs button { border: 0; border-bottom: 2px solid transparent; padding: 10px; background: none; color: var(--muted); cursor: pointer; }.login-tabs button.active { border-color: var(--accent); color: var(--accent-deep); font-weight: 750; }
 .login-submit { width: 100%; margin-top: 8px; padding-block: 12px; }.local-entry { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 12px; }.local-entry button { border: 0; background: none; color: var(--accent-deep); font-weight: 750; cursor: pointer; }
 .remembered-account { margin-top: 20px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: rgba(255,255,255,.62); }.remembered-account > span { min-width: 0; display: grid; gap: 2px; }.remembered-account small { color: var(--muted); font-size: 11px; }.remembered-account strong { color: var(--ink); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.remembered-account em { color: var(--muted); font-size: 11px; font-style: normal; }.remembered-account .button { flex: 0 0 auto; }
+.local-profile-list { margin-top: 18px; display: grid; gap: 7px; }.local-profile-list > small { color: var(--muted); font-size: 11px; }.local-profile-list > button { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 5px; background: #fbfdff; display: flex; align-items: center; justify-content: space-between; text-align: left; cursor: pointer; }.local-profile-list > button:disabled { cursor: default; background: var(--accent-soft); }.local-profile-list span { display: grid; gap: 2px; }.local-profile-list strong { font-size: 13px; }.local-profile-list em { color: var(--muted); font-size: 10px; font-style: normal; }.local-profile-list b { color: var(--accent-deep); font-size: 11px; }
 
 .app-dashboard-shell { height: 100vh; display: grid; grid-template-columns: 222px minmax(0, 1fr); overflow: hidden; background: #f5faff; }
 .app-navigation { min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: #f9fcff; }
@@ -463,9 +464,7 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .settings-inline-actions { display: flex !important; grid-auto-flow: column; gap: 8px !important; }
 .button.disabled { opacity: .5; pointer-events: none; }
 .local-security-panel { margin-top: 18px; }
-.password-change-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 12px; align-items: end; padding: 16px 0; border-bottom: 1px solid var(--line); }
 .session-list { display: grid; }.session-list > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--line); }.session-list > div:last-child { border-bottom: 0; }.session-list span { display: grid; gap: 3px; }.session-list small { color: var(--muted); }.session-list button, .local-security-panel > header button { border: 0; background: transparent; color: var(--accent-strong); cursor: pointer; }
-@media (max-width: 720px) { .password-change-row { grid-template-columns: 1fr; } }
 .page-loading { min-height: 45vh; display: grid; place-content: center; justify-items: center; gap: 12px; color: var(--muted); }
 .fatal-error { min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 30px; text-align: center; background: var(--page); color: var(--ink); }
 .fatal-error img { width: 82px; height: 82px; object-fit: contain; }.fatal-error h1, .fatal-error p { margin: 0; }.fatal-error > p:not(.eyebrow) { max-width: 560px; color: var(--muted); }.fatal-error > div { display: flex; gap: 9px; margin-top: 10px; }
@@ -558,7 +557,6 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .provider-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .login-recovery-link { margin: 8px auto 0; border: 0; background: transparent; color: var(--accent-strong); cursor: pointer; }
 .login-recovery-panel { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }.login-recovery-panel .field { margin: 0; }
-.account-kind-tabs { margin-bottom: 7px; }
 .cloud-page { max-width: 1000px; }
 .cloud-page .page-surface { margin-bottom: 14px; }
 .cloud-page .page-surface > header, .builtin-dictionary-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
@@ -578,4 +576,3 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .lexeme-bulk { display: grid; grid-template-columns: auto minmax(100px,1fr) auto auto minmax(150px,1.5fr) auto auto; align-items: center; gap: 6px; margin-bottom: 9px; padding: 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }.lexeme-bulk input,.lexeme-bulk button { min-width: 0; border: 1px solid var(--line); border-radius: 4px; background: white; padding: 6px 8px; }.lexeme-bulk button { color: var(--accent-strong); cursor: pointer; }
 @media (max-width: 900px) { .lexicon-manager .data-tools { grid-template-columns: 1fr 1fr; }.lexicon-layout { grid-template-columns: 105px minmax(0,1fr); }.lexeme-bulk { grid-template-columns: 1fr 1fr; }.sync-action-grid span:nth-of-type(1) { margin-left: 0; } }
 @media (max-width: 640px) { .cloud-endpoint,.lexicon-layout { grid-template-columns: 1fr; }.kana-tree { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 10px; max-height: 200px; overflow: auto; }.lexicon-manager .data-tools { grid-template-columns: 1fr; } }
-

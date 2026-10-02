@@ -141,7 +141,7 @@ async def request_context_middleware(request: Request, call_next):
     finally:
         reset_request_context(token)
     identity_endpoint_sets_session = request.url.path in {
-        "/api/auth/local/register", "/api/auth/local/login",
+        "/api/auth/local/register", "/api/auth/local/login", "/api/auth/local/switch",
     }
     if identity.token and not identity_endpoint_sets_session:
         response.set_cookie(
@@ -187,4 +187,3 @@ async def health() -> dict:
 
 if DIST_DIR.is_dir():
     app.mount("/", StaticFiles(directory=DIST_DIR, html=True), name="web")
-

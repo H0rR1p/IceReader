@@ -35,15 +35,28 @@ async function changeSession(path: string, payload?: Record<string, string>): Pr
 }
 
 
-export function registerLocalAccount(displayName: string, username: string, password: string) {
+export function registerLocalAccount(displayName: string, username: string) {
   return changeSession('/api/auth/local/register', {
-    display_name: displayName, username, password,
+    display_name: displayName, username,
   })
 }
 
 
-export function loginLocalAccount(username: string, password: string) {
-  return changeSession('/api/auth/local/login', { username, password })
+export function loginLocalAccount(username: string) {
+  return changeSession('/api/auth/local/login', { username })
+}
+
+
+export type LocalProfile = Pick<CurrentUser, 'user_id' | 'display_name' | 'avatar_url' | 'created_at' | 'username'>
+
+
+export async function loadLocalProfiles(signal?: AbortSignal): Promise<LocalProfile[]> {
+  return parseResponse(await fetch('/api/auth/local/profiles', { signal }))
+}
+
+
+export function switchLocalProfile(userId: string): Promise<CurrentUser> {
+  return changeSession('/api/auth/local/switch', { user_id: userId })
 }
 
 
@@ -90,11 +103,4 @@ export async function revokeLocalSession(sessionId: string): Promise<void> {
 export async function revokeOtherLocalSessions(): Promise<number> {
   const result = await parseResponse<{ revoked: number }>(await fetch('/api/me/sessions', { method: 'DELETE' }))
   return result.revoked
-}
-
-export async function changeLocalPassword(currentPassword: string, newPassword: string): Promise<void> {
-  await parseResponse(await fetch('/api/me/password', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-  }))
 }

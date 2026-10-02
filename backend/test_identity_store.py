@@ -23,15 +23,17 @@ def test_bootstrap_identity_is_stable_and_session_can_resume(tmp_path, monkeypat
 def test_local_accounts_have_distinct_stable_user_ids(tmp_path, monkeypatch):
     monkeypatch.setattr(identity_store, "IDENTITY_PATH", tmp_path / "identity.sqlite3")
 
-    first = identity_store.create_local_user("甲", "reader-a", "password-a")
-    second = identity_store.create_local_user("乙", "reader-b", "password-b")
+    first = identity_store.create_local_user("甲", "reader-a")
+    second = identity_store.create_local_user("乙", "reader-b")
 
     assert first.user_id != second.user_id
-    assert identity_store.login_local_user("reader-a", "password-a", first.device_id).user_id == first.user_id
+    assert identity_store.login_local_user("reader-a", first.device_id).user_id == first.user_id
+    assert identity_store.switch_local_profile(second.user_id, first.device_id).user_id == second.user_id
+    assert {row["user_id"] for row in identity_store.list_local_profiles()} >= {first.user_id, second.user_id}
     with pytest.raises(AuthenticationError):
-        identity_store.login_local_user("reader-a", "wrong-password", first.device_id)
+        identity_store.login_local_user("missing", first.device_id)
     with pytest.raises(ConflictError):
-        identity_store.create_local_user("重复", "reader-a", "password-c")
+        identity_store.create_local_user("重复", "reader-a")
 
 
 def test_revoked_session_is_not_reused(tmp_path, monkeypatch):
@@ -67,7 +69,7 @@ def test_identity_api_switches_browser_session(tmp_path, monkeypatch):
     assert default_user["username"] is None
 
     registered = client.post("/api/auth/local/register", json={
-        "display_name": "学习者", "username": "reader", "password": "password-1",
+        "display_name": "学习者", "username": "reader",
     })
     assert registered.status_code == 200
     current = client.get("/api/me").json()
@@ -78,7 +80,7 @@ def test_identity_api_switches_browser_session(tmp_path, monkeypatch):
 
     other_browser = TestClient(app)
     logged_in = other_browser.post("/api/auth/local/login", json={
-        "username": "reader", "password": "password-1",
+        "username": "reader",
     })
     assert logged_in.status_code == 200
     assert other_browser.get("/api/me").json()["user_id"] == current["user_id"]
@@ -112,22 +114,17 @@ def test_profile_nickname_and_avatar_are_user_scoped(tmp_path, monkeypatch):
 
     other_browser = TestClient(app)
     assert other_browser.post("/api/auth/local/register", json={
-        "display_name": "另一位用户", "username": "other-reader", "password": "password-2",
+        "display_name": "另一位用户", "username": "other-reader",
     }).status_code == 200
     assert other_browser.get("/api/me/avatar").status_code == 404
 
 
-def test_password_change_and_session_management(tmp_path, monkeypatch):
+def test_passwordless_profile_switch_and_session_management(tmp_path, monkeypatch):
     monkeypatch.setattr(identity_store, "IDENTITY_PATH", tmp_path / "identity.sqlite3")
-    first = identity_store.create_local_user("学习者", "reader", "password-1")
-    second = identity_store.login_local_user("reader", "password-1", None)
+    first = identity_store.create_local_user("学习者", "reader")
+    second = identity_store.login_local_user("reader", None)
     sessions = identity_store.list_user_sessions(first.user_id)
     assert {row["id"] for row in sessions} == {first.session_id, second.session_id}
-
-    identity_store.change_local_password(first.user_id, "password-1", "password-2")
-    with pytest.raises(AuthenticationError):
-        identity_store.login_local_user("reader", "password-1", None)
-    assert identity_store.login_local_user("reader", "password-2", None).user_id == first.user_id
 
     assert identity_store.revoke_other_session(first.user_id, second.session_id, first.session_id) is True
     assert all(row["id"] != second.session_id for row in identity_store.list_user_sessions(first.user_id))
@@ -136,9 +133,9 @@ def test_password_change_and_session_management(tmp_path, monkeypatch):
 def test_active_sessions_are_bounded(tmp_path, monkeypatch):
     monkeypatch.setattr(identity_store, "IDENTITY_PATH", tmp_path / "identity.sqlite3")
     monkeypatch.setattr(identity_store, "MAX_ACTIVE_SESSIONS_PER_USER", 3)
-    first = identity_store.create_local_user("学习者", "reader", "password-1")
+    first = identity_store.create_local_user("学习者", "reader")
     for _ in range(5):
-        identity_store.login_local_user("reader", "password-1", None)
+        identity_store.login_local_user("reader", None)
 
     sessions = identity_store.list_user_sessions(first.user_id)
     assert len(sessions) == 3
@@ -157,4 +154,3 @@ def test_local_api_rejects_cross_site_writes_and_sets_security_headers(tmp_path,
     response = client.get("/api/health")
     assert response.headers["x-content-type-options"] == "nosniff"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
-

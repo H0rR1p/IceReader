@@ -510,6 +510,24 @@ export async function restoreFullBackup(file: File): Promise<{ restored_rows: nu
   return parseResponse(await fetch('/api/data/restore', { method: 'POST', body: form }))
 }
 
+export async function downloadBookTransfer(): Promise<void> {
+  const response = await fetch('/api/data/book-transfer')
+  if (!response.ok) throw new Error((await response.text()) || '无法创建书籍迁移包')
+  const blob = await response.blob()
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const encoded = disposition.match(/filename\*=utf-8''([^;]+)/i)?.[1]
+  const filename = encoded ? decodeURIComponent(encoded) : `冰读书籍迁移包-${new Date().toISOString().slice(0, 10)}.zip`
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url; link.download = filename; link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export async function importBookTransfer(file: File): Promise<{ imported_books: number; skipped_books: number; imported_records: number }> {
+  const form = new FormData(); form.append('file', file)
+  return parseResponse(await fetch('/api/data/book-transfer/import', { method: 'POST', body: form }))
+}
+
 export type ActivityType = 'reading' | 'cards' | 'review' | 'dictionary'
 export type ActivityDay = {
   local_date: string; active_seconds: number; reading_seconds: number; review_seconds: number
@@ -585,4 +603,3 @@ export async function resolveCloudConflict(groupId: string, winnerEntityId: stri
 export type CloudSession = { id: string; device_id: string; device_name: string; created_at: number; last_used_at: number; current?: boolean }
 export async function loadCloudSessions(signal?: AbortSignal): Promise<CloudSession[]> { return parseResponse(await fetch('/api/cloud/sessions', { signal })) }
 export async function revokeCloudSession(id: string): Promise<void> { await parseResponse(await fetch(`/api/cloud/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })) }
-

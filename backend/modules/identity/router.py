@@ -7,19 +7,20 @@ from fastapi.responses import FileResponse
 
 from ...core.request_context import RequestContext, current_request_context
 from .repository import (
-    change_local_password,
     create_local_user,
     avatar_filename,
     login_local_user,
+    list_local_profiles,
     revoke_session,
     revoke_other_session,
     revoke_other_sessions,
+    switch_local_profile,
     list_user_sessions,
     update_user_profile,
     user_profile,
 )
 from ...paths import DATA_DIR
-from ...runtime_config import COOKIE_SECURE
+from ...runtime_config import COOKIE_SECURE, PUBLIC_MODE
 
 
 router = APIRouter(prefix="/api", tags=["identity"])
@@ -103,11 +104,12 @@ async def read_current_user_avatar(
 
 @router.post("/auth/local/register")
 async def register_local_user(payload: dict, response: Response) -> dict:
+    if PUBLIC_MODE:
+        raise HTTPException(403, "公网版本请使用访客模式或云端账号")
     identity = await asyncio.to_thread(
         create_local_user,
         str(payload.get("display_name") or ""),
         str(payload.get("username") or ""),
-        str(payload.get("password") or ""),
     )
     _set_identity_cookies(response, identity.token or "", identity.device_id)
     return user_profile(identity.user_id)
@@ -115,10 +117,31 @@ async def register_local_user(payload: dict, response: Response) -> dict:
 
 @router.post("/auth/local/login")
 async def login_with_local_user(payload: dict, request: Request, response: Response) -> dict:
+    if PUBLIC_MODE:
+        raise HTTPException(403, "公网版本请使用访客模式或云端账号")
     identity = await asyncio.to_thread(
         login_local_user,
         str(payload.get("username") or ""),
-        str(payload.get("password") or ""),
+        request.cookies.get("bingdu_device"),
+    )
+    _set_identity_cookies(response, identity.token or "", identity.device_id)
+    return user_profile(identity.user_id)
+
+
+@router.get("/auth/local/profiles")
+async def read_local_profiles() -> list[dict]:
+    if PUBLIC_MODE:
+        return []
+    return await asyncio.to_thread(list_local_profiles)
+
+
+@router.post("/auth/local/switch")
+async def switch_local_user(payload: dict, request: Request, response: Response) -> dict:
+    if PUBLIC_MODE:
+        raise HTTPException(403, "公网版本不能切换其他访客的数据空间")
+    identity = await asyncio.to_thread(
+        switch_local_profile,
+        str(payload.get("user_id") or ""),
         request.cookies.get("bingdu_device"),
     )
     _set_identity_cookies(response, identity.token or "", identity.device_id)
@@ -161,12 +184,4 @@ async def delete_other_sessions(context: RequestContext = Depends(current_reques
 
 @router.post("/me/password")
 async def update_password(payload: dict, context: RequestContext = Depends(current_request_context)) -> dict:
-    try:
-        await asyncio.to_thread(
-            change_local_password, context.user_id,
-            str(payload.get("current_password") or ""), str(payload.get("new_password") or ""),
-        )
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    return {"changed": True}
-
+    raise HTTPException(410, "本机资料空间不再使用密码，请直接修改昵称或切换资料空间")
