@@ -6,16 +6,18 @@
 - 按需切分当前章节，阅读时按需生成单句句意
 - 当前章或全书的后台切分与后台逐句翻译
 - 自动使用书内第一张图片作为封面，也可上传本地图片替换
-- 可导入的本地日中词典与个人修正词库
+- 内置 Jitendex 简体中文日中词典、可导入词典与个人修正词库
 - 词典优先、AI 补缺的逐句词语释义
 - 按需生成的简洁语法句法分析，明确标出句中使用的语法结构
 - 本地阅读进度和用户词义修正
 - 以句子为单位的本地书签，可从左侧书签栏直接定位
-- 本地账号隔离、个人头像与昵称、密码和会话管理
+- 无密码的本机/访客资料空间、个人头像、昵称与会话管理
 - 候选词卡、标签与筛选视图、卡片编辑/合并/撤销和每日学习上限
 - 四档间隔复习、知识盲区追踪和会随熟练度减弱的阅读辅助
 - 学习时间热力图、连续学习天数和 12 周趋势
-- 带版本清单与 SHA-256 校验的完整备份和安全恢复
+- 可跨账号载入书籍资源的迁移包，以及带版本清单与 SHA-256 校验的完整备份和安全恢复
+- 自建云端账号、邮箱验证、密码恢复、OAuth/OIDC 登录与跨设备增量同步
+- 片假名树、服务端分页、虚拟列表、批量修正和自定义分组
 
 书籍、分析结果、个人词库和阅读进度会增量保存到 `data/library.sqlite3`，词卡、知识状态和学习活动保存在 `data/learning.sqlite3`。每本 EPUB 都会迁移到 `data/books/<内容哈希>/` 专用目录，其中 `source/book.epub` 是本地原书归档，`assets/` 保存提取图片，`documents/` 保存原书预览；阅读时不再依赖导入前的文件路径。导入的日中词典保存在 `data/dictionary.sqlite3`，每个账号的 AI 接口配置保存在 `data/users/<user_id>/settings.json`。这些文件均被 Git 忽略，不会提交到仓库；浏览器 IndexedDB 仅缓存书籍索引与打开过的章节。启动时不再复制整套词元和释义数据。
 
@@ -50,6 +52,37 @@ npm run dev
 - 只导入你有权处理的无 DRM 内容。
 - EPUB 原图会原样保存；精读模式默认隐藏插图，用户开启后按原位置显示。原书预览会清理脚本、事件属性和外部资源。
 - 释义按“个人词库 → 导入的 Yomitan 日中词典 → AI 补缺”顺序取得。AI 补充义写入个人词库并标明来源；用户修正始终优先。
+- 内置词典使用 [greyindex/jitendex-yomitan-zh](https://github.com/greyindex/jitendex-yomitan-zh) 的固定版本，来源目录为 [MarvNC/yomitan-dictionaries](https://github.com/MarvNC/yomitan-dictionaries)。该词典派生自 Jitendex/JMdict，许可证为 CC BY-SA 4.0；安装时校验固定 SHA-256，来源、版本、许可证和主页会写入词典数据库。完整署名随发行包保存在 `THIRD-PARTY-NOTICES.txt`。项目不打包目录中许可证不明确的商业或抓取词典。
+
+## 云端账号与同步
+
+本机后端仍是浏览器唯一直接访问的数据入口。绑定云账号后，本机后端使用短期访问令牌和轮换刷新令牌连接独立的冰读云端服务；令牌使用本机 Fernet 密钥加密保存。云端同步学习状态、词卡、复习日志、书签、阅读进度、个人词义和学习设置，不上传 EPUB 正文、插图、AI Key 或 YMM4 配音文件。
+
+启动自建云端服务：
+
+```powershell
+Copy-Item cloud.env.example cloud.env
+docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
+```
+
+生产环境必须配置公开 HTTPS 地址、随机 `BINGDU_CLOUD_SECRET` 和 SMTP。OIDC 提供商通过 `BINGDU_CLOUD_OIDC_PROVIDERS` 配置，回调地址为 `<云端地址>/v1/auth/oidc/callback/<provider-id>`；GitHub OAuth 可使用 `BINGDU_GITHUB_CLIENT_ID` 和 `BINGDU_GITHUB_CLIENT_SECRET`。登录页支持云端账号和第三方登录，“云端与同步”页面提供绑定、立即同步、仅拉取、冲突选择、邮箱验证、密码恢复和设备会话撤销。
+
+认证流程使用 OAuth 2.0 Authorization Code + PKCE、state、OIDC nonce、验证邮箱、15 分钟访问令牌以及刷新令牌轮换和复用检测。云端可以单独部署 `backend.cloud_app:app`，本地桌面服务无需暴露到公网。
+
+### Online 分支的公网 Web 模式
+
+`Online` 分支在保留独立云端账号服务的同时，可以把完整阅读器作为同源 Web 应用运行。公网前端使用专用 Vite 模式构建：
+
+```powershell
+npm run build -- --mode online
+$env:BINGDU_PUBLIC_ORIGIN = "https://reader.example.com"
+$env:BINGDU_DATA_DIR = "C:\IceReader\web-data"
+$env:BINGDU_PORT = "8000"
+$env:BINGDU_OPEN_BROWSER = "0"
+.\build\web-release\IceReaderWeb\IceReaderWeb.exe
+```
+
+公网模式会把未登录访问者标为“访客模式”，并为每个新浏览器创建隔离的数据空间；本地默认构建仍显示“本机模式”。反向代理应把 `/health`、`/v1/*`、`/verify-email` 和 `/password-reset` 交给云端账号服务，其余请求交给完整 Web 服务。
 
 ## 阅读流程
 
@@ -121,4 +154,5 @@ npm run build
 .\.venv64\Scripts\python -m pytest backend
 ```
 
-完整备份与恢复位于“设置 → 数据备份与恢复”。备份按当前用户隔离，并包含 API Key；恢复前会自动在 `data/backups/` 留存当前数据副本。
+书籍资源迁移包与完整备份位于“设置 → 数据备份与恢复”。迁移包只合并书籍、章节、译文、封面和插图，重复书籍会跳过，不会覆盖目标资料空间的学习记录和设置。完整备份按当前用户隔离并包含 API Key；恢复前会自动在 `data/backups/` 留存当前数据副本。
+

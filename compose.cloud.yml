@@ -1,0 +1,16 @@
+services:
+  bingdu-cloud:
+    build:
+      context: .
+      dockerfile: Dockerfile.cloud
+    restart: unless-stopped
+    env_file:
+      - cloud.env
+    ports:
+      - "127.0.0.1:8010:8010"
+    volumes:
+      - bingdu-cloud-data:/app/data/cloud
+
+volumes:
+  bingdu-cloud-data:
+

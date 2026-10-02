@@ -9,6 +9,7 @@ const PAGE_PATHS: Record<AppPage, string> = {
   cards: '/cards',
   review: '/review',
   profile: '/profile',
+  cloud: '/cloud',
   settings: '/settings',
 }
 
@@ -44,3 +45,4 @@ export function useAppRoute() {
 
   return { page, setPage }
 }
+

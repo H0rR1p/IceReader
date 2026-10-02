@@ -77,5 +77,43 @@ def test_backup_rejects_checksum_tampering(tmp_path, monkeypatch):
     backup = service.create_backup("user-a", tmp_path / "backup.zip")
     with zipfile.ZipFile(backup, "a") as archive:
         archive.writestr("data.json", b"{}")
-    with pytest.raises(ValueError, match="校验失败"):
+    with pytest.raises(ValueError, match="校验失败|重复文件"):
         service.restore_backup("user-a", backup)
+
+
+def test_book_transfer_merges_books_and_assets_without_replacing_target_data(tmp_path, monkeypatch):
+    library_path = tmp_path / "library.sqlite3"
+    resource_key = "a" * 20
+    rows = [
+        ("books", "book-a", {"id": "book-a", "title": "猫", "coverUrl": f"/api/assets/{resource_key}/cover.jpg", "customCover": True, "createdAt": 1, "updatedAt": 2}),
+        ("chapters", "chapter-a", {"id": "chapter-a", "bookId": "book-a", "title": "一", "order": 0}),
+        ("sentences", "sentence-a", {"id": "sentence-a", "chapter_id": "chapter-a", "text": "吾輩は猫である。"}),
+        ("tokens", "token-a", {"id": "token-a", "sentence_id": "sentence-a", "lexemeKey": "猫|ねこ"}),
+        ("lexemes", "猫|ねこ", {"key": "猫|ねこ", "lemma": "猫", "reading": "ねこ"}),
+    ]
+    statements = [
+        ("CREATE TABLE records(owner_user_id TEXT,table_name TEXT,record_key TEXT,payload TEXT,PRIMARY KEY(owner_user_id,table_name,record_key))", ()),
+        ("CREATE TABLE user_library_items(user_id TEXT,book_id TEXT,metadata_json TEXT,created_at REAL,updated_at REAL,PRIMARY KEY(user_id,book_id))", ()),
+        ("INSERT INTO user_library_items VALUES(?,?,?,?,?)", ("target", "existing", json.dumps({"id": "existing", "title": "已有"}), 1, 1)),
+    ]
+    statements.extend(("INSERT INTO records VALUES(?,?,?,?)", ("source", table, key, json.dumps(payload))) for table, key, payload in rows)
+    _database(library_path, statements)
+    monkeypatch.setattr(service, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(service, "DATABASE_SPECS", {"library": {"path": library_path, "tables": {"records": "owner_user_id"}}})
+    asset = tmp_path / "books" / resource_key / "cover.jpg"
+    asset.parent.mkdir(parents=True)
+    asset.write_bytes(b"cover")
+    custom_cover = tmp_path / "books" / "custom-covers" / "source" / "book-a.png"
+    custom_cover.parent.mkdir(parents=True)
+    custom_cover.write_bytes(b"custom")
+
+    package = service.create_book_transfer("source", tmp_path / "transfer.zip")
+    result = service.import_book_transfer("target", package)
+
+    assert result == {"imported_books": 1, "skipped_books": 0, "imported_records": 5}
+    with sqlite3.connect(library_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM user_library_items WHERE user_id='target'").fetchone()[0] == 2
+        assert connection.execute("SELECT COUNT(*) FROM records WHERE owner_user_id='target' AND table_name='chapters'").fetchone()[0] == 1
+    assert (tmp_path / "books" / resource_key / "cover.jpg").read_bytes() == b"cover"
+    assert (tmp_path / "books" / "custom-covers" / "target" / "book-a.png").read_bytes() == b"custom"
+    assert service.import_book_transfer("target", package)["skipped_books"] == 1

@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import type { CurrentUser } from '../types'
 import UserAvatar from './UserAvatar'
+import { isOnlineDeployment } from '../deployment'
 
-export type AppPage = 'library' | 'dictionary' | 'cards' | 'review' | 'profile' | 'settings'
+export type AppPage = 'library' | 'dictionary' | 'cards' | 'review' | 'profile' | 'cloud' | 'settings'
 
 export default function AppNavigation({ page, user, bookCount, canResumeReading, onNavigate, onResumeReading, onImport }: {
   page: AppPage
@@ -45,11 +46,12 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
       {item('review', '✓', '今日复习')}
       <p className="nav-section-label">账户</p>
       {item('profile', '○', '个人主页')}
+      {item('cloud', '↻', '云端与同步')}
       {item('settings', '⚙', '设置')}
     </nav>
     <button className="nav-user" onClick={() => onNavigate('profile')}>
       <UserAvatar user={user} className="nav-avatar" />
-      <span><strong>{user.display_name}</strong><small>{user.is_guest ? '本机模式' : `@${user.username ?? 'local'}`}</small></span>
+      <span><strong>{user.display_name}</strong><small>{isOnlineDeployment ? '访客模式' : '本机模式'}</small></span>
     </button>
   </aside>
 }

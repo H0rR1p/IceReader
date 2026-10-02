@@ -175,6 +175,40 @@ export async function importYomitanDictionary(file: File): Promise<{ source: str
   return parseResponse(await fetch('/api/dictionary/import', { method: 'POST', body: form }))
 }
 
+export type DictionarySource = { source: string; package_id: string; version: string; license: string; homepage: string; entries: number; installed_at: number }
+export type BuiltinDictionaryStatus = {
+  package: { package_id: string; title: string; version: string; license: string; homepage: string; catalog: string }
+  installed: DictionarySource | null; update_available: boolean
+  job: { status: 'idle' | 'downloading' | 'importing' | 'complete' | 'failed'; message: string; downloaded: number; total: number }
+}
+export async function loadBuiltinDictionaryStatus(signal?: AbortSignal): Promise<BuiltinDictionaryStatus> {
+  return parseResponse(await fetch('/api/dictionary/builtin', { signal }))
+}
+export async function installBuiltinDictionary(): Promise<BuiltinDictionaryStatus> {
+  return parseResponse(await fetch('/api/dictionary/builtin/install', { method: 'POST' }))
+}
+
+export type LexemePage = {
+  items: Lexeme[]; total: number; limit: number; offset: number
+  facets: { kana: { kana: string; count: number }[]; sources: { name: string; count: number }[]; parts: { name: string; count: number }[]; groups: { name: string; count: number }[] }
+}
+export async function loadLexemePage(filters: { q?: string; kana?: string; source?: string; partOfSpeech?: string; group?: string; corrected?: boolean; limit?: number; offset?: number }, signal?: AbortSignal): Promise<LexemePage> {
+  const query = new URLSearchParams()
+  if (filters.q) query.set('q', filters.q)
+  if (filters.kana) query.set('kana', filters.kana)
+  if (filters.source) query.set('source', filters.source)
+  if (filters.partOfSpeech) query.set('part_of_speech', filters.partOfSpeech)
+  if (filters.group) query.set('group', filters.group)
+  if (filters.corrected !== undefined) query.set('corrected', String(filters.corrected))
+  query.set('limit', String(filters.limit ?? 80)); query.set('offset', String(filters.offset ?? 0))
+  return parseResponse(await fetch(`/api/library/lexemes?${query}`, { signal }))
+}
+export async function bulkUpdateLexemes(keys: string[], operation: 'replace_senses' | 'add_group' | 'remove_group' | 'mark_corrected', value: unknown): Promise<{ updated: number; items: Lexeme[] }> {
+  return parseResponse(await fetch('/api/library/lexemes/bulk', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keys, operation, value }),
+  }))
+}
+
 export async function lookupDictionary(lemma: string, reading: string, surface = '', signal?: AbortSignal): Promise<Lexeme | null> {
   const params = new URLSearchParams({ lemma, reading, surface })
   const response = await parseResponse<{ entry: { lemma: string; reading: string; senses_zh: string[]; source: string } | null }>(await fetch(`/api/dictionary/lookup?${params}`, { signal }))
@@ -476,6 +510,24 @@ export async function restoreFullBackup(file: File): Promise<{ restored_rows: nu
   return parseResponse(await fetch('/api/data/restore', { method: 'POST', body: form }))
 }
 
+export async function downloadBookTransfer(): Promise<void> {
+  const response = await fetch('/api/data/book-transfer')
+  if (!response.ok) throw new Error((await response.text()) || '无法创建书籍迁移包')
+  const blob = await response.blob()
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const encoded = disposition.match(/filename\*=utf-8''([^;]+)/i)?.[1]
+  const filename = encoded ? decodeURIComponent(encoded) : `冰读书籍迁移包-${new Date().toISOString().slice(0, 10)}.zip`
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url; link.download = filename; link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export async function importBookTransfer(file: File): Promise<{ imported_books: number; skipped_books: number; imported_records: number }> {
+  const form = new FormData(); form.append('file', file)
+  return parseResponse(await fetch('/api/data/book-transfer/import', { method: 'POST', body: form }))
+}
+
 export type ActivityType = 'reading' | 'cards' | 'review' | 'dictionary'
 export type ActivityDay = {
   local_date: string; active_seconds: number; reading_seconds: number; review_seconds: number
@@ -516,3 +568,38 @@ export type SyncStatus = { cursor: number; entities: number; tombstones: number;
 export async function loadSyncStatus(signal?: AbortSignal): Promise<SyncStatus> {
   return parseResponse(await fetch('/api/sync/status', { signal }))
 }
+
+export type CloudAccountStatus = {
+  connected: boolean; base_url: string; cloud_user_id?: string; email?: string; display_name?: string
+  email_verified?: boolean; remote_cursor?: number; local_cursor?: number; last_sync_at?: number | null
+  last_error?: string | null; development_verification_token?: string | null
+}
+export type CloudProvider = { id: string; name: string }
+export type CloudConflict = { id: string; entity_type: string; versions: { entity_id: string; payload: Record<string, unknown>; updated_at: number; source_device_id: string }[] }
+export async function loadCloudStatus(signal?: AbortSignal): Promise<CloudAccountStatus> { return parseResponse(await fetch('/api/cloud/status', { signal })) }
+export async function saveCloudSettings(baseUrl: string): Promise<{ base_url: string; remote: Record<string, unknown> }> {
+  return parseResponse(await fetch('/api/cloud/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base_url: baseUrl }) }))
+}
+export async function loadCloudProviders(signal?: AbortSignal): Promise<CloudProvider[]> { return parseResponse(await fetch('/api/cloud/providers', { signal })) }
+export async function registerCloudAccount(email: string, password: string, displayName: string): Promise<CloudAccountStatus> {
+  return parseResponse(await fetch('/api/cloud/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, display_name: displayName }) }))
+}
+export async function loginCloudAccount(email: string, password: string): Promise<CloudAccountStatus> {
+  return parseResponse(await fetch('/api/cloud/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }))
+}
+export async function logoutCloudAccount(): Promise<void> { await parseResponse(await fetch('/api/cloud/logout', { method: 'POST' })) }
+export async function startCloudOidc(providerId: string): Promise<string> {
+  const callback = `${window.location.origin}/api/cloud/oidc/complete`
+  const result = await parseResponse<{ url: string }>(await fetch(`/api/cloud/oidc/start/${encodeURIComponent(providerId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callback_url: callback }) }))
+  return result.url
+}
+export async function requestCloudEmailVerification(email: string): Promise<Record<string, unknown>> { return parseResponse(await fetch('/api/cloud/email/request-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })) }
+export async function verifyCloudEmail(token: string): Promise<CloudAccountStatus> { return parseResponse(await fetch('/api/cloud/email/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) })) }
+export async function requestCloudPasswordReset(email: string): Promise<Record<string, unknown>> { return parseResponse(await fetch('/api/cloud/password/request-reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })) }
+export async function resetCloudPassword(token: string, newPassword: string): Promise<Record<string, unknown>> { return parseResponse(await fetch('/api/cloud/password/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, new_password: newPassword }) })) }
+export async function syncCloud(pullOnly = false): Promise<Record<string, unknown> & CloudAccountStatus> { return parseResponse(await fetch(pullOnly ? '/api/cloud/pull' : '/api/cloud/sync', { method: 'POST' })) }
+export async function loadCloudConflicts(signal?: AbortSignal): Promise<CloudConflict[]> { return parseResponse(await fetch('/api/cloud/conflicts', { signal })) }
+export async function resolveCloudConflict(groupId: string, winnerEntityId: string): Promise<Record<string, unknown>> { return parseResponse(await fetch(`/api/cloud/conflicts/${encodeURIComponent(groupId)}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ winner_entity_id: winnerEntityId }) })) }
+export type CloudSession = { id: string; device_id: string; device_name: string; created_at: number; last_used_at: number; current?: boolean }
+export async function loadCloudSessions(signal?: AbortSignal): Promise<CloudSession[]> { return parseResponse(await fetch('/api/cloud/sessions', { signal })) }
+export async function revokeCloudSession(id: string): Promise<void> { await parseResponse(await fetch(`/api/cloud/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })) }

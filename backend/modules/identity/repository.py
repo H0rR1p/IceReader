@@ -1,5 +1,4 @@
 import hashlib
-import hmac
 import secrets
 import sqlite3
 import time
@@ -10,6 +9,7 @@ from pathlib import Path
 
 from ...core.errors import AuthenticationError, ConflictError
 from ...paths import DATA_DIR
+from ...runtime_config import PUBLIC_MODE
 
 
 IDENTITY_PATH = DATA_DIR / "identity.sqlite3"
@@ -17,6 +17,7 @@ IDENTITY_SCHEMA_VERSION = 1
 SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 MAX_ACTIVE_SESSIONS_PER_USER = 12
 MIGRATION_AUTH_KEY = "local:migrated"
+GUEST_AUTH_PROVIDER = "guest"
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,23 +35,6 @@ def _now() -> float:
 
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _password_hash(password: str, salt: bytes | None = None) -> str:
-    actual_salt = salt or secrets.token_bytes(16)
-    digest = hashlib.scrypt(password.encode("utf-8"), salt=actual_salt, n=2**14, r=8, p=1)
-    return f"scrypt${actual_salt.hex()}${digest.hex()}"
-
-
-def _password_matches(password: str, encoded: str) -> bool:
-    try:
-        algorithm, salt_hex, digest_hex = encoded.split("$", 2)
-        if algorithm != "scrypt":
-            return False
-        actual = _password_hash(password, bytes.fromhex(salt_hex)).split("$", 2)[2]
-        return hmac.compare_digest(actual, digest_hex)
-    except (TypeError, ValueError):
-        return False
 
 
 @contextmanager
@@ -144,7 +128,12 @@ def migration_user_id() -> str:
     return initialize_store()
 
 
-def _create_session(connection: sqlite3.Connection, user_id: str, device_id: str | None) -> SessionIdentity:
+def _create_session(
+    connection: sqlite3.Connection,
+    user_id: str,
+    device_id: str | None,
+    auth_provider: str = "local",
+) -> SessionIdentity:
     now = _now()
     actual_device_id = device_id or str(uuid.uuid4())
     existing_device = connection.execute(
@@ -168,8 +157,8 @@ def _create_session(connection: sqlite3.Connection, user_id: str, device_id: str
         """INSERT INTO sessions(
                id, user_id, device_id, token_hash, auth_provider,
                created_at, last_seen_at, expires_at
-           ) VALUES (?, ?, ?, ?, 'local', ?, ?, ?)""",
-        (session_id, user_id, actual_device_id, _token_hash(token), now, now, now + SESSION_TTL_SECONDS),
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (session_id, user_id, actual_device_id, _token_hash(token), auth_provider, now, now, now + SESSION_TTL_SECONDS),
     )
     connection.execute(
         """UPDATE sessions SET revoked_at=? WHERE id IN (
@@ -178,7 +167,7 @@ def _create_session(connection: sqlite3.Connection, user_id: str, device_id: str
            )""",
         (now, user_id, MAX_ACTIVE_SESSIONS_PER_USER),
     )
-    return SessionIdentity(user_id, session_id, actual_device_id, "local", token)
+    return SessionIdentity(user_id, session_id, actual_device_id, auth_provider, token)
 
 
 def resolve_or_bootstrap_session(token: str | None, device_id: str | None) -> SessionIdentity:
@@ -202,16 +191,28 @@ def resolve_or_bootstrap_session(token: str | None, device_id: str | None) -> Se
                     str(row["user_id"]), str(row["id"]), str(row["device_id"]),
                     str(row["auth_provider"]), None,
                 )
+        if PUBLIC_MODE:
+            user_id = str(uuid.uuid4())
+            now = _now()
+            connection.execute(
+                "INSERT INTO users(id, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (user_id, "访客", now, now),
+            )
+            connection.execute(
+                """INSERT INTO auth_identities(
+                       id, user_id, provider, provider_subject, password_hash, created_at
+                   ) VALUES (?, ?, ?, ?, NULL, ?)""",
+                (str(uuid.uuid4()), user_id, GUEST_AUTH_PROVIDER, f"guest:{user_id}", now),
+            )
+            return _create_session(connection, user_id, device_id, GUEST_AUTH_PROVIDER)
         return _create_session(connection, default_user_id, device_id)
 
 
-def create_local_user(display_name: str, username: str, password: str) -> SessionIdentity:
+def create_local_user(display_name: str, username: str) -> SessionIdentity:
     initialize_store()
     normalized = username.strip().casefold()
     if len(normalized) < 2:
         raise ValueError("用户名至少需要 2 个字符")
-    if len(password) < 8:
-        raise ValueError("密码至少需要 8 个字符")
     now = _now()
     user_id = str(uuid.uuid4())
     with _connect() as connection:
@@ -228,23 +229,55 @@ def create_local_user(display_name: str, username: str, password: str) -> Sessio
             """INSERT INTO auth_identities(
                    id, user_id, provider, provider_subject, password_hash, created_at
                ) VALUES (?, ?, 'local', ?, ?, ?)""",
-            (str(uuid.uuid4()), user_id, normalized, _password_hash(password), now),
+            (str(uuid.uuid4()), user_id, normalized, None, now),
         )
         return _create_session(connection, user_id, None)
 
 
-def login_local_user(username: str, password: str, device_id: str | None) -> SessionIdentity:
+def login_local_user(username: str, device_id: str | None) -> SessionIdentity:
     initialize_store()
     normalized = username.strip().casefold()
     with _connect() as connection:
         row = connection.execute(
-            """SELECT a.user_id, a.password_hash FROM auth_identities AS a
+            """SELECT a.user_id FROM auth_identities AS a
                JOIN users AS u ON u.id = a.user_id
                WHERE a.provider = 'local' AND a.provider_subject = ? AND u.disabled_at IS NULL""",
             (normalized,),
         ).fetchone()
-        if not row or not row["password_hash"] or not _password_matches(password, str(row["password_hash"])):
-            raise AuthenticationError("用户名或密码不正确")
+        if not row:
+            raise AuthenticationError("本机资料空间不存在")
+        return _create_session(connection, str(row["user_id"]), device_id)
+
+
+def list_local_profiles() -> list[dict]:
+    initialize_store()
+    with _connect() as connection:
+        rows = connection.execute(
+            """SELECT u.id,u.display_name,u.avatar_filename,u.created_at,u.updated_at,
+                      a.provider_subject AS username
+               FROM users AS u JOIN auth_identities AS a ON a.user_id=u.id
+               WHERE a.provider='local' AND u.disabled_at IS NULL
+               ORDER BY u.updated_at DESC,u.created_at"""
+        ).fetchall()
+    return [{
+        "user_id": str(row["id"]),
+        "display_name": str(row["display_name"]),
+        "username": None if row["username"] == MIGRATION_AUTH_KEY else str(row["username"]),
+        "avatar_url": None,
+        "created_at": float(row["created_at"]),
+    } for row in rows]
+
+
+def switch_local_profile(user_id: str, device_id: str | None) -> SessionIdentity:
+    initialize_store()
+    with _connect() as connection:
+        row = connection.execute(
+            """SELECT a.user_id FROM auth_identities AS a JOIN users AS u ON u.id=a.user_id
+               WHERE a.user_id=? AND a.provider='local' AND u.disabled_at IS NULL LIMIT 1""",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            raise AuthenticationError("本机资料空间不存在")
         return _create_session(connection, str(row["user_id"]), device_id)
 
 
@@ -286,35 +319,19 @@ def revoke_other_sessions(user_id: str, current_session_id: str) -> int:
         ).rowcount)
 
 
-def change_local_password(user_id: str, current_password: str, new_password: str) -> None:
-    if len(new_password) < 8:
-        raise ValueError("新密码至少需要 8 个字符")
-    with _connect() as connection:
-        row = connection.execute(
-            """SELECT id,password_hash,provider_subject FROM auth_identities
-               WHERE user_id=? AND provider='local' ORDER BY created_at LIMIT 1""",
-            (user_id,),
-        ).fetchone()
-        if not row or row["provider_subject"] == MIGRATION_AUTH_KEY or not row["password_hash"]:
-            raise ValueError("本机访客模式没有可修改的密码")
-        if not _password_matches(current_password, str(row["password_hash"])):
-            raise AuthenticationError("当前密码不正确")
-        connection.execute(
-            "UPDATE auth_identities SET password_hash=? WHERE id=? AND user_id=?",
-            (_password_hash(new_password), row["id"], user_id),
-        )
-
-
 def user_profile(user_id: str) -> dict:
     with _connect() as connection:
         row = connection.execute(
             """SELECT u.id, u.display_name, u.avatar_filename, u.created_at, u.updated_at,
-                      a.provider_subject AS username
+                      a.provider, a.provider_subject AS username
                FROM users AS u
                LEFT JOIN auth_identities AS a
-                 ON a.user_id = u.id AND a.provider = 'local'
+                 ON a.user_id = u.id AND a.provider IN ('local', 'guest')
                WHERE u.id = ? AND u.disabled_at IS NULL
-               ORDER BY CASE WHEN a.provider_subject = ? THEN 1 ELSE 0 END
+               ORDER BY CASE
+                   WHEN a.provider = 'local' AND a.provider_subject <> ? THEN 0
+                   WHEN a.provider = 'guest' THEN 1
+                   ELSE 2 END
                LIMIT 1""",
             (user_id, MIGRATION_AUTH_KEY),
         ).fetchone()
@@ -325,8 +342,8 @@ def user_profile(user_id: str) -> dict:
             "display_name": str(row["display_name"]),
             "avatar_url": f"/api/me/avatar?v={int(float(row['updated_at']) * 1000)}" if row["avatar_filename"] else None,
             "created_at": float(row["created_at"]),
-            "username": None if row["username"] == MIGRATION_AUTH_KEY else row["username"],
-            "is_guest": row["username"] == MIGRATION_AUTH_KEY,
+            "username": row["username"] if row["provider"] == "local" and row["username"] != MIGRATION_AUTH_KEY else None,
+            "is_guest": row["provider"] == GUEST_AUTH_PROVIDER or row["username"] == MIGRATION_AUTH_KEY,
         }
 
 

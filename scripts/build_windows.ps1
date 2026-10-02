@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
@@ -24,6 +24,10 @@ function Copy-DirectoryContents {
 }
 
 npm run build
+& ".\.venv64\Scripts\python.exe" ".\scripts\install_builtin_dictionary.py"
+if ($LASTEXITCODE -ne 0) {
+    throw "内置 Jitendex 日中词典安装或校验失败，已停止构建"
+}
 & ".\.venv64\Scripts\python.exe" ".\scripts\create_windows_icon.py"
 & ".\.venv64\Scripts\python.exe" -m PyInstaller `
     --noconfirm `
@@ -67,11 +71,39 @@ if (Test-Path -LiteralPath $bundleOutput) {
 Rename-Item -LiteralPath $executable -NewName ($bundleName + ".exe")
 Copy-Item -LiteralPath $bundleSource -Destination $bundleOutput -Recurse -Force
 Remove-Item -LiteralPath $bundleSource -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $root "THIRD-PARTY-NOTICES.txt") -Destination $bundleOutput -Force
 if (Test-Path -LiteralPath $preservedData) {
     Copy-DirectoryContents -Source $preservedData -Destination (Join-Path $bundleOutput "data") -Verify
     Remove-Item -LiteralPath $preservedData -Recurse -Force
 } elseif (Test-Path -LiteralPath (Join-Path $root "data")) {
     Copy-DirectoryContents -Source (Join-Path $root "data") -Destination (Join-Path $bundleOutput "data") -Verify
+}
+
+$bundledDictionaryArchives = Join-Path $bundleOutput "data\dictionaries"
+$projectDictionaryArchives = Join-Path $root "data\dictionaries"
+if (Test-Path -LiteralPath $projectDictionaryArchives) {
+    Copy-DirectoryContents -Source $projectDictionaryArchives -Destination $bundledDictionaryArchives -Verify
+}
+$previousBingduDataDir = $env:BINGDU_DATA_DIR
+try {
+    $env:BINGDU_DATA_DIR = Join-Path $bundleOutput "data"
+    & ".\.venv64\Scripts\python.exe" ".\scripts\install_builtin_dictionary.py"
+    if ($LASTEXITCODE -ne 0) {
+        throw "无法把内置 Jitendex 日中词典合并到目录版数据"
+    }
+} finally {
+    if ($null -eq $previousBingduDataDir) {
+        Remove-Item Env:BINGDU_DATA_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:BINGDU_DATA_DIR = $previousBingduDataDir
+    }
+}
+
+# The indexed SQLite dictionary is sufficient at runtime. Keep the verified
+# source archive in the development data directory, but do not duplicate it in
+# the Windows bundle.
+if (Test-Path -LiteralPath $bundledDictionaryArchives) {
+    Remove-Item -LiteralPath $bundledDictionaryArchives -Recurse -Force
 }
 
 # During development, also merge locally extracted EPUB resources into the
@@ -96,3 +128,4 @@ if ($LASTEXITCODE -ne 0) {
 Copy-Item -LiteralPath $launcherOutput -Destination (Join-Path $root ($bundleName + ".exe")) -Force
 Write-Host "Build complete: $bundleOutput"
 Write-Host "Launcher: $(Join-Path $root ($bundleName + '.exe'))"
+

@@ -5,14 +5,16 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from ...epub import BOOK_DATA_DIR
 from ...models import ChapterSnapshot, LibraryIndex, LibraryPatch, LibrarySnapshot, StudyDataSnapshot
 from .repository import (
     apply_library_patch,
+    bulk_update_lexemes,
     delete_book,
     load_bookmarks,
     load_chapter_details,
@@ -20,6 +22,7 @@ from .repository import (
     load_library,
     load_library_index,
     load_study_data,
+    page_lexemes,
     load_translation_queue,
     owns_book,
     owns_resource_key,
@@ -29,6 +32,12 @@ from ..sync.repository import push_changes
 
 
 router = APIRouter(prefix="/api", tags=["library"])
+
+
+class LexemeBulkInput(BaseModel):
+    keys: list[str] = Field(min_length=1, max_length=500)
+    operation: str
+    value: Any = None
 
 
 @router.get("/assets/{asset_path:path}")
@@ -123,6 +132,41 @@ async def read_library_study_data(
     return load_study_data(context.user_id)
 
 
+@router.get("/library/lexemes")
+async def read_lexeme_page(
+    q: str = "", kana: str = "", source: str = "", part_of_speech: str = "",
+    group: str = "", corrected: bool | None = None,
+    limit: int = Query(80, ge=20, le=200), offset: int = Query(0, ge=0),
+    context: RequestContext = Depends(current_request_context),
+) -> dict:
+    return await asyncio.to_thread(
+        page_lexemes, context.user_id, q=q, kana=kana, source=source,
+        part_of_speech=part_of_speech, group=group, corrected=corrected,
+        limit=limit, offset=offset,
+    )
+
+
+@router.patch("/library/lexemes/bulk")
+async def patch_lexemes_bulk(
+    payload: LexemeBulkInput,
+    context: RequestContext = Depends(current_request_context),
+) -> dict:
+    try:
+        rows = await asyncio.to_thread(
+            bulk_update_lexemes, context.user_id, payload.keys, payload.operation, payload.value,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    now = time.time()
+    if rows:
+        await asyncio.to_thread(push_changes, context.user_id, context.device_id, [{
+            "change_id": str(uuid.uuid4()), "entity_type": "lexeme", "entity_id": str(row["key"]),
+            "payload": row,
+            "updated_at": float(row.get("updatedAt") or now * 1000) / 1000,
+        } for row in rows])
+    return {"updated": len(rows), "items": rows}
+
+
 @router.get("/library/bookmarks")
 async def read_library_bookmarks(
     book_id: str,
@@ -146,6 +190,9 @@ async def patch_library(
         for row in patch.upserts.get("books",[]):
             updated=float(row.get("updatedAt") or now); updated=updated/1000 if updated>10_000_000_000 else updated
             mutations.append({"change_id":str(uuid.uuid4()),"entity_type":"reading_progress","entity_id":str(row["id"]),"payload":{"book_id":row["id"],"chapter_id":row.get("currentChapterId"),"sentence_id":row.get("currentSentenceId"),"last_opened_at":row.get("lastOpenedAt")},"updated_at":updated})
+        for row in patch.upserts.get("lexemes", []):
+            updated=float(row.get("updatedAt") or now * 1000); updated=updated/1000 if updated>10_000_000_000 else updated
+            mutations.append({"change_id":str(uuid.uuid4()),"entity_type":"lexeme","entity_id":str(row["key"]),"payload":row,"updated_at":updated})
         for key in patch.deletes.get("bookmarks",[]):
             mutations.append({"change_id":str(uuid.uuid4()),"entity_type":"bookmark","entity_id":str(key),"payload":{},"updated_at":now,"deleted_at":now})
         if mutations: await asyncio.to_thread(push_changes,context.user_id,context.device_id,mutations)
@@ -235,3 +282,4 @@ async def delete_book_cover(
     for suffix in (".jpg", ".png", ".webp", ".gif"):
         (cover_dir / f"{book_id}{suffix}").unlink(missing_ok=True)
     return {"deleted": True}
+

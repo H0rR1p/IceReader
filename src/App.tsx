@@ -18,7 +18,8 @@ const ProfilePage = lazy(() => import('./features/activity/ProfilePage'))
 const CardCenterPage = lazy(() => import('./features/cards/CardCenterPage'))
 const ReviewPage = lazy(() => import('./features/cards/ReviewPage'))
 const SettingsPage = lazy(() => import('./features/settings/SettingsPage'))
-const StudyDataPage = lazy(() => import('./features/study/StudyDataPage'))
+const LexiconManagerPage = lazy(() => import('./features/study/LexiconManagerPage'))
+const CloudAccountPage = lazy(() => import('./features/sync/CloudAccountPage'))
 const ImportDialog = lazy(() => import('./features/settings/Dialogs').then((module) => ({ default: module.ImportDialog })))
 
 const DEFAULT_SETTINGS: ApiSettings = { apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', hasStoredApiKey: false, cacheHitUsdPerMillion: 0, cacheMissUsdPerMillion: 0, outputUsdPerMillion: 0 }
@@ -88,10 +89,11 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
       {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
       <Suspense fallback={<section className="page-loading" aria-live="polite"><div className="loading-dango" /><span>正在打开页面…</span></section>}>
         {page === 'library' && <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} onSaveCollection={saveBookCollection} onDissolveCollection={dissolveBookCollection} />}
-        {page === 'dictionary' && <StudyDataPage />}
+        {page === 'dictionary' && <LexiconManagerPage />}
         {page === 'cards' && <CardCenterPage onNotice={setNotice} onStartReview={() => setPage('review')} />}
         {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} />}
         {page === 'profile' && <ProfilePage user={currentUser} books={books} onUserChange={onUserChange} onLogout={logout} onOpenCards={() => setPage('cards')} onOpenReview={() => setPage('review')} />}
+        {page === 'cloud' && <CloudAccountPage onNotice={setNotice} />}
         {page === 'settings' && <SettingsPage apiSettings={settings} voiceSettings={voiceSettings} books={books} translationMode={translationMode} translationConcurrency={translationConcurrency} onTranslationModeChange={updateTranslationMode} onTranslationConcurrencyChange={updateTranslationConcurrency} onBookImageVisibility={setBookImageVisibility} onSaveApi={async (next) => setSettings(await saveApiSettings(next))} onSaveVoice={async (next, template) => { if (template) await uploadVoiceTemplate(template); setVoiceSettings(await saveVoiceSettings(next)) }} onNotice={setNotice} />}
       </Suspense>
     </div>
@@ -100,3 +102,4 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
 }
 
 export default App
+

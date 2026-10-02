@@ -120,6 +120,7 @@ export interface Lexeme {
   source: string
   updatedAt: number
   correctedByUser?: boolean
+  groups?: string[]
 }
 
 export interface SentenceBookmark {
@@ -208,3 +209,4 @@ export interface VoiceJob {
   audioUrl?: string | null
   cached: boolean
 }
+

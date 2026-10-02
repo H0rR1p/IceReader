@@ -1,0 +1,6 @@
+-r requirements.txt
+Authlib==1.8.0
+
+# 云端服务使用与本机端相同的 FastAPI/Authlib 依赖。生产环境应由反向代理
+# 终止 HTTPS，并把 data/cloud 挂载到持久化磁盘。
+

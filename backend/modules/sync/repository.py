@@ -12,7 +12,7 @@ from ...paths import DATA_DIR
 SYNC_PATH=DATA_DIR / "sync.sqlite3"
 APPEND_ONLY_TYPES={"learning_event","review_log"}
 FORK_ON_CONFLICT_TYPES={"note"}
-ALLOWED_TYPES={"knowledge_item","learning_event","note","card","review_log","bookmark","reading_progress","preference"}
+ALLOWED_TYPES={"knowledge_item","learning_event","note","card","review_log","bookmark","reading_progress","preference","lexeme"}
 _lock=threading.Lock(); _initialized_path: Path | None=None
 
 
@@ -121,6 +121,28 @@ def pull_changes(user_id: str,device_id: str,after: int=0,limit: int=500) -> dic
     return {"changes":changes,"cursor":cursor,"has_more":len(rows)>=limit}
 
 
+def list_changes_after(user_id: str, after: int = 0, limit: int = 500) -> dict:
+    """Read the local outbox without advancing a device pull cursor."""
+    safe_limit = min(1000, max(1, limit))
+    with _connect() as connection:
+        rows = connection.execute(
+            "SELECT * FROM sync_changes WHERE user_id=? AND cursor>? ORDER BY cursor LIMIT ?",
+            (user_id, max(0, after), safe_limit + 1),
+        ).fetchall()
+    has_more = len(rows) > safe_limit
+    rows = rows[:safe_limit]
+    changes = []
+    for row in rows:
+        value = dict(row)
+        value["payload"] = json.loads(value.pop("payload_json"))
+        changes.append(value)
+    return {
+        "changes": changes,
+        "cursor": int(rows[-1]["cursor"]) if rows else max(0, after),
+        "has_more": has_more,
+    }
+
+
 def list_conflicts(user_id: str) -> list[dict]:
     with _connect() as connection:
         rows=connection.execute("SELECT * FROM sync_entities WHERE user_id=? AND conflict_group IS NOT NULL ORDER BY updated_at DESC",(user_id,)).fetchall()
@@ -159,3 +181,4 @@ def sync_status(user_id: str) -> dict:
 
 def record_local_change(user_id: str,device_id: str,entity_type: str,entity_id: str,payload: dict,updated_at: float | None=None,deleted_at: float | None=None):
     return push_changes(user_id,device_id,[{"change_id":str(uuid.uuid4()),"entity_type":entity_type,"entity_id":entity_id,"payload":payload,"updated_at":updated_at or time.time(),"deleted_at":deleted_at}])
+
