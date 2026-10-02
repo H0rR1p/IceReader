@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string]$AppRoot,
     [string]$RuntimeRoot = (Join-Path $PSScriptRoot "..\voice-runtime"),
@@ -75,3 +75,4 @@ Write-Host "配音运行时已安装。请重启冰读 Web 后端，使机器级
 Write-Host "YMM4: $ymm"
 Write-Host "模板: $template"
 Write-Host "默认角色: $Character"
+
