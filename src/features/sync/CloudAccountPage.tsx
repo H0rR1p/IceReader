@@ -44,6 +44,13 @@ export default function CloudAccountPage({ onNotice }: { onNotice: (value: strin
     finally { setBusy(false) }
   }
   async function openProvider(id: string) { try { window.location.href = await startCloudOidc(id) } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) } }
+  function submitAccount() {
+    if (password.length < 10) {
+      setError(`云端账号密码至少需要 10 个字符，当前为 ${password.length} 个字符。`)
+      return
+    }
+    void run(() => registering ? registerCloudAccount(email, password, displayName) : loginCloudAccount(email, password), registering ? '云端账号已创建' : '云端账号已绑定')
+  }
 
   return <main className="app-page cloud-page">
     <header className="page-heading"><div><span>账户与数据</span><h1>云端与同步</h1><p>绑定账号后，可在自己的设备之间同步学习数据和阅读进度。</p></div></header>
@@ -56,8 +63,8 @@ export default function CloudAccountPage({ onNotice }: { onNotice: (value: strin
       <header><div><h2>{registering ? '创建云端账号' : '绑定云端账号'}</h2><p>同一邮箱登录其他设备后即可拉取学习数据。</p></div><button className="text-button" onClick={() => setRegistering(!registering)}>{registering ? '已有账号' : '创建账号'}</button></header>
       {registering && <label className="field"><span>昵称</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>}
       <label className="field"><span>邮箱</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
-      <label className="field"><span>密码</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={registering ? 'new-password' : 'current-password'} /></label>
-      <button className="button primary" disabled={busy || !email || password.length < 10 || (registering && !displayName)} onClick={() => void run(() => registering ? registerCloudAccount(email, password, displayName) : loginCloudAccount(email, password), registering ? '云端账号已创建' : '云端账号已绑定')}>{registering ? '创建并绑定' : '登录并绑定'}</button>
+      <label className="field"><span>密码</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={registering ? 'new-password' : 'current-password'} placeholder="至少 10 个字符" aria-describedby={registering ? 'cloud-password-help' : undefined} />{registering && <small id="cloud-password-help" className={`field-help ${password.length > 0 && password.length < 10 ? 'invalid' : ''}`}>{password.length >= 10 ? '密码长度符合要求' : `至少需要 10 个字符${password.length ? `，还差 ${10 - password.length} 个` : ''}`}</small>}</label>
+      <button className="button primary" disabled={busy || !email || (registering && !displayName)} onClick={submitAccount}>{registering ? '创建并绑定' : '登录并绑定'}</button>
       {!!providers.length && <div className="provider-list">{providers.map((provider) => <button className="button" key={provider.id} onClick={() => void openProvider(provider.id)}>使用 {provider.name} 登录</button>)}</div>}
       <details className="account-recovery"><summary>忘记密码或恢复账号</summary><div><label className="field"><span>邮箱</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><button className="button small" onClick={() => void run(() => requestCloudPasswordReset(email), '如果账号存在，重置邮件已发送')}>发送重置邮件</button><label className="field"><span>恢复令牌</span><input value={token} onChange={(event) => setToken(event.target.value)} /></label><label className="field"><span>新密码</span><input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label><button className="button small" disabled={token.length < 20 || newPassword.length < 10} onClick={() => void run(() => resetCloudPassword(token, newPassword), '密码已重置')}>完成账号恢复</button></div></details>
     </section> : <>
