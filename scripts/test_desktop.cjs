@@ -48,7 +48,7 @@ async function api(page, url, options) {
   assert.equal((await api(page, '/api/library/index')).status, 200)
   assert.equal((await page.evaluate(async () => (await fetch('/bingdu-logo.png')).status)), 200)
   assert.equal((await page.evaluate(async () => (await fetch('/bingdu-logo-click.wav', { headers: { range: 'bytes=0-100' } })).status)), 206)
-  if (executable) assert.ok((await api(page, '/api/dictionary/lookup?lemma=' + encodeURIComponent('猫'))).value.entry)
+  if (executable) assert.equal((await api(page, '/api/dictionary/sources')).value.some(item => item.package_id === 'greyindex/jitendex-yomitan-zh'), false)
   const security = await instance.evaluate(({ BrowserWindow }) => {
     const preferences = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences()
     return { sandbox: preferences.sandbox, nodeIntegration: preferences.nodeIntegration, contextIsolation: preferences.contextIsolation }

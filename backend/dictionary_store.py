@@ -11,6 +11,19 @@ from .paths import DATA_DIR
 
 
 DICTIONARY_PATH = DATA_DIR / "dictionary.sqlite3"
+PARSER_VERSION = 2
+
+
+def remove_retired_builtin() -> None:
+    if not DICTIONARY_PATH.exists():
+        return
+    with _connect() as connection:
+        sources = [row[0] for row in connection.execute(
+            "SELECT source FROM dictionary_sources WHERE package_id='greyindex/jitendex-yomitan-zh'")]
+        for source in sources:
+            connection.execute("DELETE FROM entries WHERE source=?", (source,))
+            connection.execute("DELETE FROM dictionary_sources WHERE source=?", (source,))
+    (DATA_DIR / "dictionaries" / "jitendex-yomitan-zh-v2026.08.11-zh.4.zip").unlink(missing_ok=True)
 
 
 def _connect() -> sqlite3.Connection:
@@ -24,7 +37,31 @@ def _connect() -> sqlite3.Connection:
         source TEXT PRIMARY KEY, package_id TEXT, version TEXT, license TEXT,
         homepage TEXT, entries INTEGER NOT NULL, installed_at REAL NOT NULL
     )""")
+    if "parser_version" not in {row[1] for row in connection.execute("PRAGMA table_info(dictionary_sources)")}:
+        connection.execute("ALTER TABLE dictionary_sources ADD COLUMN parser_version INTEGER NOT NULL DEFAULT 1")
     return connection
+
+
+def _glossary_nodes(value: object) -> list[object]:
+    if isinstance(value, list):
+        return [node for item in value for node in _glossary_nodes(item)]
+    if isinstance(value, dict):
+        if value.get("data", {}).get("content") == "glossary":
+            return [value.get("content", [])]
+        return _glossary_nodes(value.get("content"))
+    return []
+
+
+def _inline_text(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "".join(_inline_text(item) for item in value)
+    if isinstance(value, dict):
+        if value.get("tag") == "rt":
+            return ""
+        return _inline_text(value.get("content"))
+    return ""
 
 
 def _plain_gloss(value: object) -> list[str]:
@@ -33,8 +70,22 @@ def _plain_gloss(value: object) -> list[str]:
     if isinstance(value, list):
         return [text for item in value for text in _plain_gloss(item)]
     if isinstance(value, dict):
+        if value.get("type") == "structured-content":
+            glossaries = _glossary_nodes(value.get("content"))
+            if glossaries:
+                return [text for glossary in glossaries for item in
+                        (glossary if isinstance(glossary, list) else [glossary])
+                        if (text := _inline_text(item).strip())]
+        if value.get("type") == "text":
+            return _plain_gloss(value.get("text", ""))
+        if value.get("data", {}).get("content") in {
+            "part-of-speech-info", "misc-info", "extra-info", "forms", "attribution",
+            "example-sentence", "example-sentence-a", "example-sentence-b",
+        }:
+            return []
         if "content" in value:
-            return _plain_gloss(value["content"])
+            text = _inline_text(value["content"]).strip()
+            return [text] if text else []
         return []
     return []
 
@@ -73,12 +124,12 @@ def _import_archive(archive: zipfile.ZipFile, filename: str, metadata_override: 
             connection.executemany("INSERT INTO entries (lemma, reading, senses, source) VALUES (?, ?, ?, ?)", rows)
             inserted += len(rows)
         connection.execute(
-            """INSERT INTO dictionary_sources(source,package_id,version,license,homepage,entries,installed_at)
-               VALUES(?,?,?,?,?,?,?) ON CONFLICT(source) DO UPDATE SET package_id=excluded.package_id,
+            """INSERT INTO dictionary_sources(source,package_id,version,license,homepage,entries,installed_at,parser_version)
+               VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(source) DO UPDATE SET package_id=excluded.package_id,
                version=excluded.version,license=excluded.license,homepage=excluded.homepage,
-               entries=excluded.entries,installed_at=excluded.installed_at""",
+               entries=excluded.entries,installed_at=excluded.installed_at,parser_version=excluded.parser_version""",
             (source, str(metadata.get("package_id") or ""), str(metadata.get("version") or metadata.get("revision") or ""),
-             str(metadata.get("license") or ""), str(metadata.get("homepage") or ""), inserted, time.time()),
+             str(metadata.get("license") or ""), str(metadata.get("homepage") or ""), inserted, time.time(), PARSER_VERSION),
         )
     return {"source": source, "entries": inserted}
 

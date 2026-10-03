@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { bulkUpdateLexemes, importYomitanDictionary, installBuiltinDictionary, loadBlindspots, loadBuiltinDictionaryStatus, loadLexemePage, recordLearningEvents } from '../../api'
-import type { Blindspot, BuiltinDictionaryStatus, LexemePage } from '../../api'
+import { bulkUpdateLexemes, importYomitanDictionary, loadBlindspots, loadLexemePage, recordLearningEvents } from '../../api'
+import type { Blindspot, LexemePage } from '../../api'
 import { loadStudyData } from '../../db'
 import { toHiragana } from '../../text'
 
@@ -24,7 +24,7 @@ export default function LexiconManagerPage() {
   const [query, setQuery] = useState(''); const [kana, setKana] = useState(''); const [source, setSource] = useState(''); const [part, setPart] = useState(''); const [group, setGroup] = useState('')
   const [selected, setSelected] = useState(new Set<string>()); const [scrollTop, setScrollTop] = useState(0)
   const [notice, setNotice] = useState(''); const [loading, setLoading] = useState(false); const [importing, setImporting] = useState(false)
-  const [blindspots, setBlindspots] = useState<Blindspot[]>([]); const [builtin, setBuiltin] = useState<BuiltinDictionaryStatus | null>(null)
+  const [blindspots, setBlindspots] = useState<Blindspot[]>([])
   const scroller = useRef<HTMLDivElement>(null); const rowHeight = 112; const viewport = 620
 
   async function refresh(signal?: AbortSignal, nextOffset = offset) {
@@ -36,12 +36,7 @@ export default function LexiconManagerPage() {
     const controller = new AbortController(); const timer = window.setTimeout(() => { setOffset(0); void refresh(controller.signal, 0).catch((reason) => setNotice(reason instanceof Error ? reason.message : String(reason))) }, 180)
     return () => { controller.abort(); window.clearTimeout(timer) }
   }, [query, kana, source, part, group])
-  useEffect(() => { const controller = new AbortController(); void Promise.all([loadBlindspots(controller.signal), loadBuiltinDictionaryStatus(controller.signal)]).then(([rows, state]) => { setBlindspots(rows); setBuiltin(state) }).catch(() => undefined); return () => controller.abort() }, [])
-  useEffect(() => {
-    if (!builtin || !['downloading','importing'].includes(builtin.job.status)) return
-    const timer = window.setInterval(() => void loadBuiltinDictionaryStatus().then((state) => { setBuiltin(state); if (state.job.status === 'complete') void refresh(undefined, 0) }), 1000)
-    return () => window.clearInterval(timer)
-  }, [builtin?.job.status])
+  useEffect(() => { const controller = new AbortController(); void loadBlindspots(controller.signal).then(setBlindspots).catch(() => undefined); return () => controller.abort() }, [])
 
   async function importDictionary(file: File | null) {
     if (!file) return; setImporting(true); setNotice('')
@@ -67,10 +62,6 @@ export default function LexiconManagerPage() {
 
   return <main className="app-page study-page">
     <header className="page-heading"><div><span>学习资料</span><h1>个人词库</h1><p>按假名、来源、词性和自定义分组管理已经保存的词义。</p></div></header>
-    <section className="page-surface builtin-dictionary-card"><header><div><h2>内置日中词典</h2><p>{builtin?.package.title ?? 'Jitendex 日中简体词典'} · {builtin?.package.license ?? 'CC BY-SA 4.0'}</p></div>{builtin?.installed ? <span className="status-pill ok">已安装 {builtin.installed.entries.toLocaleString()} 条</span> : <button className="button primary small" onClick={() => void installBuiltinDictionary().then(setBuiltin)}>安装内置词典</button>}</header>
-      {builtin?.job.message && <p className="muted">{builtin.job.message}{builtin.job.total ? ` · ${Math.round(builtin.job.downloaded / builtin.job.total * 100)}%` : ''}</p>}
-      <small>来源：<a href={builtin?.package.homepage} target="_blank" rel="noreferrer">greyindex/jitendex-yomitan-zh</a>，经 MarvNC 词典目录筛选；派生数据遵循 CC BY-SA 4.0。</small>
-    </section>
     <section className="page-surface lexicon-manager">
       <div className="data-tools"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索词形、读音或释义" /><select value={source} onChange={(event) => setSource(event.target.value)}><option value="">全部来源</option>{page.facets.sources.map((item) => <option key={item.name}>{item.name}</option>)}</select><select value={part} onChange={(event) => setPart(event.target.value)}><option value="">全部词性</option>{page.facets.parts.map((item) => <option key={item.name}>{item.name}</option>)}</select><select value={group} onChange={(event) => setGroup(event.target.value)}><option value="">全部分组</option>{page.facets.groups.map((item) => <option key={item.name}>{item.name}</option>)}</select><label className="button small file-button"><input type="file" accept=".zip,application/zip" onChange={(event) => void importDictionary(event.target.files?.[0] ?? null)} />{importing ? '导入中…' : '导入其他词典'}</label><button className="button small" onClick={() => void exportAll()}>导出共享</button></div>
       {notice && <div className="info-box">{notice}</div>}

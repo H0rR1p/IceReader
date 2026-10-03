@@ -57,6 +57,8 @@ from .voice_service import migrate_legacy_voice_settings
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     try:
+        from .dictionary_store import remove_retired_builtin
+        await asyncio.to_thread(remove_retired_builtin)
         migration_user_id = await asyncio.to_thread(initialize_identity_store)
         await asyncio.to_thread(migrate_legacy_settings, migration_user_id)
         await asyncio.to_thread(migrate_legacy_voice_settings, migration_user_id)

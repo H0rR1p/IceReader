@@ -6,7 +6,7 @@
 - 按需切分当前章节，阅读时按需生成单句句意
 - 当前章或全书的后台切分与后台逐句翻译
 - 自动使用书内第一张图片作为封面，也可上传本地图片替换
-- 内置 Jitendex 简体中文日中词典、可导入词典与个人修正词库
+- 可导入词典与个人修正词库
 - 词典优先、AI 补缺的逐句词语释义
 - 按需生成的简洁语法句法分析，明确标出句中使用的语法结构
 - 本地阅读进度和用户词义修正
@@ -48,7 +48,6 @@ npm run desktop:dev
 - 只导入你有权处理的无 DRM 内容。
 - EPUB 原图会原样保存；精读模式默认隐藏插图，用户开启后按原位置显示。原书预览会清理脚本、事件属性和外部资源。
 - 释义按“个人词库 → 导入的 Yomitan 日中词典 → AI 补缺”顺序取得。AI 补充义写入个人词库并标明来源；用户修正始终优先。
-- 内置词典使用 [greyindex/jitendex-yomitan-zh](https://github.com/greyindex/jitendex-yomitan-zh) 的固定版本，来源目录为 [MarvNC/yomitan-dictionaries](https://github.com/MarvNC/yomitan-dictionaries)。该词典派生自 Jitendex/JMdict，许可证为 CC BY-SA 4.0；安装时校验固定 SHA-256，来源、版本、许可证和主页会写入词典数据库。完整署名随发行包保存在 `THIRD-PARTY-NOTICES.txt`。项目不打包目录中许可证不明确的商业或抓取词典。
 
 ## 云端账号与同步
 

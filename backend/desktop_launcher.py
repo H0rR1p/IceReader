@@ -55,10 +55,6 @@ def main() -> None:
     migrate_data(destination, Path(source) if source else None)
     # Import only after migration; module paths and database stores are immutable.
     from backend.app import app
-    from backend.paths import resource_path
-    dictionary = resource_path("desktop-dictionary.sqlite3")
-    if dictionary.is_file() and not (destination / "dictionary.sqlite3").exists():
-        shutil.copy2(dictionary, destination / "dictionary.sqlite3")
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.bind(("127.0.0.1", 0))
     listener.listen(128)

@@ -1,31 +1,6 @@
 冰读第三方数据说明
 ==================
 
-Jitendex 日中简体词典
---------------------
-Package: greyindex/jitendex-yomitan-zh
-Version: v2026.08.11-zh.4
-Source: https://github.com/greyindex/jitendex-yomitan-zh
-Catalog: https://github.com/MarvNC/yomitan-dictionaries
-License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
-License text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
-
-Original Jitendex by Stephen Kraus. Copyright 2023-2026 Stephen Kraus.
-The Chinese package is an unofficial simplified Chinese derivative distributed
-under CC BY-SA 4.0.
-
-Jitendex contains material from these attributed sources:
-
-* JMdict/EDICT dictionary data is provided by the Electronic Dictionaries
-  Research Group: https://www.edrdg.org/
-* Japanese and English example sentences are provided by Tatoeba and are
-  licensed under CC BY 2.0 FR: https://tatoeba.org/
-
-The installed package metadata, version, source URL, license and entry count are
-also stored in data/dictionary.sqlite3 and shown by the in-app dictionary source
-interface.
-
-
 Desktop runtime
 ---------------
 Electron: https://github.com/electron/electron (MIT)

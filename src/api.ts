@@ -176,18 +176,6 @@ export async function importYomitanDictionary(file: File): Promise<{ source: str
 }
 
 export type DictionarySource = { source: string; package_id: string; version: string; license: string; homepage: string; entries: number; installed_at: number }
-export type BuiltinDictionaryStatus = {
-  package: { package_id: string; title: string; version: string; license: string; homepage: string; catalog: string }
-  installed: DictionarySource | null; update_available: boolean
-  job: { status: 'idle' | 'downloading' | 'importing' | 'complete' | 'failed'; message: string; downloaded: number; total: number }
-}
-export async function loadBuiltinDictionaryStatus(signal?: AbortSignal): Promise<BuiltinDictionaryStatus> {
-  return parseResponse(await fetch('/api/dictionary/builtin', { signal }))
-}
-export async function installBuiltinDictionary(): Promise<BuiltinDictionaryStatus> {
-  return parseResponse(await fetch('/api/dictionary/builtin/install', { method: 'POST' }))
-}
-
 export type LexemePage = {
   items: Lexeme[]; total: number; limit: number; offset: number
   facets: { kana: { kana: string; count: number }[]; sources: { name: string; count: number }[]; parts: { name: string; count: number }[]; groups: { name: string; count: number }[] }
