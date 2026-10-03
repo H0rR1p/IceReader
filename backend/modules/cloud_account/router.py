@@ -4,7 +4,7 @@ import asyncio
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -50,9 +50,38 @@ class ResolveInput(BaseModel):
     winner_entity_id: str = Field(min_length=1, max_length=500)
 
 
+class AdminUserStateInput(BaseModel):
+    disabled: bool
+
+
 @router.get("/status")
 async def status(context: RequestContext = Depends(current_request_context)) -> dict:
     return await asyncio.to_thread(repository.account_status, context.user_id)
+
+
+@router.get("/admin/users")
+async def admin_users(
+    query: str = Query(default="", max_length=200),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    context: RequestContext = Depends(current_request_context),
+) -> dict:
+    try:
+        return await service.admin_users(context.user_id, query, limit, offset)
+    except Exception as exc:
+        raise HTTPException(403, str(exc)) from None
+
+
+@router.patch("/admin/users/{user_id}")
+async def admin_update_user(
+    user_id: str,
+    payload: AdminUserStateInput,
+    context: RequestContext = Depends(current_request_context),
+) -> dict:
+    try:
+        return await service.admin_set_user_disabled(context.user_id, user_id, payload.disabled)
+    except Exception as exc:
+        raise HTTPException(403, str(exc)) from None
 
 
 @router.put("/settings")

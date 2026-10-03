@@ -20,6 +20,7 @@ const ReviewPage = lazy(() => import('./features/cards/ReviewPage'))
 const SettingsPage = lazy(() => import('./features/settings/SettingsPage'))
 const LexiconManagerPage = lazy(() => import('./features/study/LexiconManagerPage'))
 const CloudAccountPage = lazy(() => import('./features/sync/CloudAccountPage'))
+const AdminPage = lazy(() => import('./features/admin/AdminPage'))
 const ImportDialog = lazy(() => import('./features/settings/Dialogs').then((module) => ({ default: module.ImportDialog })))
 
 const DEFAULT_SETTINGS: ApiSettings = { apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', hasStoredApiKey: false, cacheHitUsdPerMillion: 0, cacheMissUsdPerMillion: 0, outputUsdPerMillion: 0 }
@@ -94,6 +95,7 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
         {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} />}
         {page === 'profile' && <ProfilePage user={currentUser} books={books} onUserChange={onUserChange} onLogout={logout} onOpenCards={() => setPage('cards')} onOpenReview={() => setPage('review')} />}
         {page === 'cloud' && <CloudAccountPage onNotice={setNotice} />}
+        {page === 'admin' && currentUser.cloud_role === 'admin' && <AdminPage onNotice={setNotice} />}
         {page === 'settings' && <SettingsPage apiSettings={settings} voiceSettings={voiceSettings} books={books} translationMode={translationMode} translationConcurrency={translationConcurrency} onTranslationModeChange={updateTranslationMode} onTranslationConcurrencyChange={updateTranslationConcurrency} onBookImageVisibility={setBookImageVisibility} onSaveApi={async (next) => setSettings(await saveApiSettings(next))} onSaveVoice={async (next, template) => { if (template) await uploadVoiceTemplate(template); setVoiceSettings(await saveVoiceSettings(next)) }} onNotice={setNotice} />}
       </Suspense>
     </div>

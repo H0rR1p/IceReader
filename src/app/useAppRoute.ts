@@ -10,6 +10,7 @@ const PAGE_PATHS: Record<AppPage, string> = {
   review: '/review',
   profile: '/profile',
   cloud: '/cloud',
+  admin: '/admin',
   settings: '/settings',
 }
 

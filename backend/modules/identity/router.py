@@ -56,6 +56,7 @@ async def read_current_user(
         "cloud_user_id": cloud.get("cloud_user_id"),
         "cloud_email": cloud.get("email"),
         "cloud_display_name": cloud.get("display_name"),
+        "cloud_role": cloud.get("role") or "user",
     }
 
 

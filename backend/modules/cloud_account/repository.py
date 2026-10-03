@@ -45,6 +45,7 @@ def initialize_store() -> None:
                 CREATE TABLE IF NOT EXISTS cloud_accounts(
                     local_user_id TEXT PRIMARY KEY,cloud_user_id TEXT NOT NULL,email TEXT NOT NULL,
                     display_name TEXT NOT NULL,email_verified INTEGER NOT NULL DEFAULT 0,
+                    role TEXT NOT NULL DEFAULT 'user',
                     access_token BLOB NOT NULL,refresh_token BLOB NOT NULL,access_expires_at REAL NOT NULL,
                     refresh_expires_at REAL NOT NULL,remote_cursor INTEGER NOT NULL DEFAULT 0,
                     local_cursor INTEGER NOT NULL DEFAULT 0,last_sync_at REAL,last_error TEXT,
@@ -53,6 +54,9 @@ def initialize_store() -> None:
                 INSERT OR IGNORE INTO cloud_settings(id,base_url,updated_at) VALUES(1,'http://127.0.0.1:8010',0);
                 """
             )
+            columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(cloud_accounts)")}
+            if "role" not in columns:
+                connection.execute("ALTER TABLE cloud_accounts ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
             connection.commit()
             _initialized_path = resolved
         finally:
@@ -121,15 +125,15 @@ def save_account(local_user_id: str, payload: dict) -> dict:
         same_remote_account = bool(previous and str(previous["cloud_user_id"]) == str(user["id"]))
         connection.execute(
             """INSERT INTO cloud_accounts(
-                local_user_id,cloud_user_id,email,display_name,email_verified,access_token,refresh_token,
+                local_user_id,cloud_user_id,email,display_name,email_verified,role,access_token,refresh_token,
                 access_expires_at,refresh_expires_at,remote_cursor,local_cursor,created_at,updated_at
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(local_user_id) DO UPDATE SET
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(local_user_id) DO UPDATE SET
                 cloud_user_id=excluded.cloud_user_id,email=excluded.email,display_name=excluded.display_name,
-                email_verified=excluded.email_verified,access_token=excluded.access_token,
+                email_verified=excluded.email_verified,role=excluded.role,access_token=excluded.access_token,
                 refresh_token=excluded.refresh_token,access_expires_at=excluded.access_expires_at,
                 refresh_expires_at=excluded.refresh_expires_at,last_error=NULL,updated_at=excluded.updated_at""",
             (local_user_id,str(user["id"]),str(user["email"]),str(user["display_name"]),
-             1 if user.get("email_verified") else 0,_encrypt(str(payload["access_token"])),_encrypt(str(payload["refresh_token"])),
+             1 if user.get("email_verified") else 0,str(user.get("role") or "user"),_encrypt(str(payload["access_token"])),_encrypt(str(payload["refresh_token"])),
              now + float(payload.get("expires_in") or 900),now + float(payload.get("refresh_expires_in") or 30 * 86400),
              int(previous["remote_cursor"]) if same_remote_account else 0,
              int(previous["local_cursor"]) if same_remote_account else 0,
@@ -152,7 +156,7 @@ def account_credentials(local_user_id: str) -> dict | None:
 def account_status(local_user_id: str) -> dict:
     with _connect() as connection:
         row = connection.execute(
-            """SELECT cloud_user_id,email,display_name,email_verified,access_expires_at,refresh_expires_at,
+            """SELECT cloud_user_id,email,display_name,email_verified,role,access_expires_at,refresh_expires_at,
                remote_cursor,local_cursor,last_sync_at,last_error,created_at,updated_at
                FROM cloud_accounts WHERE local_user_id=?""", (local_user_id,),
         ).fetchone()
@@ -168,8 +172,8 @@ def account_status(local_user_id: str) -> dict:
 def update_account_user(local_user_id: str, user: dict) -> None:
     with _connect() as connection:
         connection.execute(
-            "UPDATE cloud_accounts SET email=?,display_name=?,email_verified=?,updated_at=? WHERE local_user_id=?",
-            (user["email"],user["display_name"],1 if user.get("email_verified") else 0,time.time(),local_user_id),
+            "UPDATE cloud_accounts SET email=?,display_name=?,email_verified=?,role=?,updated_at=? WHERE local_user_id=?",
+            (user["email"],user["display_name"],1 if user.get("email_verified") else 0,str(user.get("role") or "user"),time.time(),local_user_id),
         )
 
 
