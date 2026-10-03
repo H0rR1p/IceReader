@@ -89,6 +89,24 @@ def test_identity_api_switches_browser_session(tmp_path, monkeypatch):
     assert client.get("/api/me").json()["user_id"] == default_user["user_id"]
 
 
+def test_current_user_reports_bound_cloud_account(tmp_path, monkeypatch):
+    from .modules.identity import router as identity_router
+
+    monkeypatch.setattr(identity_store, "IDENTITY_PATH", tmp_path / "identity.sqlite3")
+    monkeypatch.setattr(identity_router.cloud_account_repository, "account_status", lambda _user_id: {
+        "connected": True,
+        "cloud_user_id": "cloud-user-1",
+        "email": "reader@example.com",
+        "display_name": "云端读者",
+    })
+
+    current = TestClient(app).get("/api/me").json()
+    assert current["cloud_connected"] is True
+    assert current["cloud_user_id"] == "cloud-user-1"
+    assert current["cloud_email"] == "reader@example.com"
+    assert current["cloud_display_name"] == "云端读者"
+
+
 def test_profile_nickname_and_avatar_are_user_scoped(tmp_path, monkeypatch):
     from .modules.identity import router as identity_router
 

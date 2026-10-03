@@ -10,6 +10,10 @@ export interface CurrentUser {
   auth_provider: string
   username?: string | null
   is_guest?: boolean
+  cloud_connected?: boolean
+  cloud_user_id?: string | null
+  cloud_email?: string | null
+  cloud_display_name?: string | null
 }
 
 export interface ContentBlock {
