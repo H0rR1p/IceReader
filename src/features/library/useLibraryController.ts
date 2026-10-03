@@ -144,6 +144,7 @@ export function useLibraryController(onNotice: (message: string) => void) {
     navigationAbortRef.current = controller
     setLoadingBookId(book.id)
     try {
+      book = (await db.books.get(book.id)) ?? book
       const chapters = await db.chapters.where('bookId').equals(book.id).sortBy('order')
       const preferred = chapters.find((chapter) => chapter.id === book.currentChapterId) ?? chapters[0]
       const openedBook = { ...book, lastOpenedAt: Date.now() }
@@ -178,15 +179,17 @@ export function useLibraryController(onNotice: (message: string) => void) {
     try {
       const snapshot = await loadChapterData(chapter.id, controller.signal)
       if (controller.signal.aborted) return
+      const latestBook = (await db.books.get(activeBook.id)) ?? activeBook
       const nextBook = {
-        ...activeBook,
+        ...latestBook,
         currentChapterId: chapter.id,
-        currentSentenceId: sentenceId,
+        currentSentenceId: sentenceId ?? (latestBook.currentChapterId === chapter.id ? latestBook.currentSentenceId : undefined),
         updatedAt: Date.now(),
       }
       await db.books.put(nextBook)
       await syncRecords({ books: [nextBook] }, {}, controller.signal)
       setActiveBook(nextBook)
+      setBooks((current) => current.map((book) => book.id === nextBook.id ? nextBook : book))
       setActiveChapter(snapshot.chapter)
     } catch (error) {
       if (!controller.signal.aborted) onNotice(error instanceof Error ? error.message : String(error))

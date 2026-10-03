@@ -396,13 +396,14 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   async function selectSentence(sentence: Sentence) {
     setSelectedSentenceId(sentence.id)
     setSelectedTokenId(null)
-    const nextBook = { ...book, currentChapterId: chapter.id, currentSentenceId: sentence.id, updatedAt: Date.now() }
+    const latestBook = (await db.books.get(book.id)) ?? book
+    const nextBook = { ...latestBook, currentChapterId: chapter.id, currentSentenceId: sentence.id, updatedAt: Date.now() }
     await db.books.put(nextBook)
-    void syncRecords({ books: [nextBook] })
+    void syncRecords({ books: [nextBook] }).catch((error) => onNotice(error instanceof Error ? error.message : String(error)))
   }
 
   function selectToken(sentence: Sentence, token: Token) {
-    setSelectedSentenceId(sentence.id)
+    void selectSentence(sentence)
     if (!token.is_content) return
     assistedSentenceIdsRef.current.add(sentence.id)
     forcedAssistanceRef.current.add(token.lexemeKey)

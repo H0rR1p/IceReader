@@ -30,8 +30,14 @@ function App() {
   const [serverReady, setServerReady] = useState<boolean | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [entered, setEntered] = useState(false)
-  useEffect(() => { void checkHealth().then(setServerReady); void loadCurrentUser().then(setCurrentUser).catch(() => undefined) }, [])
-  if (!entered || !currentUser) return <LoginPage currentUser={currentUser} serverReady={serverReady} onEnter={async (user) => { setCurrentUser(user); setEntered(true) }} />
+  useEffect(() => {
+    void checkHealth().then(setServerReady)
+    void loadCurrentUser().then((user) => {
+      setCurrentUser(user)
+      setEntered(Boolean(user.cloud_connected || !user.is_guest || localStorage.getItem(`bingdu:${user.user_id}:entered`) === '1'))
+    }).catch(() => undefined)
+  }, [])
+  if (!entered || !currentUser) return <LoginPage currentUser={currentUser} serverReady={serverReady} onEnter={async (user) => { localStorage.setItem(`bingdu:${user.user_id}:entered`, '1'); setCurrentUser(user); setEntered(true) }} />
   return <AuthenticatedApp currentUser={currentUser} serverReady={serverReady} onUserChange={setCurrentUser} onExit={(user) => { setCurrentUser(user); setEntered(false) }} />
 }
 
@@ -59,9 +65,8 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
   }
   function resumeReading() {
     if (!resumeBook) return
-    const latest = books.find((book) => book.id === resumeBook.id) ?? resumeBook
     setPage('library')
-    void openBook(latest)
+    void openBook(resumeBook)
   }
   function updateTranslationMode(mode: typeof translationMode) { setTranslationMode(mode); localStorage.setItem(`bingdu:${currentUser.user_id}:translation-mode`, mode) }
   function updateTranslationConcurrency(value: number) { setTranslationConcurrency(value); localStorage.setItem(`bingdu:${currentUser.user_id}:translation-concurrency`, String(value)) }
@@ -71,7 +76,7 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
     audio.addEventListener('ended', () => logoAudiosRef.current.delete(audio), { once: true }); void audio.play().catch(() => logoAudiosRef.current.delete(audio))
     setLogoBouncing(false); window.requestAnimationFrame(() => setLogoBouncing(true))
   }
-  async function logout() { cancelBackground(); const guest = await logoutCurrentAccount(); onUserChange(guest); onExit(guest) }
+  async function logout() { localStorage.removeItem(`bingdu:${currentUser.user_id}:entered`); cancelBackground(); const guest = await logoutCurrentAccount(); onUserChange(guest); onExit(guest) }
 
   const overlays = <Suspense fallback={null}>
     {showImport && <ImportDialog onClose={() => setShowImport(false)} onImported={async (book) => { setShowImport(false); await saveImportedBook(book) }} />}
