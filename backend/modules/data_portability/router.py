@@ -46,7 +46,7 @@ async def upload_backup(
 async def download_book_transfer(context: RequestContext = Depends(current_request_context)) -> FileResponse:
     path = await asyncio.to_thread(create_book_transfer, context.user_id)
     return FileResponse(
-        path, media_type="application/zip", filename=f"冰读书籍迁移包-{time.strftime('%Y%m%d-%H%M%S')}.zip",
+        path, media_type="application/zip", filename=f"冰读数据迁移包-{time.strftime('%Y%m%d-%H%M%S')}.zip",
         background=BackgroundTask(path.unlink, missing_ok=True),
     )
 

@@ -523,7 +523,7 @@ export async function downloadBookTransfer(): Promise<void> {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export async function importBookTransfer(file: File): Promise<{ imported_books: number; skipped_books: number; imported_records: number }> {
+export async function importBookTransfer(file: File): Promise<{ imported_books: number; skipped_books: number; imported_records: number; imported_cards?: number; imported_learning_records?: number }> {
   const form = new FormData(); form.append('file', file)
   return parseResponse(await fetch('/api/data/book-transfer/import', { method: 'POST', body: form }))
 }

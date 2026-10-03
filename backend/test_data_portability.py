@@ -110,10 +110,59 @@ def test_book_transfer_merges_books_and_assets_without_replacing_target_data(tmp
     package = service.create_book_transfer("source", tmp_path / "transfer.zip")
     result = service.import_book_transfer("target", package)
 
-    assert result == {"imported_books": 1, "skipped_books": 0, "imported_records": 5}
+    assert result == {"imported_books": 1, "skipped_books": 0, "imported_records": 5, "imported_cards": 0, "imported_learning_records": 0}
     with sqlite3.connect(library_path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM user_library_items WHERE user_id='target'").fetchone()[0] == 2
         assert connection.execute("SELECT COUNT(*) FROM records WHERE owner_user_id='target' AND table_name='chapters'").fetchone()[0] == 1
     assert (tmp_path / "books" / resource_key / "cover.jpg").read_bytes() == b"cover"
     assert (tmp_path / "books" / "custom-covers" / "target" / "book-a.png").read_bytes() == b"custom"
     assert service.import_book_transfer("target", package)["skipped_books"] == 1
+
+
+def test_transfer_cards_reviews_learning_and_time_without_credentials(tmp_path, monkeypatch):
+    from .test_cards_store import _isolated_store, _candidate
+    from .modules.cards import repository as cards
+    from .modules.activity import repository as activity
+    from .modules.learning import repository as learning
+    learning_path = _isolated_store(tmp_path, monkeypatch)
+    monkeypatch.setattr(activity, "ACTIVITY_PATH", learning_path)
+    monkeypatch.setattr(activity, "_initialized_path", None)
+    activity.initialize_store()
+    source_card = cards.accept_candidate("source", _candidate("source")["id"])
+    cards.review_card("source", "device", source_card["id"], "good", 1_000_000, "review-source")
+    target_card = cards.accept_candidate("target", _candidate("target", "other")["id"])
+    item = {"id": "learning-item", "type": "vocabulary", "canonical_key": "読む|よむ", "lemma": "読む", "reading": "よむ"}
+    learning.append_events("source", "device", [{"id": "event-source", "item": item, "event_type": "lookup", "occurred_at": 10, "context": {}}])
+    with sqlite3.connect(learning_path) as connection:
+        connection.execute("INSERT INTO daily_learning_stats(user_id,local_date,timezone,active_seconds,reading_seconds,updated_at) VALUES('source','2026-10-03','Asia/Shanghai',120,120,1)")
+        connection.execute("INSERT INTO daily_learning_stats(user_id,local_date,timezone,active_seconds,reading_seconds,updated_at) VALUES('target','2026-10-03','Asia/Shanghai',60,60,1)")
+    library_path = tmp_path / "library.sqlite3"
+    _database(library_path, [
+        ("CREATE TABLE records(owner_user_id TEXT,table_name TEXT,record_key TEXT,payload TEXT,PRIMARY KEY(owner_user_id,table_name,record_key))", ()),
+        ("CREATE TABLE user_library_items(user_id TEXT,book_id TEXT,metadata_json TEXT,created_at REAL,updated_at REAL,PRIMARY KEY(user_id,book_id))", ()),
+    ])
+    specs = {name: {**spec, "path": tmp_path / (name + ".sqlite3")} for name, spec in service.DATABASE_SPECS.items()}
+    monkeypatch.setattr(service, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(service, "DATABASE_SPECS", specs)
+    secret = tmp_path / "users" / "source" / "settings.json"
+    secret.parent.mkdir(parents=True)
+    secret.write_text('{"apiKey":"private-secret"}', encoding="utf-8")
+    package = service.create_book_transfer("source", tmp_path / "transfer.zip")
+    with zipfile.ZipFile(package) as archive:
+        assert b"private-secret" not in archive.read("data.json")
+        assert not any("settings" in name for name in archive.namelist())
+    result = service.import_book_transfer("target", package)
+    assert result["imported_cards"] == 1
+    found = cards.search_cards("target", "猫")
+    assert len(found) == 2
+    imported = next(card for card in found if card["id"] != target_card["id"])
+    assert imported["id"] != source_card["id"]
+    assert imported["reps"] == 1
+    assert imported["stability"] == source_card["stability"] or imported["stability"] == 2.4
+    repeated = service.import_book_transfer("target", package)
+    assert repeated["imported_cards"] == 0
+    assert repeated["imported_learning_records"] == 0
+    with sqlite3.connect(learning_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM review_logs WHERE user_id='target'").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM learning_events WHERE user_id='target'").fetchone()[0] == 1
+        assert connection.execute("SELECT active_seconds FROM daily_learning_stats WHERE user_id='target'").fetchone()[0] == 180
