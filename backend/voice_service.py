@@ -55,6 +55,32 @@ def _bridge_connection_path() -> Path:
     return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "BingduYmmBridge" / "connection.json"
 
 
+def _bridge_connection_paths() -> list[Path]:
+    """Return bridge descriptors visible across Windows service accounts.
+
+    The web service commonly runs as SYSTEM while the interactive YMM4 process
+    runs as the signed-in desktop user.  Their LOCALAPPDATA directories differ,
+    so relying on the service account's descriptor alone makes a healthy bridge
+    look outdated and triggers an unnecessary attempt to replace its loaded DLL.
+    """
+    candidates = [_bridge_connection_path()]
+    if os.name == "nt":
+        users_root = Path(os.environ.get("SystemDrive", "C:")) / "Users"
+        try:
+            candidates.extend(users_root.glob("*/AppData/Local/BingduYmmBridge/connection.json"))
+        except OSError:
+            pass
+    unique: list[Path] = []
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+        except OSError:
+            continue
+        if resolved not in unique:
+            unique.append(resolved)
+    return unique
+
+
 def _lock() -> asyncio.Lock:
     global _render_lock
     if _render_lock is None:
@@ -345,27 +371,45 @@ def _trim_wave(path: Path, tail_seconds: float = 0.25) -> float:
 
 
 def _bridge_request(method: str, path: str, payload: dict | None = None, timeout: float = 5.0) -> dict:
-    connection = json.loads(_bridge_connection_path().read_text(encoding="utf-8"))
-    base = str(connection["api_base"]).rstrip("/")
     body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request = urllib.request.Request(
-        base + path,
-        data=body,
-        method=method,
-        headers={
-            "X-Bingdu-Token": str(connection["token"]),
-            "Content-Type": "application/json; charset=utf-8",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
+    last_error: Exception | None = None
+    for descriptor in _bridge_connection_paths():
         try:
-            detail = json.loads(exc.read().decode("utf-8")).get("error")
-        except (ValueError, AttributeError):
-            detail = None
-        raise RuntimeError(str(detail or f"YMM4 配音桥返回 {exc.code}")) from exc
+            connection = json.loads(descriptor.read_text(encoding="utf-8"))
+            base = str(connection["api_base"]).rstrip("/")
+            request = urllib.request.Request(
+                base + path,
+                data=body,
+                method=method,
+                headers={
+                    "X-Bingdu-Token": str(connection["token"]),
+                    "Content-Type": "application/json; charset=utf-8",
+                },
+            )
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = json.loads(exc.read().decode("utf-8")).get("error")
+            except (ValueError, AttributeError):
+                detail = None
+            last_error = RuntimeError(str(detail or f"YMM4 配音桥返回 {exc.code}"))
+        except (OSError, ValueError, KeyError, json.JSONDecodeError, urllib.error.URLError) as exc:
+            last_error = exc
+    if last_error:
+        raise last_error
+    raise FileNotFoundError("找不到 YMM4 配音桥连接信息")
+
+
+def _copy_if_changed(source: Path, target: Path) -> None:
+    """Avoid replacing a loaded plug-in binary when its bytes already match."""
+    if target.is_file():
+        try:
+            if source.stat().st_size == target.stat().st_size and source.read_bytes() == target.read_bytes():
+                return
+        except OSError:
+            pass
+    shutil.copy2(source, target)
 
 
 def _bridge_ready() -> bool:
@@ -400,11 +444,11 @@ def _ensure_bridge(settings: VoiceSettingsStatus, template_path: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     try:
         for name in ("BingduYmmBridge.dll", "BingduYmmBridge.deps.json"):
-            shutil.copy2(source / name, target / name)
+            _copy_if_changed(source / name, target / name)
         soundtouch = Path(settings.ymm_path).parent / "SoundTouch.Net.dll"
         if not soundtouch.is_file():
             raise RuntimeError("当前 YMM4 目录缺少 SoundTouch.Net.dll，无法进行恒定音高的语速调整")
-        shutil.copy2(soundtouch, target / soundtouch.name)
+        _copy_if_changed(soundtouch, target / soundtouch.name)
     except PermissionError as exc:
         raise RuntimeError("配音桥需要更新，请先保存项目并完全退出 YMM4 后重试") from exc
     subprocess.Popen(
