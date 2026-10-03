@@ -26,7 +26,6 @@ TEMPLATE_PATH = VOICE_DIR / "template.ymmp"
 YMM_DIRECTORY_NAME = "幻想乡口音剪辑器"
 CACHE_VERSION = b"voice-v5-character-hiragana"
 BRIDGE_API_VERSION = 2
-BRIDGE_CONNECTION_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "BingduYmmBridge" / "connection.json"
 JOB_TTL_SECONDS = 60 * 60
 MAX_RETAINED_JOBS = 256
 
@@ -47,6 +46,13 @@ class _VoiceJob:
 
 _jobs: dict[str, _VoiceJob] = {}
 _render_lock: asyncio.Lock | None = None
+
+
+def _bridge_connection_path() -> Path:
+    configured = os.environ.get("BINGDU_VOICE_BRIDGE_CONNECTION_PATH", "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "BingduYmmBridge" / "connection.json"
 
 
 def _lock() -> asyncio.Lock:
@@ -339,7 +345,7 @@ def _trim_wave(path: Path, tail_seconds: float = 0.25) -> float:
 
 
 def _bridge_request(method: str, path: str, payload: dict | None = None, timeout: float = 5.0) -> dict:
-    connection = json.loads(BRIDGE_CONNECTION_PATH.read_text(encoding="utf-8"))
+    connection = json.loads(_bridge_connection_path().read_text(encoding="utf-8"))
     base = str(connection["api_base"]).rstrip("/")
     body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
