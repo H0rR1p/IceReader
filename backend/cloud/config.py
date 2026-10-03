@@ -51,6 +51,9 @@ class CloudConfig:
     secret: str
     allowed_origins: tuple[str, ...]
     dev_mode: bool
+    admin_email: str = ""
+    admin_password: str = ""
+    admin_display_name: str = "冰读管理员"
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_username: str = ""
@@ -120,6 +123,9 @@ def load_config() -> CloudConfig:
         secret=secret,
         allowed_origins=origins,
         dev_mode=dev_mode,
+        admin_email=os.getenv("BINGDU_CLOUD_ADMIN_EMAIL", "").strip(),
+        admin_password=os.getenv("BINGDU_CLOUD_ADMIN_PASSWORD", ""),
+        admin_display_name=os.getenv("BINGDU_CLOUD_ADMIN_DISPLAY_NAME", "冰读管理员").strip() or "冰读管理员",
         smtp_host=os.getenv("BINGDU_SMTP_HOST", "").strip(),
         smtp_port=int(os.getenv("BINGDU_SMTP_PORT", "587")),
         smtp_username=os.getenv("BINGDU_SMTP_USERNAME", "").strip(),

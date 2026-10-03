@@ -14,6 +14,7 @@ export interface CurrentUser {
   cloud_user_id?: string | null
   cloud_email?: string | null
   cloud_display_name?: string | null
+  cloud_role?: 'user' | 'admin'
 }
 
 export interface ContentBlock {

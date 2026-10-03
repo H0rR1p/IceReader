@@ -180,6 +180,19 @@ async def revoke_cloud_session(local_user_id: str, session_id: str) -> None:
     await _authorized_request(local_user_id, "DELETE", f"/v1/auth/sessions/{session_id}")
 
 
+async def admin_users(local_user_id: str, query: str, limit: int, offset: int) -> dict:
+    return (await _authorized_request(
+        local_user_id, "GET", "/v1/admin/users",
+        params={"query": query, "limit": limit, "offset": offset},
+    )).json()
+
+
+async def admin_set_user_disabled(local_user_id: str, user_id: str, disabled: bool) -> dict:
+    return (await _authorized_request(
+        local_user_id, "PATCH", f"/v1/admin/users/{user_id}", json={"disabled": disabled},
+    )).json()
+
+
 async def sync(local_user_id: str, device_id: str, *, pull_only: bool = False) -> dict:
     account = await asyncio.to_thread(repository.account_credentials, local_user_id)
     if not account:

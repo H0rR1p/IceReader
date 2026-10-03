@@ -28,6 +28,7 @@ _attempts: dict[str, deque[float]] = defaultdict(deque)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await asyncio.to_thread(repository.initialize)
+    await asyncio.to_thread(repository.ensure_admin)
     yield
 
 
@@ -35,7 +36,7 @@ app = FastAPI(title="冰读云端服务", version="1.0.0", lifespan=lifespan)
 if config.allowed_origins:
     app.add_middleware(
         CORSMiddleware, allow_origins=list(config.allowed_origins), allow_credentials=False,
-        allow_methods=["GET", "POST", "DELETE"], allow_headers=["Authorization", "Content-Type"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Authorization", "Content-Type"],
     )
 
 
@@ -80,6 +81,12 @@ async def cloud_identity(token: str = Depends(_bearer)) -> tuple[dict, str, str]
 async def verified_identity(identity: tuple[dict, str, str] = Depends(cloud_identity)) -> tuple[dict, str, str]:
     if not identity[0].get("email_verified"):
         raise HTTPException(403, "请先验证邮箱再同步数据")
+    return identity
+
+
+async def admin_identity(identity: tuple[dict, str, str] = Depends(cloud_identity)) -> tuple[dict, str, str]:
+    if identity[0].get("role") != "admin":
+        raise HTTPException(403, "需要管理员权限")
     return identity
 
 
@@ -137,6 +144,10 @@ class ResolveInput(BaseModel):
     winner_entity_id: str = Field(min_length=1, max_length=500)
 
 
+class AdminUserStateInput(BaseModel):
+    disabled: bool
+
+
 @app.exception_handler(CloudConflictError)
 async def conflict_handler(_request: Request, error: CloudConflictError) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": str(error), "code": "conflict"})
@@ -150,6 +161,28 @@ async def auth_handler(_request: Request, error: CloudAuthError) -> JSONResponse
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok", "app": "bingdu-cloud", "version": app.version}
+
+
+@app.get("/v1/admin/users")
+async def admin_users(
+    query: str = Query(default="", max_length=200),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    identity: tuple[dict, str, str] = Depends(admin_identity),
+) -> dict:
+    return await asyncio.to_thread(repository.list_users, query, limit, offset)
+
+
+@app.patch("/v1/admin/users/{user_id}")
+async def admin_update_user(
+    user_id: str,
+    payload: AdminUserStateInput,
+    identity: tuple[dict, str, str] = Depends(admin_identity),
+) -> dict:
+    try:
+        return await asyncio.to_thread(repository.set_user_disabled, identity[0]["id"], user_id, payload.disabled)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
 
 
 @app.get("/v1/auth/providers")

@@ -67,7 +67,7 @@ class CloudRepository:
                     CREATE TABLE IF NOT EXISTS users(
                         id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,display_name TEXT NOT NULL,
                         password_hash TEXT,email_verified_at REAL,created_at REAL NOT NULL,
-                        updated_at REAL NOT NULL,disabled_at REAL
+                        updated_at REAL NOT NULL,disabled_at REAL,role TEXT NOT NULL DEFAULT 'user'
                     );
                     CREATE TABLE IF NOT EXISTS oauth_identities(
                         id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -122,6 +122,9 @@ class CloudRepository:
                     );
                     """
                 )
+                columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(users)")}
+                if "role" not in columns:
+                    connection.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
                 connection.commit()
                 self._initialized = True
             finally:
@@ -182,7 +185,69 @@ class CloudRepository:
             "display_name": str(row["display_name"]),
             "email_verified": row["email_verified_at"] is not None,
             "created_at": float(row["created_at"]),
+            "role": str(row["role"] or "user"),
         }
+
+    def ensure_admin(self) -> dict | None:
+        email = self.config.admin_email.strip()
+        password = self.config.admin_password
+        if not email and not password:
+            return None
+        if not email or not password:
+            raise RuntimeError("BINGDU_CLOUD_ADMIN_EMAIL 和 BINGDU_CLOUD_ADMIN_PASSWORD 必须同时设置")
+        normalized = self.normalize_email(email)
+        if len(password) < 12:
+            raise RuntimeError("管理员密码至少需要 12 个字符")
+        now = time.time()
+        with self.connect() as connection:
+            row = connection.execute("SELECT * FROM users WHERE email=?", (normalized,)).fetchone()
+            if row:
+                connection.execute(
+                    "UPDATE users SET role='admin',disabled_at=NULL,updated_at=? WHERE id=?",
+                    (now, row["id"]),
+                )
+            else:
+                user_id = str(uuid.uuid4())
+                connection.execute(
+                    """INSERT INTO users(
+                        id,email,display_name,password_hash,email_verified_at,created_at,updated_at,role
+                    ) VALUES(?,?,?,?,?,?,?,'admin')""",
+                    (user_id, normalized, self.config.admin_display_name[:40], self._password_hash(password), now, now, now),
+                )
+            row = connection.execute("SELECT * FROM users WHERE email=?", (normalized,)).fetchone()
+        return self._public_user(row)
+
+    def list_users(self, query: str = "", limit: int = 50, offset: int = 0) -> dict:
+        needle = query.strip().casefold()
+        where = "WHERE lower(email) LIKE ? OR lower(display_name) LIKE ?" if needle else ""
+        params: tuple[object, ...] = (f"%{needle}%", f"%{needle}%") if needle else ()
+        with self.connect() as connection:
+            total = int(connection.execute(f"SELECT COUNT(*) FROM users {where}", params).fetchone()[0])
+            rows = connection.execute(
+                f"""SELECT u.*,
+                    (SELECT COUNT(*) FROM refresh_sessions s WHERE s.user_id=u.id AND s.revoked_at IS NULL AND s.rotated_at IS NULL AND s.expires_at>?) AS active_sessions,
+                    (SELECT COUNT(*) FROM sync_entities e WHERE e.user_id=u.id AND e.deleted_at IS NULL) AS sync_entities
+                    FROM users u {where} ORDER BY u.created_at DESC LIMIT ? OFFSET ?""",
+                (time.time(), *params, max(1, min(limit, 200)), max(0, offset)),
+            ).fetchall()
+        return {"items": [{**self._public_user(row), "disabled": row["disabled_at"] is not None,
+                            "active_sessions": int(row["active_sessions"]), "sync_entities": int(row["sync_entities"])} for row in rows],
+                "total": total, "limit": limit, "offset": offset}
+
+    def set_user_disabled(self, actor_user_id: str, user_id: str, disabled: bool) -> dict:
+        if actor_user_id == user_id and disabled:
+            raise ValueError("不能禁用当前管理员账号")
+        now = time.time()
+        with self.connect() as connection:
+            row = connection.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+            if not row:
+                raise ValueError("账号不存在")
+            connection.execute("UPDATE users SET disabled_at=?,updated_at=? WHERE id=?", (now if disabled else None, now, user_id))
+            if disabled:
+                connection.execute("UPDATE refresh_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL", (now, user_id))
+                connection.execute("UPDATE access_tokens SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL", (now, user_id))
+            row = connection.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+        return {**self._public_user(row), "disabled": row["disabled_at"] is not None}
 
     def register(self, email: str, password: str, display_name: str, device_id: str, device_name: str) -> dict:
         normalized = self.normalize_email(email)

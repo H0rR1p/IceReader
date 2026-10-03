@@ -571,8 +571,22 @@ export async function loadSyncStatus(signal?: AbortSignal): Promise<SyncStatus> 
 
 export type CloudAccountStatus = {
   connected: boolean; base_url: string; cloud_user_id?: string; email?: string; display_name?: string
+  role?: 'user' | 'admin'
   email_verified?: boolean; remote_cursor?: number; local_cursor?: number; last_sync_at?: number | null
   last_error?: string | null; development_verification_token?: string | null
+}
+export type AdminCloudUser = {
+  id: string; email: string; display_name: string; email_verified: boolean; role: 'user' | 'admin'
+  created_at: number; disabled: boolean; active_sessions: number; sync_entities: number
+}
+export type AdminCloudUsersPage = { items: AdminCloudUser[]; total: number; limit: number; offset: number }
+export async function loadAdminCloudUsers(query = '', limit = 50, offset = 0): Promise<AdminCloudUsersPage> {
+  return parseResponse(await fetch(`/api/cloud/admin/users?query=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`))
+}
+export async function setAdminCloudUserDisabled(userId: string, disabled: boolean): Promise<AdminCloudUser> {
+  return parseResponse(await fetch(`/api/cloud/admin/users/${encodeURIComponent(userId)}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabled }),
+  }))
 }
 export type CloudProvider = { id: string; name: string }
 export type CloudConflict = { id: string; entity_type: string; versions: { entity_id: string; payload: Record<string, unknown>; updated_at: number; source_device_id: string }[] }

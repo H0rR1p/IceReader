@@ -3,7 +3,7 @@ import type { CurrentUser } from '../types'
 import UserAvatar from './UserAvatar'
 import { isOnlineDeployment } from '../deployment'
 
-export type AppPage = 'library' | 'dictionary' | 'cards' | 'review' | 'profile' | 'cloud' | 'settings'
+export type AppPage = 'library' | 'dictionary' | 'cards' | 'review' | 'profile' | 'cloud' | 'admin' | 'settings'
 
 export default function AppNavigation({ page, user, bookCount, canResumeReading, onNavigate, onResumeReading, onImport }: {
   page: AppPage
@@ -48,6 +48,7 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
       <p className="nav-section-label">账户</p>
       {item('profile', '○', '个人主页')}
       {item('cloud', '↻', '云端与同步')}
+      {user.cloud_role === 'admin' && item('admin', '◎', '账号管理')}
       {item('settings', '⚙', '设置')}
     </nav>
     <button className="nav-user" onClick={() => onNavigate('profile')}>
