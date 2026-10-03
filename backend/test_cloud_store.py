@@ -69,3 +69,27 @@ def test_admin_bootstrap_lists_and_disables_accounts(tmp_path):
     with pytest.raises(ValueError, match="不能禁用"):
         repository.set_user_disabled(admin["id"], admin["id"], True)
 
+
+def test_admin_bootstrap_promotes_existing_account_and_applies_configured_password(tmp_path):
+    database_path = tmp_path / "cloud.sqlite3"
+    regular = CloudRepository(CloudConfig(
+        database_path=database_path, public_url="http://127.0.0.1:8010",
+        secret="test-secret", allowed_origins=(), dev_mode=True,
+    ))
+    regular.initialize()
+    regular.register("owner@example.com", "previous user password", "站长", "device-a", "电脑 A")
+
+    repository = CloudRepository(CloudConfig(
+        database_path=database_path, public_url="http://127.0.0.1:8010",
+        secret="test-secret", allowed_origins=(), dev_mode=True,
+        admin_email="owner@example.com", admin_password="configured admin password",
+    ))
+    repository.initialize()
+    admin = repository.ensure_admin()
+
+    assert admin and admin["role"] == "admin" and admin["email_verified"] is True
+    with pytest.raises(CloudAuthError):
+        repository.login("owner@example.com", "previous user password", "old-device", "旧设备")
+    logged_in = repository.login("owner@example.com", "configured admin password", "admin-device", "管理设备")
+    assert logged_in["user"]["role"] == "admin"
+
