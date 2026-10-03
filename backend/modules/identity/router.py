@@ -21,6 +21,7 @@ from .repository import (
 )
 from ...paths import DATA_DIR
 from ...runtime_config import COOKIE_SECURE, PUBLIC_MODE
+from ..cloud_account import repository as cloud_account_repository
 
 
 router = APIRouter(prefix="/api", tags=["identity"])
@@ -42,11 +43,19 @@ def _set_identity_cookies(response: Response, token: str, device_id: str) -> Non
 async def read_current_user(
     context: RequestContext = Depends(current_request_context),
 ) -> dict:
+    profile, cloud = await asyncio.gather(
+        asyncio.to_thread(user_profile, context.user_id),
+        asyncio.to_thread(cloud_account_repository.account_status, context.user_id),
+    )
     return {
-        **user_profile(context.user_id),
+        **profile,
         "session_id": context.session_id,
         "device_id": context.device_id,
         "auth_provider": context.auth_provider,
+        "cloud_connected": bool(cloud.get("connected")),
+        "cloud_user_id": cloud.get("cloud_user_id"),
+        "cloud_email": cloud.get("email"),
+        "cloud_display_name": cloud.get("display_name"),
     }
 
 

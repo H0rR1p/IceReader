@@ -14,6 +14,7 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
   onResumeReading?: () => void
   onImport: () => void
 }) {
+  const accountLabel = user.cloud_connected ? '云端账号' : isOnlineDeployment ? '访客模式' : '本机模式'
   const [logoBouncing, setLogoBouncing] = useState(false)
   const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
   function activateBrand() {
@@ -51,7 +52,7 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
     </nav>
     <button className="nav-user" onClick={() => onNavigate('profile')}>
       <UserAvatar user={user} className="nav-avatar" />
-      <span><strong>{user.display_name}</strong><small>{isOnlineDeployment ? '访客模式' : '本机模式'}</small></span>
+      <span><strong>{user.cloud_display_name || user.display_name}</strong><small>{accountLabel}</small></span>
     </button>
   </aside>
 }

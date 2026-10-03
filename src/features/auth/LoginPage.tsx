@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadLocalProfiles, logoutCurrentAccount, switchLocalProfile } from '../../app/session'
+import { loadCurrentUser, loadLocalProfiles, logoutCurrentAccount, switchLocalProfile } from '../../app/session'
 import type { LocalProfile } from '../../app/session'
 import { loadCloudProviders, loginCloudAccount, registerCloudAccount, requestCloudPasswordReset, resetCloudPassword, startCloudOidc } from '../../api'
 import type { CloudProvider } from '../../api'
@@ -26,7 +26,9 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
   useEffect(() => {
     void loadCloudProviders().then(setProviders).catch(() => setProviders([]))
     if (!isOnlineDeployment) void loadLocalProfiles().then(setLocalProfiles).catch(() => setLocalProfiles([]))
-    if (window.location.hash.includes('cloud=connected') && currentUser) void onEnter(currentUser)
+    if (window.location.hash.includes('cloud=connected') && currentUser) {
+      void loadCurrentUser(true).then(onEnter).catch(() => onEnter(currentUser))
+    }
   }, [currentUser])
 
   function playLogoSound() {
@@ -48,7 +50,7 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
       if (!currentUser) throw new Error(isOnlineDeployment ? '服务仍在初始化' : '本地服务仍在初始化')
       if (mode === 'register') await registerCloudAccount(username, password, displayName)
       else await loginCloudAccount(username, password)
-      await onEnter(currentUser)
+      await onEnter(await loadCurrentUser(true))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
     } finally { setBusy(false) }
