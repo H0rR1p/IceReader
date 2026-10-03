@@ -177,6 +177,12 @@ def test_bridge_readiness_requires_cancel_capable_api(monkeypatch):
     assert voice_service._bridge_ready() is True
 
 
+def test_bridge_connection_path_can_be_shared_across_service_accounts(tmp_path, monkeypatch):
+    shared = tmp_path / "bridge" / "connection.json"
+    monkeypatch.setenv("BINGDU_VOICE_BRIDGE_CONNECTION_PATH", str(shared))
+    assert voice_service._bridge_connection_path() == shared.resolve()
+
+
 def test_trim_float_wave_removes_trailing_silence(tmp_path):
     sample_rate = 1000
     active = [0.1] * 1000
