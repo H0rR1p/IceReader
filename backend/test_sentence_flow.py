@@ -220,6 +220,7 @@ def test_explain_sentence_uses_dictionary_then_ai_fallback(monkeypatch):
         return [{
             "id": sentence.id, "meaning": "去图书馆。",
             "words": [[token["id"], f"{token['surface']}的语境义", [f"{token['lemma']}的补充义"]] for token in unknown],
+            "contexts": [[value[0], "图书馆"] for value in items[0]["known_tokens"]],
             "annotations": [],
         }]
 

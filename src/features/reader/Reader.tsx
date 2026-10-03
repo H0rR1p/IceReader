@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { cancelVoiceJob, createCardCandidate, loadKnowledgeStates, loadVoiceJob, lookupDictionary, recordActivityMetric, recordLearningEvents, startVoiceJob } from '../../api'
-import type { KnowledgeState } from '../../api'
+import { cancelVoiceJob, correctWordSense, createCardCandidate, loadKnowledgeStates, loadVoiceJob, lookupDictionary, recordActivityMetric, recordLearningEvents, startVoiceJob } from '../../api'
+import type { KnowledgeState, WordCorrection } from '../../api'
 import { db, loadChapterDetails, syncRecords } from '../../db'
 import type {
   Annotation,
@@ -455,6 +455,25 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
     onNotice('已加入卡片收件箱。')
   }
 
+  async function requestCorrection(hint: string, signal: AbortSignal) {
+    if (!selectedToken || !selectedSentence) throw new Error('请先选择词语')
+    return correctWordSense(selectedSentence, selectedToken, lexeme?.senses_zh ?? [], hint, signal)
+  }
+
+  async function acceptCorrection(result: WordCorrection) {
+    if (!selectedToken || result.context_sense.token_id !== selectedToken.id) throw new Error('所选词语已变化，请重新生成')
+    const next: Lexeme = { ...result.lexeme, key: selectedToken.lexemeKey,
+      firstKana: selectedToken.reading[0] || '未', correctedByUser: true, updatedAt: Date.now() }
+    await syncRecords({ lexemes: [next], contextSenses: [result.context_sense] })
+    await db.transaction('rw', [db.lexemes, db.contextSenses], async () => {
+      await db.lexemes.put(next)
+      await db.contextSenses.put(result.context_sense)
+    })
+    setContextSenses((current) => [...current.filter((value) => value.token_id !== selectedToken.id), result.context_sense])
+    setLexemesByToken((current) => ({ ...current, [selectedToken.id]: next }))
+    onNotice('已修正本句语境义，并保存词义到个人词库。')
+  }
+
   async function explainCurrentSentence(annotationMode: 'none' | 'grammar' = 'none') {
     if (!selectedSentence || explaining) return
     assistedSentenceIdsRef.current.add(selectedSentence.id)
@@ -668,7 +687,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
             </div>
             {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
             {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
-            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} knowledge={knowledgeStates[`vocabulary:${selectedToken.lexemeKey}`]} assistanceMode={assistanceMode} assistanceLevel={assistanceLevel(selectedToken)} forced={forcedAssistanceRef.current.has(selectedToken.lexemeKey)} onSave={saveLexeme} onAddCard={addCurrentCard} />}
+            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} knowledge={knowledgeStates[`vocabulary:${selectedToken.lexemeKey}`]} assistanceMode={assistanceMode} assistanceLevel={assistanceLevel(selectedToken)} forced={forcedAssistanceRef.current.has(selectedToken.lexemeKey)} onSave={saveLexeme} onAddCard={addCurrentCard} onAiCorrect={requestCorrection} onAcceptCorrection={acceptCorrection} />}
             {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>语法句法</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>语法结构</span><strong>{note.structure || note.quote}</strong><small className="annotation-quote" lang="ja">{note.quote}</small><p>{note.explanation_zh}</p></div>)}</section>}
           </>
         ) : <p className="muted">选择一个句子开始冰读。</p>}
@@ -678,14 +697,41 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   )
 }
 
-function DictionaryCard({ token, lexeme, contextGloss, knowledge, assistanceMode, assistanceLevel, forced, onSave, onAddCard }: {
+function DictionaryCard({ token, lexeme, contextGloss, knowledge, assistanceMode, assistanceLevel, forced, onSave, onAddCard, onAiCorrect, onAcceptCorrection }: {
   token: Token; lexeme: Lexeme | null; contextGloss: string
   knowledge?: KnowledgeState; assistanceMode: 'auto' | 'always' | 'challenge'; assistanceLevel: number; forced: boolean
   onSave: (senses: string[]) => void
   onAddCard: () => Promise<void>
+  onAiCorrect: (hint: string, signal: AbortSignal) => Promise<WordCorrection>
+  onAcceptCorrection: (result: WordCorrection) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
+  const [correcting, setCorrecting] = useState(false)
+  const [correctionHint, setCorrectionHint] = useState('')
+  const [correctionResult, setCorrectionResult] = useState<WordCorrection | null>(null)
+  const [correctionBusy, setCorrectionBusy] = useState(false)
+  const [correctionError, setCorrectionError] = useState('')
+  const correctionAbort = useRef<AbortController | null>(null)
+  useEffect(() => {
+    correctionAbort.current?.abort()
+    setCorrecting(false); setCorrectionHint(''); setCorrectionResult(null); setCorrectionBusy(false); setCorrectionError('')
+    return () => correctionAbort.current?.abort()
+  }, [token.id])
+  async function generateCorrection() {
+    const controller = new AbortController(); correctionAbort.current?.abort(); correctionAbort.current = controller
+    setCorrectionBusy(true); setCorrectionError(''); setCorrectionResult(null)
+    try { const result = await onAiCorrect(correctionHint, controller.signal); if (!controller.signal.aborted) setCorrectionResult(result) }
+    catch (error) { if (!controller.signal.aborted) setCorrectionError(error instanceof Error ? error.message : String(error)) }
+    finally { if (!controller.signal.aborted) setCorrectionBusy(false) }
+  }
+  async function saveCorrection() {
+    if (!correctionResult) return
+    setCorrectionBusy(true); setCorrectionError('')
+    try { await onAcceptCorrection(correctionResult); setCorrecting(false); setCorrectionResult(null) }
+    catch (error) { setCorrectionError(error instanceof Error ? error.message : String(error)) }
+    finally { setCorrectionBusy(false) }
+  }
   const [wordVoice, setWordVoice] = useState<VoiceJob | null>(null)
   const wordVoiceAbortRef = useRef<AbortController | null>(null)
   const wordVoiceJobIdRef = useRef<string | null>(null)
@@ -745,9 +791,16 @@ function DictionaryCard({ token, lexeme, contextGloss, knowledge, assistanceMode
       {wordVoice?.status === 'failed' && <small className="voice-status failed">{wordVoice.message}</small>}
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
-        <div className="section-title"><h3>日中词典</h3><button className="text-button" onClick={() => setEditing(!editing)}>{editing ? '取消' : '修正'}</button></div>
+        <div className="section-title"><h3>日中词典</h3><div><button className="text-button" onClick={() => { setCorrecting(true); setEditing(false) }}>AI 修正释义</button><button className="text-button" onClick={() => setEditing(!editing)}>{editing ? '取消' : '修正'}</button></div></div>
         {editing ? <><textarea value={value} onChange={(event) => setValue(event.target.value)} rows={4} /><button className="button primary small" onClick={() => { void onSave(value.split('\n').map((x) => x.trim()).filter(Boolean)); setEditing(false) }}>保存到个人词库</button></> : <>{lexeme?.senses_zh.length ? <ol>{lexeme.senses_zh.map((sense, index) => <li key={index}>{sense}</li>)}</ol> : <p className="muted">本地词典未命中。点击“释义本句”后由 AI 补充并保存到个人词库。</p>}<small className="source">来源：{lexeme?.source ?? '等待释义'}</small></>}
       </div>
+      {correcting && <div className="word-correction">
+        <label>指出错误或补充正确含义（可选）<textarea value={correctionHint} maxLength={1000} disabled={correctionBusy} onChange={(event) => setCorrectionHint(event.target.value)} placeholder="例如：这里是「目にする」，表示看见，不是第几次。" rows={3} /></label>
+        <small className="muted">AI 会结合原句重新判断。生成需要使用你设置的 AI 服务，确认后才保存。</small>
+        {correctionResult && <div className="context-gloss"><small>修正预览 · 本句语境义</small><p>{correctionResult.context_sense.gloss_zh}</p><small>个人词库词义</small><ol>{correctionResult.lexeme.senses_zh.map((sense, index) => <li key={index}>{sense}</li>)}</ol></div>}
+        {correctionError && <p role="alert" className="voice-status failed">{correctionError}</p>}
+        <div className="dictionary-actions"><button className="button small" disabled={correctionBusy} onClick={() => void generateCorrection()}>{correctionBusy ? '处理中…' : correctionResult ? '重新生成' : '生成修正'}</button>{correctionResult && <button className="button primary small" disabled={correctionBusy} onClick={() => void saveCorrection()}>确认保存</button>}<button className="text-button" disabled={correctionBusy && !!correctionResult} onClick={() => { correctionAbort.current?.abort(); setCorrectionBusy(false); setCorrecting(false); setCorrectionResult(null) }}>取消</button></div>
+      </div>}
       <div className="assistance-explanation"><small>辅助依据</small><p>{forced ? '你刚刚主动查询了这个词，本句内会保留完整辅助并记录为一次学习证据。' : assistanceMode === 'always' ? '当前选择始终显示辅助。' : assistanceMode === 'challenge' ? '挑战模式已隐藏自动辅助。' : !knowledge || knowledge.confidence < .2 ? '学习证据还不充分，暂时保留完整辅助。' : assistanceLevel >= 2 ? `熟练度约 ${Math.round(knowledge.mastery * 100)}%，继续显示读音和释义提示。` : assistanceLevel === 1 ? `熟练度约 ${Math.round(knowledge.mastery * 100)}%，辅助已减弱。` : `熟练度约 ${Math.round(knowledge.mastery * 100)}%，当前词已自动隐藏辅助。`}</p></div>
     </section>
   )

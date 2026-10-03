@@ -114,6 +114,30 @@ async function api(page, url, options) {
   await page.getByRole('button', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '继续阅读', exact: true }).click()
   await page.locator(`[data-sentence-id="${sentence.id}"].selected`).waitFor()
+  await page.locator(`[data-sentence-id="${sentence.id}"] .token.content`).first().click()
+  await page.getByRole('button', { name: 'AI 修正释义', exact: true }).click()
+  await page.locator('.word-correction textarea').fill('测试修正提示')
+  await page.evaluate(() => {
+    const originalFetch = window.fetch.bind(window)
+    window.fetch = async (input, init) => {
+      if (String(input) === '/api/words/correct') {
+        const body = JSON.parse(init.body)
+        return new Response(JSON.stringify({ context_sense: { token_id: body.token.id, gloss_zh: '本句修正语境义' },
+          lexeme: { key: body.token.lexemeKey, lemma: body.token.lemma, reading: body.token.reading,
+            part_of_speech: body.token.part_of_speech, senses_zh: ['修正词义'], source: 'AI 修正（用户确认）' } }), { headers: { 'Content-Type': 'application/json' } })
+      }
+      return originalFetch(input, init)
+    }
+  })
+  await page.getByRole('button', { name: '生成修正', exact: true }).click()
+  await page.locator('.word-correction .context-gloss').waitFor()
+  assert.ok((await page.locator('.word-correction').innerText()).includes('本句修正语境义'))
+  // Preview must not persist before the user confirms.
+  assert.equal((await api(page, '/api/library/lexemes?q=' + encodeURIComponent('修正词义'))).value.total, 0)
+  await page.getByRole('button', { name: '确认保存', exact: true }).click()
+  await page.locator('.word-correction').waitFor({ state: 'hidden' })
+  assert.ok((await page.locator('.dictionary-card .context-gloss').innerText()).includes('本句修正语境义'))
+  assert.equal((await api(page, '/api/library/lexemes?q=' + encodeURIComponent('修正词义'))).value.total, 1)
   await instance.close(); instance = null
   assert.throws(() => process.kill(runtime.backendPid, 0), 'sidecar must stop after client exits')
   page = await launch()

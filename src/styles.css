@@ -582,3 +582,8 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .lexeme-bulk { display: grid; grid-template-columns: auto minmax(100px,1fr) auto auto minmax(150px,1.5fr) auto auto; align-items: center; gap: 6px; margin-bottom: 9px; padding: 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }.lexeme-bulk input,.lexeme-bulk button { min-width: 0; border: 1px solid var(--line); border-radius: 4px; background: white; padding: 6px 8px; }.lexeme-bulk button { color: var(--accent-strong); cursor: pointer; }
 @media (max-width: 900px) { .lexicon-manager .data-tools { grid-template-columns: 1fr 1fr; }.lexicon-layout { grid-template-columns: 105px minmax(0,1fr); }.lexeme-bulk { grid-template-columns: 1fr 1fr; }.sync-action-grid span:nth-of-type(1) { margin-left: 0; } }
 @media (max-width: 640px) { .cloud-endpoint,.lexicon-layout { grid-template-columns: 1fr; }.kana-tree { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 10px; max-height: 200px; overflow: auto; }.lexicon-manager .data-tools { grid-template-columns: 1fr; } }
+
+.word-correction { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; }
+.word-correction label { display: block; font-size: 13px; }
+.word-correction textarea { width: 100%; box-sizing: border-box; margin: 8px 0; }
+.word-correction .dictionary-actions { margin-top: 12px; flex-wrap: wrap; }

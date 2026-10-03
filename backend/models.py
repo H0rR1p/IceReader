@@ -172,6 +172,19 @@ class ExplainBatchItem(BaseModel):
     tokens: list[TokenOut]
 
 
+class CorrectWordRequest(BaseModel):
+    sentence: SentenceOut
+    token: TokenOut
+    current_senses: list[str] = Field(default_factory=list, max_length=20)
+    hint: str = Field(default="", max_length=1000)
+    settings: AiSettings = Field(default_factory=AiSettings)
+
+
+class CorrectWordResponse(BaseModel):
+    context_sense: ContextSenseOut
+    lexeme: LexemeOut
+
+
 class ExplainBatchRequest(BaseModel):
     items: list[ExplainBatchItem] = Field(min_length=1, max_length=12)
     annotation_mode: Literal["none", "grammar"] = "none"

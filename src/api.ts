@@ -239,6 +239,14 @@ export async function explainSentence(
   return parseResponse(response)
 }
 
+export type WordCorrection = { context_sense: { token_id: string; gloss_zh: string }; lexeme: Omit<Lexeme, 'firstKana' | 'updatedAt'> }
+export async function correctWordSense(sentence: Sentence, token: Token, currentSenses: string[], hint: string, signal?: AbortSignal): Promise<WordCorrection> {
+  return parseResponse(await fetch('/api/words/correct', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+    body: JSON.stringify({ sentence, token, current_senses: currentSenses.slice(0, 20), hint }),
+  }))
+}
+
 export async function explainSentences(
   items: Array<{ sentence: Sentence; tokens: Token[] }>,
   settings: ApiSettings,

@@ -178,6 +178,8 @@ def _result_for_sentence(
         if isinstance(row, list) and len(row) >= 3
     }
     context_senses: list[ContextSenseOut] = []
+    known_contexts = {str(row[0]): str(row[1]).strip() for row in enriched.get("contexts", [])
+                      if isinstance(row, list) and len(row) >= 2 and isinstance(row[1], str)}
     lexemes: dict[str, LexemeOut] = {}
     warnings: list[str] = []
     for token in (content_tokens if annotation_mode != "grammar" and detail_mode == "full" else []):
@@ -185,9 +187,11 @@ def _result_for_sentence(
         ai_row = sense_rows.get(token.id, {})
         if entry and entry.get("senses_zh"):
             senses = [str(value).strip() for value in entry["senses_zh"] if str(value).strip()]
-            gloss = senses[0] if senses else ""
+            gloss = known_contexts.get(token.id, "")
             if gloss:
                 context_senses.append(ContextSenseOut(token_id=token.id, gloss_zh=gloss))
+            else:
+                warnings.append(f"{token.surface} 未获得语境义；已有词典义仅供参考")
             key = lexeme_key(token.lemma, token.reading, token.part_of_speech)
             lexemes[key] = LexemeOut(
                 key=key, lemma=token.lemma, reading=token.reading, part_of_speech=token.part_of_speech,
@@ -314,6 +318,9 @@ async def _explain_batch(
             "unknown": [
                 [token.lemma, token.reading, token.part_of_speech, token.surface] for token in unresolved
             ],
+            "known": [[token.lemma, token.reading, token.part_of_speech, token.surface,
+                       (entries[token.id] or {}).get("senses_zh", [])[:3]]
+                      for token in content_tokens if entries.get(token.id)],
             "annotation_mode": request.annotation_mode,
             "detail_mode": request.detail_mode,
             "context_before": request.context_before,
@@ -336,11 +343,17 @@ async def _explain_batch(
                 restored_words.append([token.id, word[1], word[2]])
             cached_rows[item.sentence.id] = {
                 **cached, "id": item.sentence.id, "words": restored_words,
+                "contexts": [[content_tokens[row[0]].id, row[1]] for row in cached.get("contexts", [])
+                             if isinstance(row, list) and len(row) >= 2 and isinstance(row[0], int)
+                             and 0 <= row[0] < len(content_tokens)],
             }
         else:
             misses.append({
                 "sentence": item.sentence.model_dump(),
                 "unresolved_tokens": [token.model_dump() for token in unresolved],
+                "known_tokens": [[token.id, token.surface, token.lemma, token.reading, token.part_of_speech,
+                                  entries[token.id]["senses_zh"][:3]]
+                                 for token in content_tokens if entries.get(token.id)],
             })
 
     try:
@@ -371,7 +384,10 @@ async def _explain_batch(
                 for word in row.get("words", [])
                 if isinstance(word, list) and len(word) >= 3 and word[0] in token_indexes
             ]
-            cache_payload = {**row, "id": "cached", "words": cache_words}
+            context_indexes = {token.id: index for index, token in enumerate(token for token in item.tokens if token.is_content)}
+            cache_contexts = [[context_indexes[value[0]], value[1]] for value in row.get("contexts", [])
+                              if isinstance(value, list) and len(value) >= 2 and value[0] in context_indexes]
+            cache_payload = {**row, "id": "cached", "words": cache_words, "contexts": cache_contexts}
             set_cached_response(
                 user_id, prepared_item["cache_key"], "sentence", model, PROMPT_VERSION, cache_payload,
             )
