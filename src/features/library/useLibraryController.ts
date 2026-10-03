@@ -92,6 +92,7 @@ export function useLibraryController(onNotice: (message: string) => void) {
         .find((block) => block.type === 'image' && block.asset_url)?.asset_url ?? undefined,
       createdAt: now,
       updatedAt: now,
+      showImages: false,
     }
     const chapterIdMap = new Map(imported.chapters.map((chapter) => [chapter.id, `${bookId}:${chapter.id}`]))
     const sentenceIdMap = new Map(imported.chapters.flatMap((chapter) =>

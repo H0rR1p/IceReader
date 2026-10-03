@@ -5,7 +5,7 @@ import type { BackgroundJob } from '../translation/pipeline'
 import Reader from './Reader'
 
 
-export default function Workspace({ userId, book, activeChapter, loadingChapterId, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onCancelBackground, onNotice }: {
+export default function Workspace({ userId, book, activeChapter, loadingChapterId, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onCancelBackground, onBookImageVisibility, onNotice }: {
   userId: string
   book: Book
   activeChapter: Chapter | null
@@ -18,6 +18,7 @@ export default function Workspace({ userId, book, activeChapter, loadingChapterI
   onBackgroundBook: (kind: BackgroundJob['kind']) => void
   onBackgroundChapter: (kind: BackgroundJob['kind'], chapter: Chapter) => void
   onCancelBackground: () => void
+  onBookImageVisibility: (book: Book, visible: boolean) => Promise<void>
   onNotice: (message: string) => void
 }) {
   const [chapters, setChapters] = useState<Chapter[]>([])
@@ -75,6 +76,10 @@ export default function Workspace({ userId, book, activeChapter, loadingChapterI
             <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('segment')}>后台切分全书</button>
             <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('translate')}>后台翻译全书</button>
           </div>
+          <label className="reader-image-toggle">
+            <input type="checkbox" checked={showBookImages} onChange={(event) => void onBookImageVisibility(book, event.target.checked).catch((error) => onNotice(error instanceof Error ? error.message : String(error)))} />
+            <span><strong>显示全书插图</strong><small>换章后继续沿用</small></span>
+          </label>
           {backgroundJob && <BackgroundProgress job={backgroundJob} onCancel={onCancelBackground} />}
           <div className="nav-mode-tabs" role="tablist" aria-label="左侧栏模式">
             <button className={navMode === 'chapters' ? 'active' : ''} onClick={() => setNavMode('chapters')}>目录</button>
