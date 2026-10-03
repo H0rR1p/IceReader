@@ -175,3 +175,58 @@ def test_transfer_cards_reviews_learning_and_time_without_credentials(tmp_path, 
         assert connection.execute("SELECT COUNT(*) FROM review_logs WHERE user_id='target'").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM learning_events WHERE user_id='target'").fetchone()[0] == 1
         assert connection.execute("SELECT active_seconds FROM daily_learning_stats WHERE user_id='target'").fetchone()[0] == 180
+
+
+@pytest.mark.parametrize("selection", [["a"], ["a", "b"]])
+def test_selected_book_share_keeps_analysis_and_excludes_private_data(tmp_path, monkeypatch, selection):
+    library = tmp_path / "library.sqlite3"
+    statements = [
+        ("CREATE TABLE records(owner_user_id TEXT,table_name TEXT,record_key TEXT,payload TEXT,PRIMARY KEY(owner_user_id,table_name,record_key))", ()),
+        ("CREATE TABLE user_library_items(user_id TEXT,book_id TEXT,metadata_json TEXT,created_at REAL,updated_at REAL,PRIMARY KEY(user_id,book_id))", ())]
+    for owner, book in [("source", "a"), ("source", "b"), ("source", "c"), ("other", "foreign")]:
+        resource = {"a": "a", "b": "b", "c": "c", "foreign": "d"}[book] * 20
+        rows = [
+            ("books", book, {"id": book, "title": book, "currentSentenceId": "private-position", "collectionName": "private-group", "coverUrl": f"/api/assets/{resource}/cover.png"}),
+            ("chapters", f"ch-{book}", {"id": f"ch-{book}", "bookId": book, "status": "local-ready", "text": "猫。未翻译。"}),
+            ("sentences", f"s-{book}", {"id": f"s-{book}", "chapter_id": f"ch-{book}", "original": "猫。", "translation_zh": "猫。", "explanation_detail": "full"}),
+            ("sentences", f"pending-{book}", {"id": f"pending-{book}", "chapter_id": f"ch-{book}", "original": "未翻译。", "translation_zh": "", "explanation_status": "idle"}),
+            ("tokens", f"t-{book}", {"id": f"t-{book}", "sentence_id": f"s-{book}", "surface": "猫", "lexemeKey": f"lex-{book}"}),
+            ("contextSenses", f"t-{book}", {"token_id": f"t-{book}", "gloss_zh": "猫"}),
+            ("annotations", f"ann-{book}", {"id": f"ann-{book}", "sentence_id": f"s-{book}", "structure": "名词句"}),
+            ("lexemes", f"lex-{book}", {"key": f"lex-{book}", "senses_zh": ["猫"], "groups": ["private-group"]})]
+        statements.extend(("INSERT INTO records VALUES(?,?,?,?)", (owner, table, key, json.dumps(value))) for table,key,value in rows)
+        asset = tmp_path / "books" / resource / "cover.png"
+        asset.parent.mkdir(parents=True); asset.write_bytes(book.encode())
+    statements.append(("INSERT INTO records VALUES(?,?,?,?)", ("source", "lexemes", "unrelated", json.dumps({"key":"unrelated","senses_zh":["private-word"]}))))
+    _database(library, statements)
+    monkeypatch.setattr(service, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(service, "DATABASE_SPECS", {"library": {"path":library,"tables":{"records":"owner_user_id"}}})
+    # Sharing must not read all account learning/preferences tables.
+    monkeypatch.setattr(service, "_export_payload", lambda *_: (_ for _ in ()).throw(AssertionError("share reads private account data")))
+    package = service.create_book_transfer("source", tmp_path / "share.zip", selection)
+    with zipfile.ZipFile(package) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        payload = json.loads(archive.read("data.json"))
+        assert manifest["purpose"] == "book-share"
+        assert manifest["book_count"] == len(selection)
+        assert payload["learning"] == {}
+        assert all(not rows for rows in payload["library_data"].values())
+        assert "private-" not in archive.read("data.json").decode()
+        assert {row["record_key"] for row in payload["records"] if row["table_name"]=="books"} == set(selection)
+        assert not any('c'*20 in name or 'd'*20 in name for name in archive.namelist())
+    result = service.import_book_transfer("target", package)
+    assert result["imported_books"] == len(selection)
+    assert result["imported_cards"] == 0
+    assert result["imported_learning_records"] == 0
+    with sqlite3.connect(library) as c:
+        records = {(table,key):json.loads(encoded) for table,key,encoded in c.execute("SELECT table_name,record_key,payload FROM records WHERE owner_user_id='target'")}
+    for book in selection:
+        assert records[("sentences",f"s-{book}")]["translation_zh"] == "猫。"
+        assert records[("sentences",f"pending-{book}")]["explanation_status"] == "idle"
+        assert records[("chapters",f"ch-{book}")]["status"] == "local-ready"
+        assert records[("contextSenses",f"t-{book}")]["gloss_zh"] == "猫"
+        assert records[("annotations",f"ann-{book}")]["structure"] == "名词句"
+    assert service.import_book_transfer("target", package)["skipped_books"] == len(selection)
+    for invalid in [[], ["foreign"], ["a", "missing"]]:
+        with pytest.raises(ValueError):
+            service.create_book_transfer("source", tmp_path / "invalid.zip", invalid)

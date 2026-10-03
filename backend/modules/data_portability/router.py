@@ -7,12 +7,28 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
+from pydantic import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from .service import create_backup, create_book_transfer, import_book_transfer, restore_backup, save_upload
 
 
 router = APIRouter(prefix="/api/data", tags=["data-portability"])
+
+
+class BookShareRequest(BaseModel):
+    book_ids: list[str] = Field(min_length=1, max_length=1000)
+
+
+@router.post("/book-share")
+async def download_book_share(request: BookShareRequest, context: RequestContext = Depends(current_request_context)) -> FileResponse:
+    try:
+        path = await asyncio.to_thread(create_book_transfer, context.user_id, None, request.book_ids)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return FileResponse(path, media_type="application/zip",
+        filename=f"冰读书籍分享包-{len(set(request.book_ids))}本-{time.strftime('%Y%m%d-%H%M%S')}.zip",
+        background=BackgroundTask(path.unlink, missing_ok=True))
 
 
 @router.get("/backup")
@@ -52,6 +68,7 @@ async def download_book_transfer(context: RequestContext = Depends(current_reque
 
 
 @router.post("/book-transfer/import")
+@router.post("/book-share/import")
 async def upload_book_transfer(
     file: UploadFile = File(...),
     context: RequestContext = Depends(current_request_context),

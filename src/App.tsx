@@ -94,7 +94,7 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
     <div className="app-page-column">
       {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice('')}>×</button></div>}
       <Suspense fallback={<section className="page-loading" aria-live="polite"><div className="loading-dango" /><span>正在打开页面…</span></section>}>
-        {page === 'library' && <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} onSaveCollection={saveBookCollection} onDissolveCollection={dissolveBookCollection} />}
+        {page === 'library' && <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} onSaveCollection={saveBookCollection} onDissolveCollection={dissolveBookCollection} onNotice={setNotice} onRefresh={refreshBooks} />}
         {page === 'dictionary' && <LexiconManagerPage />}
         {page === 'cards' && <CardCenterPage onNotice={setNotice} onStartReview={() => setPage('review')} />}
         {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} />}

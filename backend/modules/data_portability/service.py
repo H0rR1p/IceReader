@@ -174,14 +174,26 @@ def _book_records(user_id: str, allowed_book_ids: set[str] | None = None) -> lis
     return [row for row in books if str(row["record_key"]) in book_ids] + chapters + sentences + tokens + annotations + context_senses + lexemes
 
 
-def create_book_transfer(user_id: str, destination: Path | None = None) -> Path:
+def create_book_transfer(user_id: str, destination: Path | None = None, book_ids: list[str] | None = None) -> Path:
+    sharing = book_ids is not None
+    records = _book_records(user_id, set(book_ids) if sharing else None)
+    selected_book_ids = {str(row["record_key"]) for row in records if row["table_name"] == "books"}
+    if sharing and (not selected_book_ids or selected_book_ids != set(book_ids)):
+        raise ValueError("所选书籍不存在或不属于当前账号，请刷新书架后重试")
     transfer_dir = DATA_DIR / "backups"
     transfer_dir.mkdir(parents=True, exist_ok=True)
     if destination is None:
         destination = transfer_dir / f".book-transfer-{uuid.uuid4().hex}.zip"
-    records = _book_records(user_id)
-    book_ids = {str(row["record_key"]) for row in records if row["table_name"] == "books"}
-    exported = _export_payload(user_id)["databases"]
+    book_ids = selected_book_ids
+    exported = {} if sharing else _export_payload(user_id)["databases"]
+    if sharing:
+        for row in records:
+            if row["table_name"] == "books":
+                row["payload"] = {key: value for key, value in row["payload"].items()
+                                  if key not in {"currentChapterId", "currentSentenceId", "lastOpenedAt", "collectionId", "collectionName"}}
+                row["payload"]["showImages"] = False
+            elif row["table_name"] == "lexemes":
+                row["payload"].pop("groups", None)
     # Include personal vocabulary even if it is no longer referenced by a book.
     known = {(row["table_name"], row["record_key"]) for row in records}
     for row in exported.get("library", {}).get("records", []):
@@ -210,6 +222,7 @@ def create_book_transfer(user_id: str, destination: Path | None = None) -> Path:
                     _add_file(archive, source, f"files/custom-covers/{source.name}", checksums)
         manifest = {
             "format": "bingdu-book-transfer", "schema_version": BOOK_TRANSFER_SCHEMA_VERSION,
+            "purpose": "book-share" if sharing else "account-migration",
             "created_at": time.time(), "book_count": len(book_ids), "files": checksums,
         }
         archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"))

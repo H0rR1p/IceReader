@@ -506,8 +506,10 @@ export async function restoreFullBackup(file: File): Promise<{ restored_rows: nu
   return parseResponse(await fetch('/api/data/restore', { method: 'POST', body: form }))
 }
 
-export async function downloadBookTransfer(): Promise<void> {
-  const response = await fetch('/api/data/book-transfer')
+export async function downloadBookTransfer(bookIds?: string[]): Promise<void> {
+  const response = bookIds ? await fetch('/api/data/book-share', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_ids: bookIds }),
+  }) : await fetch('/api/data/book-transfer')
   if (!response.ok) throw new Error((await response.text()) || '无法创建书籍迁移包')
   const blob = await response.blob()
   const disposition = response.headers.get('Content-Disposition') ?? ''
