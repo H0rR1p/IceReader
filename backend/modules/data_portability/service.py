@@ -11,10 +11,11 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ...paths import DATA_DIR
+from .learning_transfer import LEARNING_TABLES, merge_learning, validate_learning
 
 
 BACKUP_SCHEMA_VERSION = 1
-BOOK_TRANSFER_SCHEMA_VERSION = 1
+BOOK_TRANSFER_SCHEMA_VERSION = 2
 MAX_BACKUP_BYTES = 2 * 1024 * 1024 * 1024
 RESOURCE_PATTERN = re.compile(r"/api/assets/([0-9a-f]{20})(?:/|$)")
 BOOK_RECORD_TABLES = {"books", "chapters", "sentences", "tokens", "annotations", "contextSenses", "lexemes"}
@@ -180,7 +181,15 @@ def create_book_transfer(user_id: str, destination: Path | None = None) -> Path:
         destination = transfer_dir / f".book-transfer-{uuid.uuid4().hex}.zip"
     records = _book_records(user_id)
     book_ids = {str(row["record_key"]) for row in records if row["table_name"] == "books"}
-    payload = {"source_user_id": user_id, "records": records}
+    exported = _export_payload(user_id)["databases"]
+    # Include personal vocabulary even if it is no longer referenced by a book.
+    known = {(row["table_name"], row["record_key"]) for row in records}
+    for row in exported.get("library", {}).get("records", []):
+        if row["table_name"] == "lexemes" and ("lexemes", row["record_key"]) not in known:
+            records.append({"table_name": "lexemes", "record_key": row["record_key"], "payload": json.loads(row["payload"])})
+    payload = {"source_user_id": user_id, "records": records,
+               "library_data": {name: exported.get("library", {}).get(name, []) for name in ("user_book_progress", "user_bookmarks")},
+               "learning": {name: rows for name, rows in exported.get("learning", {}).items() if name in LEARNING_TABLES}}
     payload_bytes = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     checksums = {"data.json": hashlib.sha256(payload_bytes).hexdigest()}
     encoded_payloads = [json.dumps(row["payload"], ensure_ascii=False) for row in records]
@@ -255,7 +264,7 @@ def _validate_book_transfer(path: Path) -> tuple[dict, dict]:
         if "manifest.json" not in names or "data.json" not in names:
             raise ValueError("这不是冰读书籍迁移包")
         manifest = json.loads(archive.read("manifest.json"))
-        if manifest.get("format") != "bingdu-book-transfer" or int(manifest.get("schema_version", 0)) != BOOK_TRANSFER_SCHEMA_VERSION:
+        if manifest.get("format") != "bingdu-book-transfer" or int(manifest.get("schema_version", 0)) not in {1, BOOK_TRANSFER_SCHEMA_VERSION}:
             raise ValueError("书籍迁移包格式或版本不受支持")
         checksums = manifest.get("files", {})
         if not isinstance(checksums, dict) or any(name != "manifest.json" and name not in checksums for name in names):
@@ -275,6 +284,12 @@ def _validate_book_transfer(path: Path) -> tuple[dict, dict]:
     for row in payload["records"]:
         if not isinstance(row, dict) or row.get("table_name") not in BOOK_RECORD_TABLES or not isinstance(row.get("record_key"), str) or not row["record_key"] or not isinstance(row.get("payload"), dict):
             raise ValueError("迁移包包含不支持的数据记录")
+    validate_learning(payload.get("learning", {}))
+    library_data = payload.get("library_data", {})
+    if not isinstance(library_data, dict) or any(name not in {"user_book_progress", "user_bookmarks"} for name in library_data):
+        raise ValueError("迁移包书库数据格式错误")
+    if any(not isinstance(rows, list) or len(rows) > 2_000_000 or any(not isinstance(row, dict) for row in rows) for rows in library_data.values()):
+        raise ValueError("迁移包书库记录格式错误")
     return manifest, payload
 
 
@@ -301,6 +316,8 @@ def import_book_transfer(user_id: str, archive_path: Path) -> dict[str, int]:
         }
     imported_book_ids = package_book_ids - existing_book_ids
     selected = _select_transfer_records(records, imported_book_ids)
+    selected_keys = {(row["table_name"], row["record_key"]) for row in selected}
+    selected.extend(row for row in records if row["table_name"] == "lexemes" and ("lexemes", row["record_key"]) not in selected_keys)
     encoded_payloads = [json.dumps(row["payload"], ensure_ascii=False) for row in selected]
     resource_keys = {match.group(1) for value in encoded_payloads for match in RESOURCE_PATTERN.finditer(value)}
     with zipfile.ZipFile(archive_path) as archive:
@@ -322,7 +339,15 @@ def import_book_transfer(user_id: str, archive_path: Path) -> dict[str, int]:
             temporary.replace(target)
     imported_records = 0
     now = time.time()
+    learning_counts = {"imported_cards": 0, "imported_learning_records": 0}
     with sqlite3.connect(path) as connection:
+        connection.execute("PRAGMA foreign_keys=ON")
+        learning_path = Path(DATABASE_SPECS.get("learning", {}).get("path", DATA_DIR / "learning.sqlite3"))
+        if payload.get("learning"):
+            if not learning_path.is_file():
+                raise ValueError("目标服务学习数据库尚未初始化")
+            connection.execute("ATTACH DATABASE ? AS learning", (str(learning_path),))
+            learning_counts = merge_learning(connection, payload["learning"], source_user_id, user_id)
         for row in selected:
             clean_payload = _rewrite_transfer_payload(row["payload"], source_user_id, user_id)
             record_key = str(row["record_key"])
@@ -340,10 +365,24 @@ def import_book_transfer(user_id: str, archive_path: Path) -> dict[str, int]:
                     "INSERT OR IGNORE INTO user_library_items(user_id,book_id,metadata_json,created_at,updated_at) VALUES(?,?,?,?,?)",
                     (user_id, record_key, json.dumps(metadata, ensure_ascii=False, separators=(",", ":")), created_at, updated_at),
                 )
+        for table, rows in payload.get("library_data", {}).items():
+            if not _table_exists(connection, table):
+                if rows:
+                    raise ValueError(f"目标服务尚未支持书库数据表：{table}")
+                continue
+            columns = {row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')}
+            for row in rows:
+                if row.get("book_id") not in package_book_ids:
+                    continue
+                clean = {key: value for key, value in row.items() if key in columns}
+                clean["user_id"] = user_id
+                names = list(clean)
+                connection.execute(f'INSERT OR IGNORE INTO "{table}" ({",".join(names)}) VALUES ({",".join("?" for _ in names)})', list(clean.values()))
     return {
         "imported_books": len(imported_book_ids),
         "skipped_books": len(package_book_ids - imported_book_ids),
         "imported_records": imported_records,
+        **learning_counts,
     }
 
 
