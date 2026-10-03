@@ -7,7 +7,7 @@ const http = require('node:http')
 const { Readable } = require('node:stream')
 
 app.setName('IceReader')
-if (process.env.BINGDU_DESKTOP_USER_DATA) app.setPath('userData', process.env.BINGDU_DESKTOP_USER_DATA)
+app.setPath('userData', process.env.BINGDU_DESKTOP_USER_DATA || path.join(app.getPath('appData'), 'IceReader'))
 protocol.registerSchemesAsPrivileged([{ scheme: 'bingdu', privileges: {
   standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true,
 } }])
@@ -62,8 +62,14 @@ async function startBackend() {
   const legacyCandidates = process.env.BINGDU_LEGACY_DATA_DIR !== undefined ? [process.env.BINGDU_LEGACY_DATA_DIR] : [
     path.join(path.dirname(app.getPath('exe')), 'data'),
     !app.isPackaged && path.join(root, 'data'),
-    !app.isPackaged && path.join(root, 'build', 'release', '冰读', 'data')].filter(Boolean)
-  const legacy = legacyCandidates.find(value => fs.existsSync(path.join(value, 'library.sqlite3')))
+    !app.isPackaged && path.join(root, 'build', 'release', '冰读', 'data'),
+    app.isPackaged && path.resolve(path.dirname(app.getPath('exe')), '../../../data'),
+    app.isPackaged && path.resolve(path.dirname(app.getPath('exe')), '../../release/冰读/data')].filter(Boolean)
+  const modified = directory => Math.max(...['library.sqlite3', 'library.sqlite3-wal'].map(file => {
+    try { return fs.statSync(path.join(directory, file)).mtimeMs } catch { return 0 }
+  }))
+  const legacy = legacyCandidates.filter(value => fs.existsSync(path.join(value, 'library.sqlite3')))
+    .sort((left, right) => modified(right) - modified(left))[0]
   const executable = app.isPackaged ? path.join(process.resourcesPath, 'backend', 'bingdu-service.exe')
     : process.env.BINGDU_PYTHON || path.join(root, '.venv64', 'Scripts', 'python.exe')
   const args = app.isPackaged ? [] : [path.join(root, 'backend', 'desktop_launcher.py')]
