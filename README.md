@@ -133,7 +133,7 @@ npm run desktop:build
 
 在设置 → 数据备份与恢复中下载“跨账号数据迁移包”，然后登录 Online 云端账号，在同一页面载入。版本 2 包含 EPUB 资源、章节、译文、个人词库、阅读进度、书签、卡片、记忆状态、复习记录和学习统计；保留目标账号已有数据，重复导入不会重复增加。迁移包不包含 API Key、密码、会话或云绑定，仍兼容旧版仅书籍迁移包。
 
-`npm run desktop:test` 对真实 Electron 窗口进行功能验收；设置 `BINGDU_TEST_EXECUTABLE` 为目录版路径可验证打包版本。重构设计与阶段验收见 [桌面客户端重构计划书](桌面客户端重构计划书.md)。
+`npm run desktop:test` 对真实 Electron 窗口进行功能验收；设置 `BINGDU_TEST_EXECUTABLE` 为目录版路径可验证打包版本。
 
 ## YMM4 单句配音
 
