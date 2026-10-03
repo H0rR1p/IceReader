@@ -183,6 +183,57 @@ def test_bridge_connection_path_can_be_shared_across_service_accounts(tmp_path, 
     assert voice_service._bridge_connection_path() == shared.resolve()
 
 
+def test_bridge_request_tries_other_desktop_user_descriptor(tmp_path, monkeypatch):
+    stale = tmp_path / "system" / "connection.json"
+    active = tmp_path / "desktop" / "connection.json"
+    stale.parent.mkdir()
+    active.parent.mkdir()
+    stale.write_text(json.dumps({"api_base": "http://127.0.0.1:1", "token": "stale"}), encoding="utf-8")
+    active.write_text(json.dumps({"api_base": "http://127.0.0.1:2", "token": "active"}), encoding="utf-8")
+    monkeypatch.setattr(voice_service, "_bridge_connection_paths", lambda: [stale, active])
+
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *_args): return None
+        def read(self): return b'{"success":true,"app":"bingdu-ymm-bridge","api_version":2}'
+
+    def fake_urlopen(request, timeout):
+        if request.full_url.endswith(":1/status"):
+            raise OSError("stale descriptor")
+        assert request.get_header("X-bingdu-token") == "active"
+        assert timeout == 5.0
+        return Response()
+
+    monkeypatch.setattr(voice_service.urllib.request, "urlopen", fake_urlopen)
+    assert voice_service._bridge_ready() is True
+
+
+def test_bridge_install_does_not_replace_identical_loaded_files(tmp_path, monkeypatch):
+    _paths(tmp_path, monkeypatch)
+    ymm_dir = tmp_path / "ymm"
+    plugin_dir = ymm_dir / "user" / "plugin" / "BingduYmmBridge"
+    plugin_dir.mkdir(parents=True)
+    fake_ymm = ymm_dir / "YukkuriMovieMaker.exe"
+    fake_ymm.write_bytes(b"exe")
+    (ymm_dir / "SoundTouch.Net.dll").write_bytes(b"soundtouch")
+    voice_service.save_voice_settings(USER_ID, VoiceSettingsInput(ymm_path=str(fake_ymm)))
+    voice_service.install_template(USER_ID, _template())
+    bridge_source = tmp_path / "bridge-source"
+    bridge_source.mkdir()
+    files = {"BingduYmmBridge.dll": b"bridge", "BingduYmmBridge.deps.json": b"{}", "SoundTouch.Net.dll": b"soundtouch"}
+    for name, content in files.items():
+        (plugin_dir / name).write_bytes(content)
+        if name != "SoundTouch.Net.dll":
+            (bridge_source / name).write_bytes(content)
+    readiness = iter((False, True))
+    monkeypatch.setattr(voice_service, "resource_path", lambda _: bridge_source)
+    monkeypatch.setattr(voice_service, "_bridge_ready", lambda: next(readiness))
+    monkeypatch.setattr(voice_service.shutil, "copy2", lambda *_args: pytest.fail("identical loaded file was replaced"))
+    monkeypatch.setattr(voice_service.subprocess, "Popen", lambda *args, **kwargs: object())
+
+    voice_service._ensure_bridge(voice_service.get_voice_settings(USER_ID), voice_service._user_paths(USER_ID)[1])
+
+
 def test_trim_float_wave_removes_trailing_silence(tmp_path):
     sample_rate = 1000
     active = [0.1] * 1000
