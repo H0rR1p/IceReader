@@ -58,7 +58,7 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
 
   async function openProvider(providerId: string) {
     setBusy(true); setError('')
-    try { window.location.href = await startCloudOidc(providerId) }
+    try { if (window.bingduDesktop) await window.bingduDesktop.startOidc(providerId); else window.location.href = await startCloudOidc(providerId) }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setBusy(false) }
   }
 

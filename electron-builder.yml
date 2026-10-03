@@ -1,0 +1,31 @@
+appId: io.bingdu.reader
+productName: 冰读
+directories:
+  output: build/desktop-release
+asar: true
+electronDist: node_modules/electron/dist
+files:
+  - desktop/main.cjs
+  - desktop/preload.cjs
+  - desktop/loading.html
+  - public/bingdu-logo.png
+  - package.json
+extraResources:
+  - from: build/desktop-backend/bingdu-service
+    to: backend
+  - from: assets/bingdu.ico
+    to: bingdu.ico
+  - from: THIRD-PARTY-NOTICES.txt
+    to: THIRD-PARTY-NOTICES.txt
+win:
+  icon: assets/bingdu.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  artifactName: IceReader-${version}-Setup.${ext}

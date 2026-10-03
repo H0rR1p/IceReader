@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -12,7 +12,7 @@ internal static class BingduBootstrap
     private static void Main()
     {
         string root = AppDomain.CurrentDomain.BaseDirectory;
-        string executable = Path.Combine(root, "build", "release", "冰读", "冰读.exe");
+        string executable = Path.Combine(root, "build", "desktop-release", "win-unpacked", "冰读.exe");
         if (!File.Exists(executable))
         {
             MessageBox(IntPtr.Zero, "没有找到目录版冰读，请先运行 scripts\\build_windows.ps1。", "冰读启动失败", 0x10);

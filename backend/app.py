@@ -1,4 +1,6 @@
 import asyncio
+import hmac
+import os
 from contextlib import asynccontextmanager
 import time
 import uuid
@@ -106,6 +108,9 @@ async def handle_domain_error(_request: Request, error: DomainError) -> JSONResp
 
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
+    desktop_secret = os.environ.get("BINGDU_DESKTOP_SECRET")
+    if desktop_secret and not hmac.compare_digest(request.headers.get("x-bingdu-desktop-secret", ""), desktop_secret):
+        return JSONResponse(status_code=403, content={"detail": "此服务仅供冰读客户端使用"})
     started_at = time.perf_counter()
     host = (request.url.hostname or "").casefold()
     if host not in ALLOWED_HOSTS:
@@ -163,6 +168,13 @@ async def request_context_middleware(request: Request, call_next):
         "img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; "
         "frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
     )
+    if request.url.path.startswith("/api/assets/") and "/documents/" in request.url.path and request.url.path.endswith(".html"):
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'none'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; font-src 'self'; frame-ancestors 'self'; "
+            "object-src 'none'; base-uri 'none'; form-action 'none'"
+        )
     duration_ms = (time.perf_counter() - started_at) * 1000
     if duration_ms >= 250 or response.status_code >= 400:
         await asyncio.to_thread(

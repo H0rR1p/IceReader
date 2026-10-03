@@ -1,6 +1,6 @@
 # 冰读 · baka都能用的日语学习阅读器
 
-本机运行的 Satori Reader 式日语精读 Web 应用。导入无 DRM EPUB、UTF-8 TXT 或粘贴日文后，应用会生成：
+本机运行的日语学习桌面客户端，使用 Electron 原生窗口、React 界面与 Python 内部服务。main 是桌面版，Online 是公网 Web 版。导入无 DRM EPUB、UTF-8 TXT 或粘贴日文后，应用会生成：
 
 - 词级分割、词典形、读音与振假名
 - 按需切分当前章节，阅读时按需生成单句句意
@@ -15,11 +15,11 @@
 - 候选词卡、标签与筛选视图、卡片编辑/合并/撤销和每日学习上限
 - 四档间隔复习、知识盲区追踪和会随熟练度减弱的阅读辅助
 - 学习时间热力图、连续学习天数和 12 周趋势
-- 可跨账号载入书籍资源的迁移包，以及带版本清单与 SHA-256 校验的完整备份和安全恢复
+- 可跨账号载入书籍资源、卡片、复习状态和学习记录的迁移包，以及带版本清单与 SHA-256 校验的完整备份和安全恢复
 - 自建云端账号、邮箱验证、密码恢复、OAuth/OIDC 登录与跨设备增量同步
 - 片假名树、服务端分页、虚拟列表、批量修正和自定义分组
 
-书籍、分析结果、个人词库和阅读进度会增量保存到 `data/library.sqlite3`，词卡、知识状态和学习活动保存在 `data/learning.sqlite3`。每本 EPUB 都会迁移到 `data/books/<内容哈希>/` 专用目录，其中 `source/book.epub` 是本地原书归档，`assets/` 保存提取图片，`documents/` 保存原书预览；阅读时不再依赖导入前的文件路径。导入的日中词典保存在 `data/dictionary.sqlite3`，每个账号的 AI 接口配置保存在 `data/users/<user_id>/settings.json`。这些文件均被 Git 忽略，不会提交到仓库；浏览器 IndexedDB 仅缓存书籍索引与打开过的章节。启动时不再复制整套词元和释义数据。
+桌面数据默认独立保存在 `%APPDATA%/IceReader/data`（设置页可打开实际目录），下文的 `data/` 均指该目录。首次从项目启动会复制原有 `data/`，保留原数据；安装版可通过 `BINGDU_LEGACY_DATA_DIR` 指定旧版数据目录。书籍、分析结果、个人词库和阅读进度会增量保存到 `data/library.sqlite3`，词卡、知识状态和学习活动保存在 `data/learning.sqlite3`。每本 EPUB 都会迁移到 `data/books/<内容哈希>/` 专用目录，其中 `source/book.epub` 是本地原书归档，`assets/` 保存提取图片，`documents/` 保存原书预览；阅读时不再依赖导入前的文件路径。导入的日中词典保存在 `data/dictionary.sqlite3`，每个账号的 AI 接口配置保存在 `data/users/<user_id>/settings.json`。这些文件均被 Git 忽略，不会提交到仓库；浏览器 IndexedDB 仅缓存书籍索引与打开过的章节。启动时不再复制整套词元和释义数据。
 
 页面使用 Hash 路由，可直接刷新或使用浏览器前进/后退返回书架、词库、词卡、复习、个人主页和设置。除书架与阅读器外的页面按需加载，降低首次打开时的脚本解析量。
 
@@ -33,19 +33,15 @@ python -m venv .venv64
 npm install
 ```
 
-启动本地 API：
+启动桌面客户端（开发环境）：
 
 ```powershell
-.\.venv64\Scripts\python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
+npm run desktop:dev
 ```
 
-另开终端启动页面：
+客户端会自动启动独立内部服务，不需要另开 API 终端，也不会打开系统浏览器。在设置页配置自己的 AI 服务。
 
-```powershell
-npm run dev
-```
-
-打开 `http://127.0.0.1:5173`，在“AI 设置”中输入自己的 API Key。默认接口为 `https://api.deepseek.com`，模型为 `deepseek-chat`。
+需要调试 Web 界面时，仍可分别运行 `python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000` 和 `npm run dev`。这只是开发方式，正式发行使用桌面窗口。
 
 ## 数据与版权
 
@@ -123,18 +119,21 @@ $env:BINGDU_OPEN_BROWSER = "0"
 
 前端按书架、阅读器、学习数据和设置对话框拆分在 `src/features/` 下；`App.tsx` 只保留应用级状态、持久化协调和后台任务编排。
 
-## Windows 目录版启动
-
-首次构建启动程序：
+## Windows 客户端发行
 
 ```powershell
 .\.venv64\Scripts\python -m pip install -r backend\requirements-build.txt
-.\scripts\build_windows.ps1
+npm ci
+npm run desktop:build
 ```
 
-生成 `build/release/冰读/` 目录，并将项目根目录的 `冰读.exe` 更新为轻量启动器。以后仍然双击根目录的 `冰读.exe`；它会启动目录版。目录版避免每次启动都解压约百兆资源；首次构建会复制当前项目的 `data`，后续重新构建会保留该目录已有的本地数据。
+生成 `build/desktop-release/IceReader-0.3.0-Setup.exe` 安装包与 `build/desktop-release/win-unpacked/冰读.exe` 目录版。项目根目录 `冰读.exe` 启动器也会指向新的桌面版。目录版必须整目录保留，不能只复制一个 exe。安装、重建与卸载不会删除独立的数据目录。
 
-程序优先使用 `5173`。如果端口已被其他程序占用，会验证占用者是否为冰读；不是冰读时自动选择后续空闲端口，不会一闪而退。
+内部服务随机分配回环端口，只接受当前客户端的实例密钥；退出窗口时停止内部服务。界面使用固定的 `bingdu://app/` 来源，会话与缓存不随服务端口变化。渲染进程启用沙箱、关闭 Node 集成，只能调用少量经来源校验的原生接口。
+
+在设置 → 数据备份与恢复中下载“跨账号数据迁移包”，然后登录 Online 云端账号，在同一页面载入。版本 2 包含 EPUB 资源、章节、译文、个人词库、阅读进度、书签、卡片、记忆状态、复习记录和学习统计；保留目标账号已有数据，重复导入不会重复增加。迁移包不包含 API Key、密码、会话或云绑定，仍兼容旧版仅书籍迁移包。
+
+`npm run desktop:test` 对真实 Electron 窗口进行功能验收；设置 `BINGDU_TEST_EXECUTABLE` 为目录版路径可验证打包版本。重构设计与阶段验收见 [桌面客户端重构计划书](桌面客户端重构计划书.md)。
 
 ## YMM4 单句配音
 

@@ -25,3 +25,13 @@ The installed package metadata, version, source URL, license and entry count are
 also stored in data/dictionary.sqlite3 and shown by the in-app dictionary source
 interface.
 
+
+Desktop runtime
+---------------
+Electron: https://github.com/electron/electron (MIT)
+React: https://github.com/facebook/react (MIT)
+Python: https://www.python.org/ (PSF License)
+PyInstaller: https://pyinstaller.org/ (GPL with bootloader exception permitting bundled applications)
+The Electron runtime includes Chromium third-party notices in LICENSES.chromium.html.
+YMM4 and proprietary voice engines/packs are not included in this installer.
+Aozora is an architectural reference only; its GPL application source was not copied.

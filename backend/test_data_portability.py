@@ -117,6 +117,15 @@ def test_book_transfer_merges_books_and_assets_without_replacing_target_data(tmp
     assert (tmp_path / "books" / resource_key / "cover.jpg").read_bytes() == b"cover"
     assert (tmp_path / "books" / "custom-covers" / "target" / "book-a.png").read_bytes() == b"custom"
     assert service.import_book_transfer("target", package)["skipped_books"] == 1
+    with zipfile.ZipFile(package) as original, zipfile.ZipFile(tmp_path / "version-one.zip", "w") as legacy:
+        for name in original.namelist():
+            content = original.read(name)
+            if name == "manifest.json":
+                manifest = json.loads(content)
+                manifest["schema_version"] = 1
+                content = json.dumps(manifest).encode()
+            legacy.writestr(name, content)
+    assert service.import_book_transfer("legacy-target", tmp_path / "version-one.zip")["imported_books"] == 1
 
 
 def test_transfer_cards_reviews_learning_and_time_without_credentials(tmp_path, monkeypatch):

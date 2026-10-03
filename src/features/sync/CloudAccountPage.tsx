@@ -43,7 +43,7 @@ export default function CloudAccountPage({ onNotice }: { onNotice: (value: strin
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { setBusy(false) }
   }
-  async function openProvider(id: string) { try { window.location.href = await startCloudOidc(id) } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) } }
+  async function openProvider(id: string) { try { if (window.bingduDesktop) await window.bingduDesktop.startOidc(id); else window.location.href = await startCloudOidc(id) } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) } }
   function submitAccount() {
     if (password.length < 10) {
       setError(`云端账号密码至少需要 10 个字符，当前为 ${password.length} 个字符。`)
