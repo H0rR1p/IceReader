@@ -170,6 +170,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .book-background-actions .button, .chapter-background-actions .button { border-color: #a4cae5; color: #3979a8; background: #f7fbff; }
 .book-background-actions .button:hover, .chapter-background-actions .button:hover { border-color: var(--accent); background: var(--accent-soft); }
 .book-background-actions .button:disabled, .chapter-background-actions .button:disabled { cursor: not-allowed; opacity: .48; }
+.reader-image-toggle { margin: 10px 7px 0; padding: 10px 11px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 5px; background: #f8fcff; cursor: pointer; }
+.reader-image-toggle input { width: 15px; height: 15px; accent-color: var(--accent); }
+.reader-image-toggle span { display: grid; gap: 2px; min-width: 0; }
+.reader-image-toggle strong { color: var(--ink); font-size: 11px; }
+.reader-image-toggle small { color: var(--muted); font-size: 9px; }
 .background-options { display: grid; grid-template-columns: minmax(0, 1fr) 68px; gap: 7px; padding: 9px 7px 0; }
 .background-options label { display: grid; gap: 3px; color: var(--muted); font-size: 9px; }
 .background-options select { width: 100%; min-width: 0; border: 1px solid #b9d7ec; border-radius: 4px; padding: 5px 6px; background: #f8fcff; color: var(--accent-deep); font-size: 10px; }

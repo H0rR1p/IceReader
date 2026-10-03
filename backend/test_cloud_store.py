@@ -83,11 +83,13 @@ def test_admin_bootstrap_promotes_existing_account_and_applies_configured_passwo
         database_path=database_path, public_url="http://127.0.0.1:8010",
         secret="test-secret", allowed_origins=(), dev_mode=True,
         admin_email="owner@example.com", admin_password="configured admin password",
+        admin_display_name="冰读管理员",
     ))
     repository.initialize()
     admin = repository.ensure_admin()
 
     assert admin and admin["role"] == "admin" and admin["email_verified"] is True
+    assert admin["display_name"] == "冰读管理员"
     with pytest.raises(CloudAuthError):
         repository.login("owner@example.com", "previous user password", "old-device", "旧设备")
     logged_in = repository.login("owner@example.com", "configured admin password", "admin-device", "管理设备")

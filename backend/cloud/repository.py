@@ -203,9 +203,9 @@ class CloudRepository:
             row = connection.execute("SELECT * FROM users WHERE email=?", (normalized,)).fetchone()
             if row:
                 connection.execute(
-                    """UPDATE users SET role='admin',disabled_at=NULL,password_hash=?,
+                    """UPDATE users SET role='admin',disabled_at=NULL,password_hash=?,display_name=?,
                        email_verified_at=COALESCE(email_verified_at,?),updated_at=? WHERE id=?""",
-                    (self._password_hash(password), now, now, row["id"]),
+                    (self._password_hash(password), self.config.admin_display_name[:40], now, now, row["id"]),
                 )
             else:
                 user_id = str(uuid.uuid4())
