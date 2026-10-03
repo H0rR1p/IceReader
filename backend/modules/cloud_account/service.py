@@ -122,6 +122,14 @@ async def logout(local_user_id: str) -> None:
         await asyncio.to_thread(repository.delete_account, local_user_id)
 
 
+async def update_profile(local_user_id: str, display_name: str) -> dict:
+    response = await _authorized_request(
+        local_user_id, "PATCH", "/v1/auth/me", json={"display_name": display_name},
+    )
+    await asyncio.to_thread(repository.update_account_user, local_user_id, response.json())
+    return repository.account_status(local_user_id)
+
+
 async def providers() -> list[dict]:
     response = await _plain_request("GET", "/v1/auth/providers")
     if response.status_code >= 400:

@@ -602,6 +602,11 @@ export async function loginCloudAccount(email: string, password: string): Promis
   return parseResponse(await fetch('/api/cloud/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }))
 }
 export async function logoutCloudAccount(): Promise<void> { await parseResponse(await fetch('/api/cloud/logout', { method: 'POST' })) }
+export async function updateCloudDisplayName(displayName: string): Promise<CloudAccountStatus> {
+  return parseResponse(await fetch('/api/cloud/profile', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ display_name: displayName }),
+  }))
+}
 export async function startCloudOidc(providerId: string): Promise<string> {
   const callback = `${window.location.origin}/api/cloud/oidc/complete`
   const result = await parseResponse<{ url: string }>(await fetch(`/api/cloud/oidc/start/${encodeURIComponent(providerId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callback_url: callback }) }))
