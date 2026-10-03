@@ -148,6 +148,10 @@ class AdminUserStateInput(BaseModel):
     disabled: bool
 
 
+class DisplayNameInput(BaseModel):
+    display_name: str = Field(min_length=1, max_length=40)
+
+
 @app.exception_handler(CloudConflictError)
 async def conflict_handler(_request: Request, error: CloudConflictError) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": str(error), "code": "conflict"})
@@ -232,6 +236,17 @@ async def logout(identity: tuple[dict, str, str] = Depends(cloud_identity)) -> d
 @app.get("/v1/auth/me")
 async def me(identity: tuple[dict, str, str] = Depends(cloud_identity)) -> dict:
     return identity[0]
+
+
+@app.patch("/v1/auth/me")
+async def update_me(
+    payload: DisplayNameInput,
+    identity: tuple[dict, str, str] = Depends(cloud_identity),
+) -> dict:
+    try:
+        return await asyncio.to_thread(repository.update_display_name, identity[0]["id"], payload.display_name)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
 
 
 @app.get("/v1/auth/sessions")

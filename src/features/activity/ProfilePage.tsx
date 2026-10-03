@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadActivityHeatmap, loadActivitySummary, loadCardSummary, loadSyncStatus } from '../../api'
+import { loadActivityHeatmap, loadActivitySummary, loadCardSummary, loadSyncStatus, updateCloudDisplayName } from '../../api'
 import { loadLocalSessions, revokeLocalSession, revokeOtherLocalSessions, updateCurrentUserProfile, uploadCurrentUserAvatar } from '../../app/session'
 import type { LocalSession } from '../../app/session'
 import UserAvatar from '../../app/UserAvatar'
@@ -26,7 +26,7 @@ export default function ProfilePage({ user, books, onUserChange, onLogout, onOpe
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
-  const [displayName, setDisplayName] = useState(user.display_name)
+  const [displayName, setDisplayName] = useState(user.cloud_display_name || user.display_name)
   const [profileSaving, setProfileSaving] = useState(false)
   const [avatarSource, setAvatarSource] = useState<File | null>(null)
   const [sessions, setSessions] = useState<LocalSession[]>([])
@@ -38,6 +38,7 @@ export default function ProfilePage({ user, books, onUserChange, onLogout, onOpe
       .catch((reason) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason)) })
     return () => controller.abort()
   }, [])
+  useEffect(() => setDisplayName(user.cloud_display_name || user.display_name), [user.cloud_display_name, user.display_name])
   const cells = useMemo(() => {
     const values = new Map(days.map((item) => [item.local_date, item])); const today = new Date(); const start = new Date(today); start.setDate(today.getDate() - 364 - today.getDay())
     return Array.from({ length: 371 }, (_value, index) => { const current = new Date(start); current.setDate(start.getDate() + index); const key = dateKey(current); return { key, future: current > today, value: values.get(key) } })
@@ -64,6 +65,7 @@ export default function ProfilePage({ user, books, onUserChange, onLogout, onOpe
   async function saveDisplayName() {
     setProfileSaving(true); setError('')
     try {
+      if (user.cloud_connected) await updateCloudDisplayName(displayName)
       const next = await updateCurrentUserProfile(displayName)
       onUserChange(next); setEditingProfile(false)
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
@@ -92,7 +94,7 @@ export default function ProfilePage({ user, books, onUserChange, onLogout, onOpe
       <div className="profile-hero-actions"><button className="button ghost" onClick={() => setEditingProfile((value) => !value)}>修改昵称</button><button className="button ghost" onClick={() => { void navigator.clipboard.writeText(user.user_id); setCopied(true); window.setTimeout(() => setCopied(false), 1600) }}>{copied ? '已复制 ID' : '复制用户 ID'}</button><button className="button ghost" onClick={() => void onLogout()}>退出登录</button></div>
     </section>
     {avatarSource && <AvatarCropDialog file={avatarSource} onCancel={() => setAvatarSource(null)} onConfirm={saveAvatar} />}
-    {editingProfile && <section className="profile-editor"><label className="field"><span>昵称</span><input maxLength={40} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><button className="button ghost" onClick={() => { setDisplayName(user.display_name); setEditingProfile(false) }}>取消</button><button className="button primary" disabled={profileSaving || !displayName.trim()} onClick={() => void saveDisplayName()}>{profileSaving ? '正在保存…' : '保存昵称'}</button></section>}
+    {editingProfile && <section className="profile-editor"><label className="field"><span>昵称</span><input maxLength={40} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label><button className="button ghost" onClick={() => { setDisplayName(user.cloud_display_name || user.display_name); setEditingProfile(false) }}>取消</button><button className="button primary" disabled={profileSaving || !displayName.trim()} onClick={() => void saveDisplayName()}>{profileSaving ? '正在保存…' : '保存昵称'}</button></section>}
     {error && <div className="error-box page-error">{error}</div>}
     <section className="profile-stat-grid">
       <article><small>近 30 天学习</small><strong>{Math.round((summary?.active_seconds ?? 0) / 60)} 分钟</strong><span>保持真实有效的阅读时间</span></article>

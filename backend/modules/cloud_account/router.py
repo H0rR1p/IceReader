@@ -54,6 +54,10 @@ class AdminUserStateInput(BaseModel):
     disabled: bool
 
 
+class DisplayNameInput(BaseModel):
+    display_name: str = Field(min_length=1, max_length=40)
+
+
 @router.get("/status")
 async def status(context: RequestContext = Depends(current_request_context)) -> dict:
     return await asyncio.to_thread(repository.account_status, context.user_id)
@@ -126,6 +130,14 @@ async def login(payload: CloudLoginInput, context: RequestContext = Depends(curr
 async def logout(context: RequestContext = Depends(current_request_context)) -> dict:
     await service.logout(context.user_id)
     return {"logged_out": True}
+
+
+@router.patch("/profile")
+async def update_profile(payload: DisplayNameInput, context: RequestContext = Depends(current_request_context)) -> dict:
+    try:
+        return await service.update_profile(context.user_id, payload.display_name)
+    except Exception as exc:
+        raise HTTPException(422, str(exc)) from None
 
 
 @router.get("/providers")

@@ -203,9 +203,9 @@ class CloudRepository:
             row = connection.execute("SELECT * FROM users WHERE email=?", (normalized,)).fetchone()
             if row:
                 connection.execute(
-                    """UPDATE users SET role='admin',disabled_at=NULL,password_hash=?,display_name=?,
+                    """UPDATE users SET role='admin',disabled_at=NULL,password_hash=?,
                        email_verified_at=COALESCE(email_verified_at,?),updated_at=? WHERE id=?""",
-                    (self._password_hash(password), self.config.admin_display_name[:40], now, now, row["id"]),
+                    (self._password_hash(password), now, now, row["id"]),
                 )
             else:
                 user_id = str(uuid.uuid4())
@@ -216,6 +216,22 @@ class CloudRepository:
                     (user_id, normalized, self.config.admin_display_name[:40], self._password_hash(password), now, now, now),
                 )
             row = connection.execute("SELECT * FROM users WHERE email=?", (normalized,)).fetchone()
+        return self._public_user(row)
+
+    def update_display_name(self, user_id: str, display_name: str) -> dict:
+        normalized = display_name.strip()
+        if not normalized:
+            raise ValueError("昵称不能为空")
+        if len(normalized) > 40:
+            raise ValueError("昵称不能超过 40 个字符")
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE users SET display_name=?,updated_at=? WHERE id=?",
+                (normalized, time.time(), user_id),
+            )
+            row = connection.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+        if not row:
+            raise ValueError("账号不存在")
         return self._public_user(row)
 
     def list_users(self, query: str = "", limit: int = 50, offset: int = 0) -> dict:
