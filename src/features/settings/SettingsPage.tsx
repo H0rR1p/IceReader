@@ -79,7 +79,7 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
 
   async function exportBookMigration() {
     setBackupBusy('transfer-export'); setError('')
-    try { await downloadBookTransfer(); onNotice('书籍迁移包已导出。') }
+    try { await downloadBookTransfer(); onNotice('数据迁移包已导出。') }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { setBackupBusy(null) }
   }
@@ -89,7 +89,7 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
     setBackupBusy('transfer-import'); setError('')
     try {
       const result = await importBookTransfer(file)
-      onNotice(`已载入 ${result.imported_books} 本书，跳过 ${result.skipped_books} 本已有书籍。`)
+      onNotice(`已载入 ${result.imported_books} 本书、${result.imported_cards ?? 0} 张卡片和 ${result.imported_learning_records ?? 0} 条学习记录，跳过 ${result.skipped_books} 本已有书籍。`)
       window.setTimeout(() => window.location.reload(), 800)
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { setBackupBusy(null) }
@@ -106,7 +106,7 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
       {books.length ? <div className="book-image-settings-list">{books.map((book) => <div className="setting-row" key={book.id}><div><strong>{book.title}</strong><span>{book.author || '作者未知'}</span></div><select value={book.showImages === false ? 'hidden' : 'visible'} onChange={(event) => void onBookImageVisibility(book, event.target.value === 'visible').catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))}><option value="visible">显示插图</option><option value="hidden">隐藏插图</option></select></div>)}</div> : <p className="settings-empty">导入书籍后可以在这里统一管理插图。</p>}
     </SettingsSection>
     <SettingsSection title="数据备份与恢复" description="导出当前账号的书籍资源、阅读进度、词库、卡片、复习记录和本机设置。备份包含 API Key，请妥善保存。">
-      <div className="setting-row"><div><strong>书籍资源迁移包</strong><span>用于把当前资料空间的书籍、章节、译文、封面和插图载入其他账号；不会覆盖目标账号的学习记录和设置。</span></div><div className="settings-inline-actions"><button className="button" disabled={backupBusy !== null || !books.length} onClick={() => void exportBookMigration()}>{backupBusy === 'transfer-export' ? '正在打包…' : '下载迁移包'}</button><label className={`button primary ${backupBusy ? 'disabled' : ''}`}>{backupBusy === 'transfer-import' ? '正在载入…' : '载入迁移包'}<input hidden type="file" accept=".zip,application/zip" disabled={backupBusy !== null} onChange={(event) => { void importBookMigration(event.target.files?.[0] ?? null); event.currentTarget.value = '' }} /></label></div></div>
+      <div className="setting-row"><div><strong>跨账号数据迁移包</strong><span>将书籍、插图、阅读进度、书签、词库、卡片、复习与学习记录合并到其他账号。不包含密码、会话和 API 密钥，保留目标账号原有数据。</span></div><div className="settings-inline-actions"><button className="button" disabled={backupBusy !== null} onClick={() => void exportBookMigration()}>{backupBusy === 'transfer-export' ? '正在打包…' : '下载迁移包'}</button><label className={`button primary ${backupBusy ? 'disabled' : ''}`}>{backupBusy === 'transfer-import' ? '正在载入…' : '载入迁移包'}<input hidden type="file" accept=".zip,application/zip" disabled={backupBusy !== null} onChange={(event) => { void importBookMigration(event.target.files?.[0] ?? null); event.currentTarget.value = '' }} /></label></div></div>
       <div className="setting-row"><div><strong>完整本地备份</strong><span>备份带版本清单和 SHA-256 校验；恢复前会自动保留当前数据副本。</span></div><div className="settings-inline-actions"><button className="button" disabled={backupBusy !== null} onClick={() => void exportBackup()}>{backupBusy === 'export' ? '正在导出…' : '导出 ZIP'}</button><label className={`button primary ${backupBusy ? 'disabled' : ''}`}>恢复备份<input hidden type="file" accept=".zip,application/zip" disabled={backupBusy !== null} onChange={(event) => { setPendingRestore(event.target.files?.[0] ?? null); event.currentTarget.value = '' }} /></label></div></div>
     </SettingsSection>
     <SettingsSection title="AI 服务" description="API Key 只保存在本机，并仅发送给你配置的兼容接口。">
