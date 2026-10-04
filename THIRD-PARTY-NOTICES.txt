@@ -1,27 +1,39 @@
-冰读第三方数据说明
-==================
+冰读第三方组件与内容许可 / IceReader third-party notices
+========================================================
 
-Jitendex 日中简体词典
---------------------
-Package: greyindex/jitendex-yomitan-zh
-Version: v2026.08.11-zh.4
-Source: https://github.com/greyindex/jitendex-yomitan-zh
-Catalog: https://github.com/MarvNC/yomitan-dictionaries
-License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
-License text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+IceReader application source: AGPL-3.0-or-later; see LICENSE and COPYRIGHT.
+EbookLib 0.19 is retained under AGPL-3.0-or-later. Its upstream license,
+authors and exact source distribution accompany this release.
 
-Original Jitendex by Stephen Kraus. Copyright 2023-2026 Stephen Kraus.
-The Chinese package is an unofficial simplified Chinese derivative distributed
-under CC BY-SA 4.0.
+Complete component/version inventory: third_party_licenses/inventory.json
+Full upstream license and copyright texts: third_party_licenses/
+Corresponding source: legal/corresponding-source.zip in the installation,
+or the application's “源码与许可证” / “下载对应源码” controls.
+The archive contains the exact application source, build scripts, lock files,
+and original source archives of bundled Python and JavaScript dependencies.
+JSZip is used under its MIT option. certifi retains MPL-2.0; its unmodified
+source (including the certificate bundle) is supplied in the source archive.
+PyInstaller uses GPL with a bootloader exception; preserve that exception.
+Electron/Chromium notices remain LICENSE.electron.txt / LICENSES.chromium.html.
+Build-only tools are listed for transparency, not as shipped app modules.
 
-Jitendex contains material from these attributed sources:
+External software and content
+-----------------------------
+YMM4, its proprietary voice engines/packs and user books/dictionaries are
+not licensed by IceReader's AGPL grant and are not bundled in the installer.
+The independently developed YMM bridge source is part of IceReader; building
+it requires the user's separately licensed YMM4 SDK/installation.
+Its limited additional linking permission is stated in ymm4-bridge/COPYRIGHT;
+it does not relicense YMM4, its SDK/engines, or any third-party code.
+Logo/icon artwork and click audio have separate, unverified content rights;
+the AGPL code license does not grant rights to those assets or trademarks.
+Icons are derived from public/bingdu-logo.png. No Aozora source/assets are used.
+Architecture reference: https://github.com/meokisama/aozora (GPL-3.0).
 
-* JMdict/EDICT dictionary data is provided by the Electronic Dictionaries
-  Research Group: https://www.edrdg.org/
-* Japanese and English example sentences are provided by Tatoeba and are
-  licensed under CC BY 2.0 FR: https://tatoeba.org/
-
-The installed package metadata, version, source URL, license and entry count are
-also stored in data/dictionary.sqlite3 and shown by the in-app dictionary source
-interface.
-
+Historical versions
+-------------------
+Earlier binaries already included EbookLib without a complete notice bundle.
+The new notices do not retroactively change those binaries. Distributors
+must make the matching historical source/build materials available for any
+old versions they still distribute; a moving GitHub main link is insufficient.
+Use this source-packaging workflow for every release, including modified ones.

@@ -1,0 +1,91 @@
+IceReader corresponding-source build instructions
+================================================
+
+The source archive shipped with a release contains the exact working-tree
+application files, their SHA-256 hashes, upstream dependency source archives,
+license texts, and build scripts. SOURCE-MANIFEST.json identifies the base
+Git commit and the included file snapshot. The snapshot may contain changes
+not yet pushed to GitHub; rebuild from the included files, not a moving branch.
+
+Desktop (Windows x64)
+---------------------
+Requirements: Python 3.12 x64, Node.js/npm, PowerShell, Windows/.NET tools.
+Unzip the source archive, then open PowerShell in its IceReader directory:
+
+  py -3.12 -m venv .venv64
+  .\.venv64\Scripts\python.exe -m pip install -r backend/requirements-release.txt
+  npm ci
+  .\.venv64\Scripts\python.exe scripts/prepare_legal.py --fetch
+  npm run desktop:build
+
+The regular build uses the same official dependency versions. This needs
+network access to download toolchains, wheels and the Electron runtime.
+For inspection or native-source builds, dependency-sources/ contains the
+original source archives with hashes in SOURCE-MANIFEST.json. Building native
+dependencies may additionally require Rust, C/C++, CMake, and their upstream
+instructions. The archive does not claim a completely offline toolchain.
+Generated source and license materials are under build/legal; every desktop
+build checks the source archive and includes them in resources/legal.
+
+Dependency source cache
+-----------------------
+The legal preparer downloads source distributions from official PyPI/npm
+registries and locked native crates from crates.io, verifying published
+checksums. The first --fetch creates build/legal-cache; subsequent local
+release builds use it offline. Source archives supplied with this release
+can also be used directly for review; they are not executable app modules.
+Do not substitute a wheel or native binary for an upstream source archive.
+The exact version of EbookLib is 0.19; its source and AGPL license are supplied.
+
+YMM4 bridge
+------------
+The independent bridge source and project are in ymm4-bridge/. The desktop
+distribution includes the prebuilt bridge, not YMM4 or its proprietary engines.
+To rebuild it, install the .NET SDK for the project's TargetFramework and a
+legally obtained YMM4 installation/SDK, then run (with your actual path):
+
+  dotnet build ymm4-bridge/BingduYmmBridge.csproj -c Release -p:YmmDir="C:\YMM4"
+
+Copy the resulting BingduYmmBridge.dll and its deps file to assets/ymm4-bridge
+before rebuilding the client. YMM4 and voice-pack terms remain separate.
+
+Cloud API
+----------
+Windows Online web + account services:
+Use the Online source snapshot and the supplied requirements-release.txt,
+create .venv64, run npm ci, then:
+
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_online.ps1 -FetchSources
+
+The build sets VITE_BINGDU_DEPLOYMENT=online and produces both services under
+build/online-release. Use private startup environment files to set data paths,
+public origin, ports and cloud secrets. Set BINGDU_LEGAL_DIR to the legal/
+directory beside each service EXE; both services ship the same source snapshot.
+Do not embed private environment files or existing user data in the release.
+
+The Dockerfile installs the cloud dependency set and regenerates a source
+archive for the actual container dependencies:
+
+  docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
+
+Configure cloud.env privately, based on cloud.env.example. Do not put the
+actual secret/environment file or user databases into source archives.
+The service homepage, /api/legal, /api/legal/license, /api/legal/notices, and
+/api/legal/source are public. Keep these routes accessible through proxies.
+For modified deployments, regenerate and serve the matching source before
+making the modified program available to network users.
+
+License scope and historical versions
+--------------------------------------
+IceReader code: AGPL-3.0-or-later, see LICENSE and COPYRIGHT. Third-party
+components retain their licenses; logo/audio/user content rights are separate.
+No warranty is provided. Full component inventory is in third_party_licenses.
+The inventory also records build-only and platform/test-superset dependencies;
+this is not a count of modules actually shipped or executed by the app.
+Some non-runtime upstreams only publish SPDX license declarations; these are
+explicitly marked instead of inventing copyright holders or original texts.
+
+These materials accompany THIS source snapshot. To continue distributing
+historical binaries, also provide their corresponding source/build materials
+and applicable notices. The new archive does not prove that all older releases
+are covered by the same snapshot.

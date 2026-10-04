@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { CurrentUser } from '../types'
 import UserAvatar from './UserAvatar'
+import LegalLinks from './LegalLinks'
 import { isOnlineDeployment } from '../deployment'
 
 export type AppPage = 'library' | 'dictionary' | 'cards' | 'review' | 'profile' | 'cloud' | 'admin' | 'settings'
@@ -51,6 +52,7 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
       {user.cloud_role === 'admin' && item('admin', '◎', '账号管理')}
       {item('settings', '⚙', '设置')}
     </nav>
+    <LegalLinks />
     <button className="nav-user" onClick={() => onNavigate('profile')}>
       <UserAvatar user={user} className="nav-avatar" />
       <span><strong>{user.cloud_display_name || user.display_name}</strong><small>{accountLabel}</small></span>

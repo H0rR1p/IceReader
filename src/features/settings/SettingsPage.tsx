@@ -1,3 +1,4 @@
+import LegalLinks from '../../app/LegalLinks'
 import { useEffect, useState } from 'react'
 import { downloadBookTransfer, downloadFullBackup, importBookTransfer, loadAiUsage, restoreFullBackup } from '../../api'
 import type { AiUsageSummary, ApiSettings, Book, VoiceSettings } from '../../types'
@@ -98,6 +99,7 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
   return <main className="app-page settings-page">
     <header className="page-heading"><div><p className="eyebrow">偏好与连接</p><h1>设置</h1><span>集中管理阅读处理、AI 服务和本机配音。</span></div></header>
     {error && <div className="error-box page-error">{error}</div>}
+    <SettingsSection title="源码与许可证" description="冰读采用 AGPL-3.0-or-later；下载当前运行版本的对应源码。"><LegalLinks /></SettingsSection>
     <SettingsSection title="阅读处理" description="这些选项用于后台翻译，修改后立即生效。">
       <div className="setting-row"><div><strong>后台翻译模式</strong><span>快速句意只生成译文；完整释义还会补充词典未命中的词义。</span></div><select value={translationMode} onChange={(event) => onTranslationModeChange(event.target.value as TranslationMode)}><option value="meaning">快速句意</option><option value="full">完整释义</option></select></div>
       <div className="setting-row"><div><strong>并发任务数</strong><span>网络不稳定或触发限流时建议调低。</span></div><select value={translationConcurrency} onChange={(event) => onTranslationConcurrencyChange(Number(event.target.value))}>{Array.from({ length: 8 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></div>

@@ -1,0 +1,11 @@
+{
+  "name": "err-code",
+  "version": "2.0.3",
+  "license": "MIT",
+  "repository": {
+    "url": "git://github.com/IndigoUnited/js-err-code.git",
+    "type": "git"
+  },
+  "gitHead": "92511d41a6a926c94c9d11493404867b1e92a77a",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

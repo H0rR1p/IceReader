@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import LegalLinks from '../../app/LegalLinks'
 import { loadCurrentUser, loadLocalProfiles, logoutCurrentAccount, switchLocalProfile } from '../../app/session'
 import type { LocalProfile } from '../../app/session'
 import { loadCloudProviders, loginCloudAccount, registerCloudAccount, requestCloudPasswordReset, resetCloudPassword, startCloudOidc } from '../../api'
@@ -101,6 +102,7 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
         {!!providers.length && <div className="provider-list">{providers.map((provider) => <button className="button ghost small" key={provider.id} onClick={() => void openProvider(provider.id)}>使用 {provider.name} 登录</button>)}</div>}<button className="login-recovery-link" onClick={() => setRecoveryOpen(!recoveryOpen)}>忘记密码或恢复账号</button>{recoveryOpen && <div className="login-recovery-panel"><button className="button ghost small" disabled={!username.includes('@') || busy} onClick={() => void requestCloudPasswordReset(username).then(() => setError('如果账号存在，重置邮件已发送。')).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))}>向当前邮箱发送重置邮件</button><label className="field"><span>邮件中的恢复令牌</span><input value={recoveryToken} onChange={(event) => setRecoveryToken(event.target.value)} /></label><label className="field"><span>新密码</span><input type="password" value={recoveryPassword} onChange={(event) => setRecoveryPassword(event.target.value)} /></label><button className="button small" disabled={recoveryToken.length < 20 || recoveryPassword.length < 10 || busy} onClick={() => { setBusy(true); void resetCloudPassword(recoveryToken,recoveryPassword).then(() => { setError('密码已重置，请使用新密码登录。'); setRecoveryOpen(false) }).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason))).finally(() => setBusy(false)) }}>重设密码</button></div>}
         {!isOnlineDeployment && localProfiles.length > 1 && <div className="local-profile-list"><small>切换本机资料空间（无需密码）</small>{localProfiles.map((profile) => <button key={profile.user_id} disabled={busy || profile.user_id === currentUser?.user_id} onClick={() => void enterLocalProfile(profile.user_id)}><span><strong>{profile.display_name}</strong>{profile.username && <em>@{profile.username}</em>}</span><b>{profile.user_id === currentUser?.user_id ? '当前' : '进入'}</b></button>)}</div>}
         <div className="local-entry"><span>{currentUser?.is_guest ? '不想创建账号？' : isOnlineDeployment ? '以独立访客空间临时使用' : '只在这台电脑阅读和学习'}</span><button disabled={!serverReady || busy} onClick={() => void enterLocalMode()}>{busy ? '正在切换…' : `使用${isOnlineDeployment ? '访客' : '本机'}模式进入`}</button></div>
+        <LegalLinks />
       </div>
     </section>
   </main>

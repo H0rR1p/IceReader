@@ -1,0 +1,41 @@
+appId: io.bingdu.reader
+productName: 冰读
+directories:
+  output: build/desktop-release
+asar: true
+afterPack: scripts/embed_windows_icon.cjs
+electronDist: node_modules/electron/dist
+files:
+  - desktop/main.cjs
+  - desktop/preload.cjs
+  - desktop/loading.html
+  - public/bingdu-logo.png
+  - package.json
+extraResources:
+  - from: build/legal
+    to: legal
+  - from: LICENSE
+    to: LICENSE
+  - from: COPYRIGHT
+    to: COPYRIGHT
+  - from: build/desktop-backend/bingdu-service
+    to: backend
+  - from: assets/bingdu.ico
+    to: bingdu.ico
+  - from: THIRD-PARTY-NOTICES.txt
+    to: THIRD-PARTY-NOTICES.txt
+win:
+  icon: assets/bingdu.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  # The afterPack hook edits resources locally; no signing certificate is configured.
+  signAndEditExecutable: false
+nsis:
+  installerIcon: assets/bingdu.ico
+  uninstallerIcon: assets/bingdu.ico
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  artifactName: IceReader-${version}-Setup.${ext}

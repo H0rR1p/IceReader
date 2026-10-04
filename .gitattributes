@@ -1,0 +1,3 @@
+# Preserve upstream license bytes: inventory.json records their SHA-256.
+third_party_licenses/** -text
+LICENSE -text

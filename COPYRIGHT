@@ -1,0 +1,32 @@
+IceReader / 冰读
+Copyright (C) 2026 H0rR1p and IceReader contributors
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see https://www.gnu.org/licenses/.
+
+Project/contact: https://github.com/H0rR1p/IceReader
+
+Scope: this grant covers IceReader's independently developed application
+code, build scripts and documentation. Third-party code retains its own
+copyright and license. Logo/icon artwork, click audio, trademarks, user
+books/dictionaries, and external YMM4/voice software are excluded from this
+code-license grant; no additional content rights are represented or granted.
+See THIRD-PARTY-NOTICES.txt and third_party_licenses/inventory.json.
+The separately built YMM4 interoperability bridge has the limited additional
+linking permission in ymm4-bridge/COPYRIGHT; it does not change EbookLib's AGPL.
+
+Network users must be offered the Corresponding Source of the version
+actually running, including modifications and the scripts needed to build
+and install it. A link to a moving main branch is not a substitute for the
+matching release source. The application's public /api/legal/source endpoint
+and source-download controls serve the generated versioned source archive.

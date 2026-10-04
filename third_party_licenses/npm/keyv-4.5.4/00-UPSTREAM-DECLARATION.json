@@ -1,0 +1,11 @@
+{
+  "name": "keyv",
+  "version": "4.5.4",
+  "license": "MIT",
+  "repository": {
+    "url": "git+https://github.com/jaredwray/keyv.git",
+    "type": "git"
+  },
+  "gitHead": null,
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

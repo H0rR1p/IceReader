@@ -582,3 +582,9 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .lexeme-bulk { display: grid; grid-template-columns: auto minmax(100px,1fr) auto auto minmax(150px,1.5fr) auto auto; align-items: center; gap: 6px; margin-bottom: 9px; padding: 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }.lexeme-bulk input,.lexeme-bulk button { min-width: 0; border: 1px solid var(--line); border-radius: 4px; background: white; padding: 6px 8px; }.lexeme-bulk button { color: var(--accent-strong); cursor: pointer; }
 @media (max-width: 900px) { .lexicon-manager .data-tools { grid-template-columns: 1fr 1fr; }.lexicon-layout { grid-template-columns: 105px minmax(0,1fr); }.lexeme-bulk { grid-template-columns: 1fr 1fr; }.sync-action-grid span:nth-of-type(1) { margin-left: 0; } }
 @media (max-width: 640px) { .cloud-endpoint,.lexicon-layout { grid-template-columns: 1fr; }.kana-tree { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 10px; max-height: 200px; overflow: auto; }.lexicon-manager .data-tools { grid-template-columns: 1fr; } }
+
+.legal-links { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 12px 16px; font-size: 12px; }
+.legal-links > button { color: var(--primary, #367fab); border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; }
+.legal-links > button:disabled { opacity: .6; cursor: wait; }
+.legal-dialog { width: min(760px, 92vw); max-height: 85vh; overflow: auto; text-align: left; }
+.legal-license-text { max-height: 42vh; overflow: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.5; }

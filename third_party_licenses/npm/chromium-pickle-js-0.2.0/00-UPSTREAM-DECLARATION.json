@@ -1,0 +1,11 @@
+{
+  "name": "chromium-pickle-js",
+  "version": "0.2.0",
+  "license": "MIT",
+  "repository": {
+    "url": "git+https://github.com/electron/node-chromium-pickle-js.git",
+    "type": "git"
+  },
+  "gitHead": "72ecd4d52d8e676a595636e1ec9ba74060344137",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

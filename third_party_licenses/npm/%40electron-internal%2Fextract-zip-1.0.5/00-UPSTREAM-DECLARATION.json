@@ -1,0 +1,10 @@
+{
+  "name": "@electron-internal/extract-zip",
+  "version": "1.0.5",
+  "license": "BSD-2-Clause",
+  "repository": {
+    "url": "git+https://github.com/electron/extract-zip.git"
+  },
+  "gitHead": "b83e459fd04c53b0a1c8438a6792df8f64be47fc",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}
