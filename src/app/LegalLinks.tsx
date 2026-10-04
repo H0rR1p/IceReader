@@ -33,9 +33,12 @@ export default function LegalLinks() {
   return <div className="legal-links">
     <button onClick={() => void showLicense()}>源码与许可证</button>
     <button disabled={busy} onClick={() => void downloadSource()}>{busy ? '正在下载…' : '下载对应源码'}</button>
+    <small className="touhou-logo-notice">Logo：东方 Project 非官方二次创作</small>
     {open && <div className="dialog-backdrop"><section className="dialog legal-dialog" role="dialog" aria-modal="true" aria-labelledby="legal-title">
       <header><h2 id="legal-title">源码与许可证</h2><button aria-label="关闭" onClick={() => setOpen(false)}>×</button></header>
       <p>冰读代码采用 AGPL-3.0-or-later，按现状提供，不提供任何担保。第三方组件保留各自许可；logo、音频和用户内容的版权另行处理。</p>
+      <p>Logo 为 H0rR1p 自行绘制的 Q 版琪露诺头像，属于「东方 Project」的非官方二次创作。东方 Project 及相关角色的原作权利归 ZUN／上海アリス幻樂団所有，绘制作者仅对自己的创作部分主张相应权利。冰读与上海アリス幻樂団不存在官方隶属、赞助或认可关系。</p>
+      <p>Logo 与衍生视觉素材不属于 AGPL 代码授权范围，软件许可证不授予角色或品牌的使用及再授权权利。素材再利用需另获作者许可，并遵守东方 Project 官方二次创作指引。</p>
       <button className="button" disabled={busy} onClick={() => void downloadSource()}>{busy ? '正在下载…' : '下载当前版本对应源码'}</button>
       {error && <p role="alert">{error}</p>}
       <pre className="legal-license-text">{license || '正在读取许可证…'}</pre>

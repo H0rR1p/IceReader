@@ -79,10 +79,15 @@ License scope and historical versions
 --------------------------------------
 IceReader code: AGPL-3.0-or-later, see LICENSE and COPYRIGHT. Third-party
 components retain their licenses; logo/audio/user content rights are separate.
-The project author has confirmed that the logo, icons and click audio are
-original works created by H0rR1p. They are distributed with IceReader and
-remain outside the code-license grant; all asset rights are reserved unless
-separately licensed.
+The logo is a chibi Cirno portrait drawn by H0rR1p, an unofficial Touhou
+Project fan derivative; icons derived from it have the same status.
+Original Touhou Project character rights belong to ZUN / 上海アリス幻樂団;
+the artist claims rights only in their own artistic contribution.
+IceReader is not officially affiliated with or endorsed by Team Shanghai
+Alice. The artwork and click audio remain outside the code-license grant.
+See NOTICE.md and https://touhou-project.news/guideline/ for the scope,
+fan-art attribution and non-affiliation notice. Audio was separately created
+by the author; this notice does not classify it as Touhou-derived artwork.
 No warranty is provided. Full component inventory is in third_party_licenses.
 The inventory also records build-only and platform/test-superset dependencies;
 this is not a count of modules actually shipped or executed by the app.

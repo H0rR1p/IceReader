@@ -12,7 +12,7 @@ COPY public /app/public
 COPY assets /app/assets
 COPY ymm4-bridge /app/ymm4-bridge
 COPY third_party_licenses /app/third_party_licenses
-COPY LICENSE COPYRIGHT SOURCE-BUILD.txt README.md THIRD-PARTY-NOTICES.txt package.json package-lock.json electron-builder.yml index.html start.ps1 vite.config.ts tsconfig*.json Dockerfile.cloud compose.cloud.yml cloud.env.example .dockerignore /app/
+COPY LICENSE COPYRIGHT NOTICE.md SOURCE-BUILD.txt README.md THIRD-PARTY-NOTICES.txt package.json package-lock.json electron-builder.yml index.html start.ps1 vite.config.ts tsconfig*.json Dockerfile.cloud compose.cloud.yml cloud.env.example .dockerignore /app/
 ENV BINGDU_LEGAL_DIR=/app/legal
 RUN python scripts/prepare_legal.py --cloud --fetch --output /app/legal && python scripts/verify_legal_bundle.py /app/legal
 RUN mkdir -p /app/data/cloud
