@@ -30,16 +30,7 @@
 
 > **版本说明**：`main` 为本地桌面客户端，[`Online`](https://github.com/H0rR1p/IceReader/tree/Online) 为公网 Web 版本。桌面版无需云账号即可使用，也可通过数据迁移包将书籍、卡片和学习记录带到云端账号。
 
-<!-- SCREENSHOT S1: 未来替换为 docs/images/bookshelf.png -->
-<table width="100%">
-  <tr><td align="center">
-    <br><br>
-    <strong>截图待补充 S1 · 书架概览</strong><br>
-    需要：完整客户端窗口，展示左侧导航、最近阅读、书籍封面和至少一个合集。<br>
-    建议横向截图，使用示例书籍，作为 README 首屏展示。
-    <br><br><br>
-  </td></tr>
-</table>
+![书架概览：最近阅读、合集与隐藏封面](docs/images/bookshelf.png)
 
 ## 功能介绍
 
@@ -54,16 +45,7 @@
 - **原书与插图**：支持原书预览，插图开关按书统一管理。实际封面每次启动默认隐藏，书内插图默认关闭。
 - **后台处理**：可处理当前章节或全书，显示进度并支持取消；已完成的切分与翻译保留供下次使用。
 
-<!-- SCREENSHOT S2: 未来替换为 docs/images/reader.png -->
-<table width="100%">
-  <tr><td align="center">
-    <br><br>
-    <strong>截图待补充 S2 · 阅读与释义</strong><br>
-    需要：左侧章节目录、中间带振假名的日文、右侧句意和词义卡片同时可见。<br>
-    选中一句及一个词，展示真实的语境义；使用适合公开展示的文本。
-    <br><br><br>
-  </td></tr>
-</table>
+![阅读与释义：章节目录、振假名、句意与语境词义](docs/images/reader.png)
 
 ### 把阅读中的词汇留下来
 
@@ -71,42 +53,21 @@
 
 阅读中的词语可加入词卡；卡片支持标签、筛选、编辑和合并。复习使用四档反馈与每日学习上限，知识状态会参与阅读辅助的调整。
 
-<!-- SCREENSHOT S3: 未来替换为 docs/images/lexicon.png -->
-<table width="100%">
-  <tr><td align="center">
-    <br><br>
-    <strong>截图待补充 S3 · 个人词库管理</strong><br>
-    需要：假名浏览树、搜索与筛选栏、词条列表和分组管理。<br>
-    列表中保留几条日文、读音与中文释义完整的示例词。
-    <br><br><br>
-  </td></tr>
-</table>
+![个人词库：假名树形浏览、搜索与筛选](docs/images/lexicon.png)
 
-<!-- SCREENSHOT S4: 未来替换为 docs/images/cards-review.png -->
-<table width="100%">
-  <tr><td align="center">
-    <br><br>
-    <strong>截图待补充 S4 · 词卡与每日复习</strong><br>
-    需要：词卡管理页，以及翻开答案后的复习页，各一张。<br>
-    展示卡片筛选、词语与例句，以及四档复习反馈按钮；后续可并排排版。
-    <br><br><br>
-  </td></tr>
-</table>
+**词卡管理**
+
+![词卡管理：候选词、释义与来源例句](docs/images/cards.png)
+
+**每日复习**
+
+![每日复习：结合原文例句回忆词义](docs/images/review.png)
 
 ### 看见自己的学习积累
 
 个人主页展示学习时间热力图、连续学习天数、近期趋势和待复习卡片。你可以设置昵称与头像，并在不同本机资料空间之间切换。
 
-<!-- SCREENSHOT S5: 未来替换为 docs/images/profile.png -->
-<table width="100%">
-  <tr><td align="center">
-    <br><br>
-    <strong>截图待补充 S5 · 学习统计</strong><br>
-    需要：个人主页，展示有学习记录的热力图、连续学习天数和近期趋势。<br>
-    使用示例昵称与头像，尽量让统计区完整可见。
-    <br><br><br>
-  </td></tr>
-</table>
+![学习统计：学习时间热力图、近期趋势与复习概览](docs/images/profile.png)
 
 ### 听见油库里
 
@@ -158,16 +119,7 @@ AI 接口可能按用量收费。设置页可查看 token、缓存命中、耗�
 
 分享包包含正文、封面、插图、章节、切分、翻译和相关词义。尚未完成的分析会保留已有结果，接收方可继续处理。
 
-<!-- SCREENSHOT S6: 未来替换为 docs/images/book-sharing.png -->
-<table width="100%">
-  <tr><td align="center">
-    <br><br>
-    <strong>截图待补充 S6 · 选择书籍分享</strong><br>
-    需要：打开「分享书籍」对话框，勾选至少两本书。<br>
-    展示搜索栏、已选数量、勾选列表和「导出分享包」按钮。
-    <br><br><br>
-  </td></tr>
-</table>
+![选择书籍分享：勾选一本或多本书导出分享包](docs/images/book-sharing.png)
 
 ### 选择合适的数据包
 
