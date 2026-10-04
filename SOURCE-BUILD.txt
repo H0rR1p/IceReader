@@ -79,6 +79,10 @@ License scope and historical versions
 --------------------------------------
 IceReader code: AGPL-3.0-or-later, see LICENSE and COPYRIGHT. Third-party
 components retain their licenses; logo/audio/user content rights are separate.
+The project author has confirmed that the logo, icons and click audio are
+original works created by H0rR1p. They are distributed with IceReader and
+remain outside the code-license grant; all asset rights are reserved unless
+separately licensed.
 No warranty is provided. Full component inventory is in third_party_licenses.
 The inventory also records build-only and platform/test-superset dependencies;
 this is not a count of modules actually shipped or executed by the app.

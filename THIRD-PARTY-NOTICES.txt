@@ -25,8 +25,10 @@ The independently developed YMM bridge source is part of IceReader; building
 it requires the user's separately licensed YMM4 SDK/installation.
 Its limited additional linking permission is stated in ymm4-bridge/COPYRIGHT;
 it does not relicense YMM4, its SDK/engines, or any third-party code.
-Logo/icon artwork and click audio have separate, unverified content rights;
-the AGPL code license does not grant rights to those assets or trademarks.
+The project author has confirmed that the logo, icons and click audio are
+original works created by H0rR1p, distributed with IceReader. All rights in
+these assets are reserved unless separately licensed; the AGPL code license
+does not grant rights to those assets or trademarks.
 Icons are derived from public/bingdu-logo.png. No Aozora source/assets are used.
 Architecture reference: https://github.com/meokisama/aozora (GPL-3.0).
 
