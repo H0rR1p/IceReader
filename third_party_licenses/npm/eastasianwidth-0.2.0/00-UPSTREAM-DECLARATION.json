@@ -1,0 +1,11 @@
+{
+  "name": "eastasianwidth",
+  "version": "0.2.0",
+  "license": "MIT",
+  "repository": {
+    "url": "git://github.com/komagata/eastasianwidth.git",
+    "type": "git"
+  },
+  "gitHead": "b89f04d44dc786885615e94cd6e2ba1ef7866fa4",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

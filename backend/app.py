@@ -44,6 +44,7 @@ from .modules.sync.repository import initialize_store as initialize_sync_store
 from .modules.sync.router import router as sync_router
 from .modules.voice.router import router as voice_router
 from .paths import DIST_DIR
+from .legal import router as legal_router
 from .runtime_config import (
     ALLOWED_HOSTS,
     ALLOWED_ORIGIN_HOSTS,
@@ -78,6 +79,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="冰读本地 API", version="0.2.0", lifespan=lifespan)
+app.include_router(legal_router)
 app.include_router(identity_router)
 app.include_router(content_router)
 app.include_router(data_portability_router)

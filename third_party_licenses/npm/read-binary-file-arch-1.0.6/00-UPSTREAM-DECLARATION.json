@@ -1,0 +1,11 @@
+{
+  "name": "read-binary-file-arch",
+  "version": "1.0.6",
+  "license": "MIT",
+  "repository": {
+    "url": "git+ssh://git@github.com/samuelmaddock/read-binary-file-arch.git",
+    "type": "git"
+  },
+  "gitHead": null,
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

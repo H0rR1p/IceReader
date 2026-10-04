@@ -1,0 +1,11 @@
+{
+  "name": "tmp-promise",
+  "version": "3.0.3",
+  "license": "MIT",
+  "repository": {
+    "url": "git://github.com/benjamingr/tmp-promise.git",
+    "type": "git"
+  },
+  "gitHead": "7a9d92612d24791664669596c2705313d459ce7f",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

@@ -1,7 +1,7 @@
 {
   "name": "jap-study-reader",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,10 +24,12 @@
     "electron": "42.4.0",
     "electron-builder": "26.0.12",
     "playwright": "1.58.2",
+    "resedit": "1.7.2",
     "typescript": "latest",
     "vite": "latest"
   },
   "main": "desktop/main.cjs",
   "description": "冰读日语学习阅读客户端",
-  "author": "IceReader contributors"
+  "author": "IceReader contributors",
+  "license": "AGPL-3.0-or-later"
 }

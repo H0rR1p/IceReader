@@ -1,0 +1,11 @@
+{
+  "name": "cross-dirname",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "url": "git+https://github.com/JumpLink/cross-dirname.git",
+    "type": "git"
+  },
+  "gitHead": "cf2a0674f338e21e53d752933e748849399cd104",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

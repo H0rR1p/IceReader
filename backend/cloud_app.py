@@ -16,6 +16,7 @@ from .cloud.config import load_config
 from .cloud.mailer import Mailer
 from .cloud.oauth import OAuthService
 from .cloud.repository import CloudAuthError, CloudConflictError, CloudRepository
+from .legal import router as legal_router, source_page
 
 
 config = load_config()
@@ -33,6 +34,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="冰读云端服务", version="1.0.0", lifespan=lifespan)
+app.include_router(legal_router)
+app.add_api_route("/", source_page, methods=["GET"], include_in_schema=False)
 if config.allowed_origins:
     app.add_middleware(
         CORSMiddleware, allow_origins=list(config.allowed_origins), allow_credentials=False,

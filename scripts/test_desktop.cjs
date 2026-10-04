@@ -30,6 +30,25 @@ async function api(page, url, options) {
   let page = await launch()
   assert.equal(await page.evaluate(() => typeof window.require), 'undefined')
   assert.equal((await api(page, '/api/health')).value.app, 'bingdu')
+  const legal = await api(page, '/api/legal')
+  assert.equal(legal.status, 200)
+  assert.equal(legal.value.license, 'AGPL-3.0-or-later')
+  await page.getByRole('button', { name: '源码与许可证', exact: true }).click()
+  await page.locator('.legal-license-text').filter({ hasText: 'GNU AFFERO GENERAL PUBLIC LICENSE' }).waitFor()
+  await page.locator('.legal-dialog').getByRole('button', { name: '关闭', exact: true }).click()
+  await page.getByRole('button', { name: '下载对应源码', exact: true }).click()
+  // Electron's session handles custom-protocol downloads outside Playwright's
+  // page download events. Check the completed native file, as for migrations.
+  const sourcePath = path.join(profile, 'test-download.zip')
+  let sourceHash = ''
+  for (let attempt = 0; attempt < 60; attempt++) {
+    if (fs.existsSync(sourcePath)) sourceHash = require('node:crypto').createHash('sha256').update(fs.readFileSync(sourcePath)).digest('hex')
+    if (sourceHash === legal.value.source_sha256) break
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+  assert.ok(fs.existsSync(sourcePath), 'native corresponding-source download')
+  assert.equal(sourceHash, legal.value.source_sha256)
+  fs.unlinkSync(sourcePath)
   const user = (await api(page, '/api/me')).value
   const runtime = await instance.evaluate(({ app }) => app.__bingduTest)
   const refused = await new Promise((resolve, reject) => {
@@ -127,7 +146,14 @@ async function api(page, url, options) {
   await page.locator(`[data-sentence-id="${sentence.id}"].selected`).waitFor()
   await page.getByRole('button', { name: '原书预览', exact: true }).click()
   assert.ok((await page.frameLocator('iframe.original-preview').locator('body').innerText()).includes('猫'))
-  assert.ok(await page.frameLocator('iframe.original-preview').locator('img').evaluate(image => image.complete && image.naturalWidth > 0))
+  let illustrationLoaded = false
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try { illustrationLoaded = await page.frameLocator('iframe.original-preview').locator('img').evaluate(image => image.complete && image.naturalWidth > 0) }
+    catch (error) { if (!String(error).includes('Frame was detached')) throw error }
+    if (illustrationLoaded) break
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  assert.ok(illustrationLoaded, 'original illustration must finish loading')
   await page.getByRole('button', { name: '冰读模式', exact: true }).click()
   await page.getByRole('button', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '继续阅读', exact: true }).click()

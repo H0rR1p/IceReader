@@ -7,6 +7,7 @@ const http = require('node:http')
 const { Readable } = require('node:stream')
 
 app.setName('IceReader')
+if (process.platform === 'win32') app.setAppUserModelId('io.bingdu.reader')
 app.setPath('userData', process.env.BINGDU_DESKTOP_USER_DATA || path.join(app.getPath('appData'), 'IceReader'))
 protocol.registerSchemesAsPrivileged([{ scheme: 'bingdu', privileges: {
   standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true,

@@ -1,12 +1,39 @@
-冰读第三方数据说明
-==================
+冰读第三方组件与内容许可 / IceReader third-party notices
+========================================================
 
-Desktop runtime
----------------
-Electron: https://github.com/electron/electron (MIT)
-React: https://github.com/facebook/react (MIT)
-Python: https://www.python.org/ (PSF License)
-PyInstaller: https://pyinstaller.org/ (GPL with bootloader exception permitting bundled applications)
-The Electron runtime includes Chromium third-party notices in LICENSES.chromium.html.
-YMM4 and proprietary voice engines/packs are not included in this installer.
-Aozora is an architectural reference only; its GPL application source was not copied.
+IceReader application source: AGPL-3.0-or-later; see LICENSE and COPYRIGHT.
+EbookLib 0.19 is retained under AGPL-3.0-or-later. Its upstream license,
+authors and exact source distribution accompany this release.
+
+Complete component/version inventory: third_party_licenses/inventory.json
+Full upstream license and copyright texts: third_party_licenses/
+Corresponding source: legal/corresponding-source.zip in the installation,
+or the application's “源码与许可证” / “下载对应源码” controls.
+The archive contains the exact application source, build scripts, lock files,
+and original source archives of bundled Python and JavaScript dependencies.
+JSZip is used under its MIT option. certifi retains MPL-2.0; its unmodified
+source (including the certificate bundle) is supplied in the source archive.
+PyInstaller uses GPL with a bootloader exception; preserve that exception.
+Electron/Chromium notices remain LICENSE.electron.txt / LICENSES.chromium.html.
+Build-only tools are listed for transparency, not as shipped app modules.
+
+External software and content
+-----------------------------
+YMM4, its proprietary voice engines/packs and user books/dictionaries are
+not licensed by IceReader's AGPL grant and are not bundled in the installer.
+The independently developed YMM bridge source is part of IceReader; building
+it requires the user's separately licensed YMM4 SDK/installation.
+Its limited additional linking permission is stated in ymm4-bridge/COPYRIGHT;
+it does not relicense YMM4, its SDK/engines, or any third-party code.
+Logo/icon artwork and click audio have separate, unverified content rights;
+the AGPL code license does not grant rights to those assets or trademarks.
+Icons are derived from public/bingdu-logo.png. No Aozora source/assets are used.
+Architecture reference: https://github.com/meokisama/aozora (GPL-3.0).
+
+Historical versions
+-------------------
+Earlier binaries already included EbookLib without a complete notice bundle.
+The new notices do not retroactively change those binaries. Distributors
+must make the matching historical source/build materials available for any
+old versions they still distribute; a moving GitHub main link is insufficient.
+Use this source-packaging workflow for every release, including modified ones.

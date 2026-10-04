@@ -587,3 +587,8 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .word-correction label { display: block; font-size: 13px; }
 .word-correction textarea { width: 100%; box-sizing: border-box; margin: 8px 0; }
 .word-correction .dictionary-actions { margin-top: 12px; flex-wrap: wrap; }
+.legal-links { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 12px 16px; font-size: 12px; }
+.legal-links > button { color: var(--primary, #367fab); border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; }
+.legal-links > button:disabled { opacity: .6; cursor: wait; }
+.legal-dialog { width: min(760px, 92vw); max-height: 85vh; overflow: auto; text-align: left; }
+.legal-license-text { max-height: 42vh; overflow: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.5; }

@@ -1,0 +1,15 @@
+{
+  "name": "crunchy",
+  "version": "0.2.2",
+  "package": {
+    "name": "crunchy",
+    "version": "0.2.2",
+    "authors": [
+      "Vurich <jackefransham@hotmail.co.uk>"
+    ],
+    "build": "build.rs",
+    "description": "Crunchy unroller: deterministically unroll constant loops",
+    "license": "MIT"
+  },
+  "note": "Locked native source superset includes test and platform-only crates. Upstream provides no standalone license text; declaration retained without inventing copyright."
+}

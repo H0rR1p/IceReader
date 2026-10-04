@@ -1,0 +1,11 @@
+{
+  "name": "temp-file",
+  "version": "3.4.0",
+  "license": "MIT",
+  "repository": {
+    "url": "git+https://github.com/develar/temp-file.git",
+    "type": "git"
+  },
+  "gitHead": "3534650dce58cb671fe3b4655e5eeeb036ff1839",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

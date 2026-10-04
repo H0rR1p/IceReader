@@ -1,161 +1,374 @@
-# 冰读 · baka都能用的日语学习阅读器
+<p align="center">
+  <img src="public/bingdu-logo.png" width="128" alt="冰读 logo" />
+</p>
 
-本机运行的日语学习桌面客户端，使用 Electron 原生窗口、React 界面与 Python 内部服务。main 是桌面版，Online 是公网 Web 版。导入无 DRM EPUB、UTF-8 TXT 或粘贴日文后，应用会生成：
+<h1 align="center">冰读 · IceReader</h1>
 
-- 词级分割、词典形、读音与振假名
-- 按需切分当前章节，阅读时按需生成单句句意
-- 当前章或全书的后台切分与后台逐句翻译
-- 自动使用书内第一张图片作为封面，也可上传本地图片替换
-- 可导入词典与个人修正词库
-- 词典优先、AI 补缺的逐句词语释义
-- 按需生成的简洁语法句法分析，明确标出句中使用的语法结构
-- 本地阅读进度和用户词义修正
-- 以句子为单位的本地书签，可从左侧书签栏直接定位
-- 无密码的本机/访客资料空间、个人头像、昵称与会话管理
-- 候选词卡、标签与筛选视图、卡片编辑/合并/撤销和每日学习上限
-- 四档间隔复习、知识盲区追踪和会随熟练度减弱的阅读辅助
-- 学习时间热力图、连续学习天数和 12 周趋势
-- 可跨账号载入书籍资源、卡片、复习状态和学习记录的迁移包，以及带版本清单与 SHA-256 校验的完整备份和安全恢复
-- 自建云端账号、邮箱验证、密码恢复、OAuth/OIDC 登录与跨设备增量同步
-- 片假名树、服务端分页、虚拟列表、批量修正和自定义分组
+<p align="center"><strong>让baka都能好好读书</strong></p>
+<p align="center">从喜欢的日文开始，把阅读、理解、积累和复习连在一起。</p>
 
-桌面数据默认独立保存在 `%APPDATA%/IceReader/data`（设置页可打开实际目录），下文的 `data/` 均指该目录。首次从项目启动会复制原有 `data/`，保留原数据；安装版可通过 `BINGDU_LEGACY_DATA_DIR` 指定旧版数据目录。书籍、分析结果、个人词库和阅读进度会增量保存到 `data/library.sqlite3`，词卡、知识状态和学习活动保存在 `data/learning.sqlite3`。每本 EPUB 都会迁移到 `data/books/<内容哈希>/` 专用目录，其中 `source/book.epub` 是本地原书归档，`assets/` 保存提取图片，`documents/` 保存原书预览；阅读时不再依赖导入前的文件路径。导入的日中词典保存在 `data/dictionary.sqlite3`，每个账号的 AI 接口配置保存在 `data/users/<user_id>/settings.json`。这些文件均被 Git 忽略，不会提交到仓库；浏览器 IndexedDB 仅缓存书籍索引与打开过的章节。启动时不再复制整套词元和释义数据。
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="许可证：AGPL-3.0-or-later" /></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" alt="Windows x64" />
+</p>
 
-页面使用 Hash 路由，可直接刷新或使用浏览器前进/后退返回书架、词库、词卡、复习、个人主页和设置。除书架与阅读器外的页面按需加载，降低首次打开时的脚本解析量。
+<p align="center">
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#功能介绍">功能介绍</a> ·
+  <a href="#分享与数据迁移">分享与数据迁移</a> ·
+  <a href="#架构概览">架构概览</a> ·
+  <a href="#开发与构建">开发与构建</a> ·
+  <a href="#第三方与内容许可">许可证与源码</a> ·
+  <a href="https://github.com/H0rR1p/IceReader/issues">反馈问题</a>
+</p>
 
-## 本地启动
+---
 
-需要 Node.js 20+ 和 Python 3.9+。
+冰读是一款面向日语学习者的 **Windows 桌面阅读器**。导入 EPUB、TXT 或粘贴日文后，你可以在阅读中查看振假名、理解句意和语法，把遇到的词加入卡片，并通过间隔复习逐渐减少对阅读辅助的依赖。
 
-```powershell
-python -m venv .venv64
-.\.venv64\Scripts\python -m pip install -r backend\requirements.txt
-npm install
+书籍与学习数据保存在本机。已有正文、分析结果和复习内容可离线使用；生成新的 AI 释义和语法分析需要配置自己的接口。配音可连接本机 YMM4。
+
+> **版本说明**：`main` 为本地桌面客户端，[`Online`](https://github.com/H0rR1p/IceReader/tree/Online) 为公网 Web 版本。桌面版无需云账号即可使用，也可通过数据迁移包将书籍、卡片和学习记录带到云端账号。
+
+<!-- SCREENSHOT S1: 未来替换为 docs/images/bookshelf.png -->
+<table width="100%">
+  <tr><td align="center">
+    <br><br>
+    <strong>截图待补充 S1 · 书架概览</strong><br>
+    需要：完整客户端窗口，展示左侧导航、最近阅读、书籍封面和至少一个合集。<br>
+    建议横向截图，使用示例书籍，作为 README 首屏展示。
+    <br><br><br>
+  </td></tr>
+</table>
+
+## 功能介绍
+
+### 在原文中理解日语
+
+- **封面默认隐藏**: 想在外面读一些封面尴尬的书？打开阅读器怕被人看见？本产品默认隐藏图书封面，出门在外不怕尴尬。
+- **导入与整理**：支持无 DRM 的 EPUB、UTF-8 TXT 和粘贴文本；支持合集、自定义封面和最近阅读。
+- **日语阅读辅助**：本地切词、词典形、读音与振假名；点击词语查看词义和当前语境义。
+- **逐句理解**：快速句意生成中文译文；完整释义额外补充词典未命中的词义。语法句法分析单独按需生成，指出句中使用的结构。
+- **释义修正**：发现词义不合语境时，可使用「AI 修正释义」，查看预览后确认保存；也可手动修正个人词库。
+- **阅读定位**：保存章节和句子进度；支持句子书签、上一节／下一节和「继续阅读」。左右侧栏均可收起。
+- **原书与插图**：支持原书预览，插图开关按书统一管理。实际封面每次启动默认隐藏，书内插图默认关闭。
+- **后台处理**：可处理当前章节或全书，显示进度并支持取消；已完成的切分与翻译保留供下次使用。
+
+<!-- SCREENSHOT S2: 未来替换为 docs/images/reader.png -->
+<table width="100%">
+  <tr><td align="center">
+    <br><br>
+    <strong>截图待补充 S2 · 阅读与释义</strong><br>
+    需要：左侧章节目录、中间带振假名的日文、右侧句意和词义卡片同时可见。<br>
+    选中一句及一个词，展示真实的语境义；使用适合公开展示的文本。
+    <br><br><br>
+  </td></tr>
+</table>
+
+### 把阅读中的词汇留下来
+
+个人词库提供词形、读音和释义搜索，可按假名、词性、来源与自定义分组浏览，并支持分页、虚拟列表和批量修正。你也可以导入自己有权使用的 Yomitan 格式日中词典。
+
+阅读中的词语可加入词卡；卡片支持标签、筛选、编辑和合并。复习使用四档反馈与每日学习上限，知识状态会参与阅读辅助的调整。
+
+<!-- SCREENSHOT S3: 未来替换为 docs/images/lexicon.png -->
+<table width="100%">
+  <tr><td align="center">
+    <br><br>
+    <strong>截图待补充 S3 · 个人词库管理</strong><br>
+    需要：假名浏览树、搜索与筛选栏、词条列表和分组管理。<br>
+    列表中保留几条日文、读音与中文释义完整的示例词。
+    <br><br><br>
+  </td></tr>
+</table>
+
+<!-- SCREENSHOT S4: 未来替换为 docs/images/cards-review.png -->
+<table width="100%">
+  <tr><td align="center">
+    <br><br>
+    <strong>截图待补充 S4 · 词卡与每日复习</strong><br>
+    需要：词卡管理页，以及翻开答案后的复习页，各一张。<br>
+    展示卡片筛选、词语与例句，以及四档复习反馈按钮；后续可并排排版。
+    <br><br><br>
+  </td></tr>
+</table>
+
+### 看见自己的学习积累
+
+个人主页展示学习时间热力图、连续学习天数、近期趋势和待复习卡片。你可以设置昵称与头像，并在不同本机资料空间之间切换。
+
+<!-- SCREENSHOT S5: 未来替换为 docs/images/profile.png -->
+<table width="100%">
+  <tr><td align="center">
+    <br><br>
+    <strong>截图待补充 S5 · 学习统计</strong><br>
+    需要：个人主页，展示有学习记录的热力图、连续学习天数和近期趋势。<br>
+    使用示例昵称与头像，尽量让统计区完整可见。
+    <br><br><br>
+  </td></tr>
+</table>
+
+### 听见油库里
+
+连接本机 YMM4 后，可为句子与单词生成配音。支持角色选择、可调语速、本地音频缓存和重新生成；默认语速为 `0.85×`，音高固定。
+
+安装包不包含 YMM4 或专有语音包，使用方式见下方 [配音配置](#配音配置)。
+
+## 快速开始
+
+### 安装客户端
+
+目前提供 **Windows x64** 安装包。使用项目维护者提供的 `IceReader-<版本号>-Setup.exe`，按安装向导选择目录即可。
+
+安装版自带运行环境，日常使用无需安装 Node.js 或 Python。目录版需要保留整个 `win-unpacked` 文件夹，不能只复制其中的 EXE。
+
+### 第一次阅读
+
+1. 以本机模式进入，或选择已有本机账号。
+2. 点击「导入书籍」，选择 EPUB、TXT，或粘贴日文。导入完成后停留在书架。
+3. 打开书籍，选择章节并切分；已有切分会直接复用。
+4. 在设置页配置 AI 接口地址、模型与密钥，再点击「释义本句」或启动后台翻译。
+5. 遇到需要积累的词，加入词卡；在「今日复习」中巩固。
+
+**快速句意与完整释义有什么区别？**
+
+| 模式 | 生成内容 | 适合的用法 |
+| --- | --- | --- |
+| 快速句意 | 中文句意，不补充词语翻译 | 先读懂故事、预先翻译全书 |
+| 完整释义 | 中文句意、未命中词的词义与本句语境义 | 逐句学习、积累词汇 |
+| 语法句法分析 | 句中的语法结构与简洁说明 | 遇到难句时单独调用 |
+
+AI 接口可能按用量收费。设置页可查看 token、缓存命中、耗时和估算费用；本地切词与已有结果复用不产生 AI 请求。
+
+### 配音配置
+
+1. 自行安装可正常合成语音的 YMM4 及所需语音包。
+2. 在设置页的配音区域指定 `YukkuriMovieMaker.exe`，导入包含目标角色的 `.ymmp` 模板。
+3. 从角色下拉框选择声音，保存后点击「配音本句」或「播放读音」。
+
+冰读会安装自己的配音桥，由 YMM4 调用其语音引擎。首次安装或更新配音桥时，需要保存项目并完全退出 YMM4，再重新触发配音。生成音频时应保持系统输出设备可用。
+
+配音本身不调用 AI；语音引擎与语音包的使用范围遵循各自许可。
+
+## 分享与数据迁移
+
+### 只分享选中的书籍
+
+在书架点击 **「分享书籍」→ 勾选一本或多本 → 导出分享包**。接收方点击 **「载入分享包」**，即可读取书籍及其已有分析结果。
+
+分享包包含正文、封面、插图、章节、切分、翻译和相关词义。尚未完成的分析会保留已有结果，接收方可继续处理。
+
+<!-- SCREENSHOT S6: 未来替换为 docs/images/book-sharing.png -->
+<table width="100%">
+  <tr><td align="center">
+    <br><br>
+    <strong>截图待补充 S6 · 选择书籍分享</strong><br>
+    需要：打开「分享书籍」对话框，勾选至少两本书。<br>
+    展示搜索栏、已选数量、勾选列表和「导出分享包」按钮。
+    <br><br><br>
+  </td></tr>
+</table>
+
+### 选择合适的数据包
+
+| 类型 | 入口 | 包含内容 | 用途 |
+| --- | --- | --- | --- |
+| 书籍分享包 | 书架 → 分享书籍／载入分享包 | 所选书籍、资源、切分、翻译、相关词义；不含个人阅读进度、书签、卡片、学习记录和账号设置 | 分享一本或多本书 |
+| 跨账号数据迁移包 | 设置 → 数据备份与恢复 | 书籍、资源、阅读进度、书签、个人词库、卡片、复习状态与学习记录；不含密码、会话和 API 密钥 | 换账号、迁移到云端账号 |
+| 完整本地备份 | 设置 → 数据备份与恢复 | 当前账号的本地数据与设置，包含 API 密钥 | 备份与恢复本机数据 |
+
+分享包和迁移包会跳过目标账号已有的书籍，避免覆盖。完整备份的恢复会替换当前账号数据，恢复前自动保存一份安全备份。
+
+## 数据保存在哪里
+
+桌面版默认保存到 `%APPDATA%\IceReader\data`，也可在设置页打开实际数据目录。
+
+```text
+data/
+├── books/                  原书副本、封面、插图与原书预览
+├── library.sqlite3         书籍、章节、切分、释义与阅读进度
+├── learning.sqlite3        词卡、复习与学习记录
+├── dictionary.sqlite3      用户导入的词典
+├── ai.sqlite3              AI 用量与缓存记录
+├── users/                  按用户隔离的设置
+├── voice/                  配音模板与音频缓存
+└── backups/                备份与恢复前的安全副本
 ```
 
-启动桌面客户端（开发环境）：
+导入 EPUB 时，原书与资源会复制到专用目录，后续阅读不依赖原始文件位置。数据目录与安装目录分离，客户端升级不会要求重新导入书籍。
+
+云端同步与迁移包承担不同用途：同步主要传输学习状态、词卡、书签、进度和个人词义；完整书籍正文与图片通过迁移包载入。同步不上传 AI 密钥或 YMM4 文件。
+
+## 架构概览
+
+桌面版由 Electron 承载 React 界面，并启动一个仅监听本机回环地址的 Python 服务。界面通过固定的 `bingdu://app/` 来源访问服务，由主进程转发请求并验证实例密钥；书籍与学习数据以 SQLite 和本地文件为准，IndexedDB 只作为界面缓存。
+
+```mermaid
+flowchart LR
+    subgraph Desktop["冰读桌面客户端 · 本机"]
+        UI["React + TypeScript<br/>书架 / 阅读 / 词库 / 复习 / 设置"]
+        Cache["IndexedDB<br/>书籍索引与已打开章节缓存"]
+        Main["Electron 主进程<br/>窗口 / 会话 / 请求转发 / 原生接口"]
+        API["Python + FastAPI<br/>书库 / 账号 / AI / 配音 / 数据迁移"]
+        NLP["Sudachi + 本地句界处理<br/>切词 / 读音 / 振假名"]
+        DB[("SQLite<br/>书库 / 词典 / 词卡 / 学习 / AI 缓存")]
+        Files["本地文件目录<br/>EPUB / 图片 / 配音缓存 / 备份"]
+        UI <--> Cache
+        UI <-->|"bingdu://app"| Main
+        Main <-->|"回环 HTTP + 实例密钥"| API
+        API --> NLP
+        API <--> DB
+        API <--> Files
+    end
+
+    AI["用户配置的 AI 接口<br/>句意 / 词义 / 语法 / 边界审校"]
+    YMM["本机 YMM4 + 冰读配音桥<br/>用户安装的语音引擎与语音包"]
+    Cloud["可选：冰读云端账号服务<br/>认证 / 学习数据同步 / 冲突处理"]
+    API -->|"按需请求"| AI
+    API <-->|"本机桥接"| YMM
+    API <-->|"HTTPS"| Cloud
+```
+
+| 边界 | 处理方式 |
+| --- | --- |
+| 界面与系统 | 渲染进程启用沙箱、关闭 Node 集成；原生操作通过有限的桥接接口完成 |
+| 本机服务与数据 | 主进程管理服务启动和退出；按用户隔离保存，正文按章读取、分析结果增量写入 |
+| AI 与本地处理 | 本地完成切词和确定性句界；需要新释义、语法或边界审校时才调用外部接口 |
+| 配音与客户端 | YMM4 单独安装，通过本机配音桥调用；语音包不打进客户端安装包 |
+| 云同步与书籍迁移 | 云同步传输学习相关数据；完整书籍资源通过迁移包载入 |
+
+**阅读与学习流程**：导入内容 → 阅读与按需释义 → 积累词汇 → 词卡复习 → 更新知识状态 → 调整后续阅读辅助。
+
+## 开发与构建
+
+开发环境：**Windows x64、Node.js 22+、Python 3.11+**。
 
 ```powershell
+git clone https://github.com/H0rR1p/IceReader.git
+cd IceReader
+python -m venv .venv64
+.\.venv64\Scripts\python -m pip install -r backend\requirements-cloud.txt
+npm ci
 npm run desktop:dev
 ```
 
-客户端会自动启动独立内部服务，不需要另开 API 终端，也不会打开系统浏览器。在设置页配置自己的 AI 服务。
+`requirements-cloud.txt` 包含基础服务依赖和账号模块所需的 Authlib，桌面版也使用这套依赖。桌面客户端会自动启动内部服务，无需单独启动 API 或打开系统浏览器。
 
-需要调试 Web 界面时，仍可分别运行 `python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000` 和 `npm run dev`。这只是开发方式，正式发行使用桌面窗口。
-
-## 数据与版权
-
-- 只导入你有权处理的无 DRM 内容。
-- EPUB 原图会原样保存；精读模式默认隐藏插图，用户开启后按原位置显示。原书预览会清理脚本、事件属性和外部资源。
-- 词典义按“个人词库 → 导入的 Yomitan 日中词典 → AI 补缺”顺序取得。完整释义的语境义由 AI 根据原句独立判断，不再默认取词典第一项；快速句意仍只翻译整句。
-- 在词义卡片点击“AI 修正释义”，可填写错误说明、生成修正预览，再确认保存本句语境义和个人词库词义。生成使用个人 AI 设置，预览不会自动写入数据。
-
-## 云端账号与同步
-
-本机后端仍是浏览器唯一直接访问的数据入口。绑定云账号后，本机后端使用短期访问令牌和轮换刷新令牌连接独立的冰读云端服务；令牌使用本机 Fernet 密钥加密保存。云端同步学习状态、词卡、复习日志、书签、阅读进度、个人词义和学习设置，不上传 EPUB 正文、插图、AI Key 或 YMM4 配音文件。
-
-启动自建云端服务：
-
-```powershell
-Copy-Item cloud.env.example cloud.env
-docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
-```
-
-生产环境必须配置公开 HTTPS 地址、随机 `BINGDU_CLOUD_SECRET` 和 SMTP。OIDC 提供商通过 `BINGDU_CLOUD_OIDC_PROVIDERS` 配置，回调地址为 `<云端地址>/v1/auth/oidc/callback/<provider-id>`；GitHub OAuth 可使用 `BINGDU_GITHUB_CLIENT_ID` 和 `BINGDU_GITHUB_CLIENT_SECRET`。登录页支持云端账号和第三方登录，“云端与同步”页面提供绑定、立即同步、仅拉取、冲突选择、邮箱验证、密码恢复和设备会话撤销。
-
-认证流程使用 OAuth 2.0 Authorization Code + PKCE、state、OIDC nonce、验证邮箱、15 分钟访问令牌以及刷新令牌轮换和复用检测。云端可以单独部署 `backend.cloud_app:app`，本地桌面服务无需暴露到公网。
-
-### Online 分支的公网 Web 模式
-
-`Online` 分支在保留独立云端账号服务的同时，可以把完整阅读器作为同源 Web 应用运行。公网前端使用专用 Vite 模式构建：
-
-```powershell
-npm run build -- --mode online
-$env:BINGDU_PUBLIC_ORIGIN = "https://reader.example.com"
-$env:BINGDU_DATA_DIR = "C:\IceReader\web-data"
-$env:BINGDU_PORT = "8000"
-$env:BINGDU_OPEN_BROWSER = "0"
-.\build\web-release\IceReaderWeb\IceReaderWeb.exe
-```
-
-公网模式会把未登录访问者标为“访客模式”，并为每个新浏览器创建隔离的数据空间；本地默认构建仍显示“本机模式”。反向代理应把 `/health`、`/v1/*`、`/verify-email` 和 `/password-reset` 交给云端账号服务，其余请求交给完整 Web 服务。
-
-## 阅读流程
-
-1. 导入书籍时只解析章节、版式和图片，不调用 AI，因此不需要等待全书切分。
-2. 打开需要阅读的章节并点击“切分本章”；系统在本地完成日语句界和词元处理，仅把同一段落内无法确定的换行边界交给 AI。已切分章节直接复用。
-3. 选择一句话，在右侧点击“释义本句”。系统只把本地词典未收录的词交给 AI，并生成简短句意；“语法句法分析”按需单独生成，只发送句子文本，不重复生成翻译和词义。
-4. 已生成的章节切分、词义和单句结果保存在本地，再次查看时直接复用。
-5. 如需预先处理，可在左侧启动全书后台任务，或在章节标题下启动本章后台任务；可选择只生成中文句意的“快速句意”，或同时补齐未登录词释义的“完整释义”。页面会显示进度，处理期间仍可阅读和切换章节。
-   任务可以随时取消；已完成结果会保留，当前请求中止后不再处理后续句子。
-6. 书架中的“更换封面”支持 JPG、PNG、WebP 和 GIF，最大 10 MB；删除书籍时需要在对话框中再次确认。
-   书架每次启动默认隐藏实际封面，可用主页右上方的“显示封面 / 隐藏封面”按钮统一切换。
-7. 当前句可以加入书签；左侧栏可在“目录”和“书签”之间切换，点击书签会打开对应章节并定位到该句。左右侧栏均可收起。
-
-## AI 用量优化
-
-- 后台句意按最多 12 句、约 2500 个估算输入输出 token 动态组批；结果仍按句子 ID 独立保存，单批失败不会破坏已完成数据。JSON 截断时会自动二分批次，并只重试缺失的句子。
-- 翻译采用“章节按需切分 → 待翻译队列 → 多工作器翻译 → 批量增量保存”的流水线，切出第一批句子后即可开始翻译，无需等待全书预加载。
-- 并发数可在 1～8 之间设置，默认 4。遇到 429 或 503 会自动降低有效并发并指数退避，连续成功后再逐步恢复。
-- “快速句意”不加载词元、不查询词典，也不要求 AI 输出词义；“完整释义”才按“本地词典命中项不发送、未命中项交给 AI”的流程补齐词义。语法分析仍按句单独生成。
-- 句意结果以“原句、未登录词、模型、提示版本、注释模式”建立精确缓存；AI 补充的未登录词会进入个人词库，后续直接复用。
-- DeepSeek 返回的输入、缓存命中、输出 token、耗时和失败次数记录在本地 `data/ai.sqlite3`。AI 设置页可填写当前接口的每百万 token 单价并查看估算费用。
-- 固定规则和输出结构位于提示前缀，动态句子放在末尾，以便兼容 DeepSeek 的前缀缓存。
-- 结构化释义请求明确关闭 DeepSeek 思考模式，避免推理内容占满输出预算后留下空正文；空正文、截断或非法 JSON 会自动重试一次，第二次使用双倍输出预算，失败时显示明确原因。
-- 对 OpenAI 兼容接口会自动探测 `response_format`、`thinking` 和 `reasoning_effort`。模型拒绝可选参数时会移除对应字段并缓存能力结果，继续依靠提示词和严格 JSON 解析处理，不要求用户自行排查 400 错误。
-- 可运行 `.\.venv64\Scripts\python.exe scripts\compare_segmentation.py`，把当前项目中最长章节的旧版已保存切分与优化后切分逐项比较。
-
-句界策略参考 [Bunkai 日语文境界判定器](https://github.com/megagonlabs/bunkai) 以及 Hayashibe、Mitsuzawa 的 [Sentence Boundary Detection on Line Breaks in Japanese](https://aclanthology.org/2020.wnut-1.10/)。标点句界由本地确定性规则处理；只有同一 EPUB 文本块内、没有终止标点的单换行属于低置信度边界并交给 AI。句界审校每批最多 20 个边界，并设有 45 秒超时和最多 256 输出 token 的硬上限。
-
-本地翻译已评估 CTranslate2 与 Argos Translate。它们能消除 API token，并支持 CPU 量化推理，但会明显增加安装包和模型体积，日中小说句意质量也需要另建测试集。因此当前版本保留“本地词典 + AI 未登录词和句意”的方案，没有把本地机器翻译引擎放入 P0。
-
-## 长章节加载
-
-- 打开章节时先读取正文和句子索引，不传输整章词元、注释和词义；首屏词元按 120 句读取，滚动接近末尾后再加载下一批。
-- 服务端为章节、句子和词元关系建立 SQLite 复合表达式索引；浏览器只把当前窗口写入 IndexedDB，已经缓存的窗口不会再次下载。
-- 后台翻译直接从服务端分页读取待处理句子，不先下载全书数据；快速句意模式不传输词元。每批不会跨章节，取消任务时也会中止尚未完成的读取。
-- 可运行 `.\.venv64\Scripts\python.exe scripts\benchmark_translation_pipeline.py`，用本机最长已切分章节与历史 API 延迟离线比较串行、并发 4 和并发 6；脚本不调用 API，也不改动书籍。
-- Sudachi core 字典在第一次分词或生成平假名读音时才加载；只打开书架和章节索引不会提前占用词典内存。
-
-前端按书架、阅读器、学习数据和设置对话框拆分在 `src/features/` 下；`App.tsx` 只保留应用级状态、持久化协调和后台任务编排。
-
-## Windows 客户端发行
+### 构建安装包
 
 ```powershell
 .\.venv64\Scripts\python -m pip install -r backend\requirements-build.txt
-npm ci
 npm run desktop:build
 ```
 
-生成 `build/desktop-release/IceReader-0.3.0-Setup.exe` 安装包与 `build/desktop-release/win-unpacked/冰读.exe` 目录版。项目根目录 `冰读.exe` 启动器也会指向新的桌面版。目录版必须整目录保留，不能只复制一个 exe。安装、重建与卸载不会删除独立的数据目录。
+每次成功构建生成一个独立目录：
 
-内部服务随机分配回环端口，只接受当前客户端的实例密钥；退出窗口时停止内部服务。界面使用固定的 `bingdu://app/` 来源，会话与缓存不随服务端口变化。渲染进程启用沙箱、关闭 Node 集成，只能调用少量经来源校验的原生接口。
+```text
+build/desktop-release-<构建时间>/
+├── IceReader-<版本号>-Setup.exe
+└── win-unpacked/            完整目录版客户端
+```
 
-在设置 → 数据备份与恢复中下载“跨账号数据迁移包”，然后登录 Online 云端账号，在同一页面载入。版本 2 包含 EPUB 资源、章节、译文、个人词库、阅读进度、书签、卡片、记忆状态、复习记录和学习统计；保留目标账号已有数据，重复导入不会重复增加。迁移包不包含 API Key、密码、会话或云绑定，仍兼容旧版仅书籍迁移包。
+`build/desktop-current.txt` 记录最新构建，项目根目录的 `冰读.exe` 启动器据此打开客户端。构建流程会核验 EXE 和安装包内嵌图标。
 
-`npm run desktop:test` 对真实 Electron 窗口进行功能验收；设置 `BINGDU_TEST_EXECUTABLE` 为目录版路径可验证打包版本。
-
-## YMM4 单句配音
-
-1. 在冰读的“配音设置”中确认 `YukkuriMovieMaker.exe` 路径，并导入一份包含目标角色的 `.ymmp` 项目。冰读会读取模板中的角色列表，可直接用下拉框切换角色。
-2. 选择阅读器中的句子，点击“配音本句”；右侧词典卡也可播放单词读音。冰读会把自带的本机配音桥复制到该 YMM4 的 `user/plugin/BingduYmmBridge/`，启动模板项目，并在 YMM4 内部调用已获许可的语音引擎。
-3. 语速可在配音设置中调整，默认是 `0.85×`；音高固定为 `1.00×`。语速调整由 YMM4 自带的 SoundTouch 组件完成，不会把音高一起改变。
-4. 第一次安装或更新配音桥时，如果 YMM4 已在运行，请先保存项目并完全退出 YMM4，再点击一次配音按钮。之后相同文本、模板、语速和音量直接使用本地 WAV 缓存；点击“重新生成”会绕过缓存并生成新的音频。
-
-YMM4 官方命令行只能导出项目中已有的语音缓存，不能为外部改写的台词生成新缓存，因此当前实现不再依赖“PNG + WAV 序列导出”。配音桥只监听 `127.0.0.1`，每次启动生成随机令牌；它不读取、复制或导出许可证。音频通过 YMM4 预览播放并录制，所以生成时请保持系统输出设备可用。
-
-配音任务可取消；切换句子或离开章节时会停止当前等待。静音或短于 0.2 秒的文件会判定为失败，不写入缓存。缓存和模板保存在本地 `data/voice/`，不会上传。
-
-## 检查
+### 检查代码与客户端
 
 ```powershell
 npm run build
 .\.venv64\Scripts\python -m pytest backend
+npm run desktop:test
 ```
 
-书籍资源迁移包与完整备份位于“设置 → 数据备份与恢复”。迁移包只合并书籍、章节、译文、封面和插图，重复书籍会跳过，不会覆盖目标资料空间的学习记录和设置。完整备份按当前用户隔离并包含 API Key；恢复前会自动在 `data/backups/` 留存当前数据副本。
+验证打包版本时，可先将 `BINGDU_TEST_EXECUTABLE` 设为对应 `win-unpacked\冰读.exe` 的完整路径。
 
+### 项目结构
 
-### 分享指定书籍
+| 目录 | 职责 |
+| --- | --- |
+| `desktop/` | Electron 主进程、窗口、内部服务生命周期与原生接口 |
+| `src/features/` | 书架、阅读、词库、卡片、复习、个人主页和设置 |
+| `backend/` | FastAPI 服务、日语处理、AI、配音与 SQLite 存储 |
+| `backend/modules/` | 账号、学习、同步、迁移等业务模块 |
+| `assets/`、`public/` | logo、Windows 图标与自有配音桥 |
+| `scripts/` | 构建、验收和性能检查工具 |
 
-书架点击“分享书籍”，选择一本或多本后导出书籍分享包；接收方点击书架“载入分享包”，即可获得正文、封面、插图、切分、翻译和相关词义。部分完成的章节会保留已完成结果。分享包不包含阅读进度、书签、卡片、学习记录和账号设置；载入会跳过已有书籍，保留接收方原有数据。分享包兼容现有迁移包载入接口。
+长章节按章与分批加载，保存采用增量更新；后台翻译使用动态组批、缓存和可调并发。Sudachi 字典在需要分词时加载，AI 只处理必要的句意、词义与低置信度边界。
+
+<details>
+<summary><strong>Web 调试与自建云端服务</strong></summary>
+
+### Web 界面调试
+
+分别打开两个终端：
+
+```powershell
+.\.venv64\Scripts\python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+```
+
+```powershell
+npm run dev
+```
+
+正式桌面发行仍使用 Electron。公网 Web 版本的部署请查看 `Online` 分支。
+
+### 自建云端账号服务
+
+```powershell
+Copy-Item cloud.env.example cloud.env
+# 编辑 cloud.env，填入实际配置后启动。
+docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
+```
+
+生产环境需配置公开 HTTPS 地址、随机 `BINGDU_CLOUD_SECRET` 和 SMTP。第三方登录需配置相应 OAuth/OIDC 提供商；具体环境变量见 [cloud.env.example](cloud.env.example)。
+
+客户端的「云端与同步」页面提供绑定账号、立即同步、拉取数据、冲突处理与设备会话管理。邮箱验证、密码恢复和第三方登录依赖已配置的云端账号服务。
+
+</details>
+
+## 反馈与贡献
+
+欢迎通过 [GitHub Issues](https://github.com/H0rR1p/IceReader/issues) 提交问题和建议。
+
+报告问题时，附上客户端版本、操作步骤、预期结果与实际结果；界面问题可提供截图，书籍解析问题可提供有权分享的最小样例。提交修复时，请说明修改内容和验证方式。
+
+## 第三方与内容许可
+
+项目代码采用 **AGPL-3.0-or-later**。修改和分发时请保留版权与许可声明，并提供相应源码；将修改版部署为网络服务时，也需要向使用者提供实际运行版本的对应源码。EbookLib 保留，不改变已有 EPUB 解析实现。
+
+| 范围 | 授权与发布材料 |
+| --- | --- |
+| 冰读代码、脚本与文档 | [LICENSE](LICENSE)、[COPYRIGHT](COPYRIGHT) |
+| 第三方依赖 | [组件清单](third_party_licenses/inventory.json)、[第三方声明](THIRD-PARTY-NOTICES.txt) 及清单中的原始许可文件 |
+| 发行版对应源码 | 应用内「下载对应源码」；公网提供 `/api/legal/source`，版本及校验值见 `/api/legal` |
+| 重建发行版 | [源码构建说明](SOURCE-BUILD.txt)；源码包包含文件哈希、依赖源码和版本锁定信息 |
+| 配音桥 | [桥接代码附加许可](ymm4-bridge/COPYRIGHT)；外部 YMM4、SDK 和语音包遵循各自条款 |
+
+**授权范围尚待补充**：logo、图标及点击音频的来源和公开分发授权尚未独立核实，不能将代码的 AGPL 许可理解为这些素材的授权。第三方清单还如实标注了少数仅发布许可证声明的构建／测试依赖。以下材料覆盖当前发行版本，不表示旧安装包已自动补齐，也不表示用户书籍或外部语音软件获得了重新授权。
+
+- 冰读自身代码、构建脚本和文档采用 **AGPL-3.0-or-later**，详见 [LICENSE](LICENSE) 与 [COPYRIGHT](COPYRIGHT)。程序按现状提供，不提供任何担保。
+- 保留 EbookLib 0.19 作为 EPUB 解析器，遵守其 AGPL 许可。完整的组件版本、许可证原文和版权信息见 [第三方清单](third_party_licenses/inventory.json) 和 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
+- 登录页、导航和设置页的「下载对应源码」提供该发行版本的完整源码包，包含当前应用源码、构建脚本、依赖锁定版本及 Python/JavaScript 运行依赖的原始源码包。
+- 部署修改版本时，也须向网络用户提供**实际运行版本**的对应源码；请保留 `/api/legal/source` 及界面入口，不要用不断变化的 `main` 分支链接替代。
+- logo、图标、点击音频和商标不包含在代码的 AGPL 授权中；其素材授权范围尚未独立核实。
+- 书籍、词典和语音包的使用与分享遵循各自版权和许可；仅导入或分享你有权处理的内容。
+- 客户端使用 Electron、React、Python、FastAPI、Sudachi 等组件，相关说明见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
+- YMM4 和专有语音包由用户自行安装，不随冰读安装包分发。
+- 独立配音桥的有限互操作附加许可见 [ymm4-bridge/COPYRIGHT](ymm4-bridge/COPYRIGHT)，仅覆盖冰读自己开发的桥接代码，不修改 EbookLib 或外部 SDK 的许可证。
+- 桌面架构参考 [Aozora](https://github.com/meokisama/aozora)，未复制其应用源码；词卡与复习功能由冰读独立实现。
+
+### 许可与对应源码的发布流程
+
+```powershell
+# 初次准备或升级依赖后，下载固定版本的上游源码并校验哈希。
+.\.venv64\Scripts\python.exe scripts/prepare_legal.py --fetch
+# 桌面构建会离线重生成源码快照，并验证安装包内的许可材料。
+npm run desktop:build
+```
+
+`build/legal/corresponding-source.zip` 随客户端安装，可离线获取；ZIP 内的 `SOURCE-MANIFEST.json` 记录版本、基准提交和每个应用文件的 SHA-256。依赖归档位于 `dependency-sources/`；准确的 Python 版本位于 `IceReader/backend/requirements-release.txt`。解压后，在 `IceReader/` 内使用 Python 3.12 创建 `.venv64`，安装该 Python 锁文件，运行 `npm ci`、`scripts/prepare_legal.py --fetch` 和 `npm run desktop:build`。常规重建需联网下载安装工具及相同版本的官方 wheel；原生依赖源码编译另需各上游规定的 C/C++、Rust 工具链。YMM 桥的编译需要合法安装的 YMM4 SDK。完整步骤见 [SOURCE-BUILD.txt](SOURCE-BUILD.txt)。
+
+云端 Docker 构建会为容器中实际安装的 Python 依赖重新生成源码包。服务首页及 `/api/legal/source` 无需登录即可下载，下载入口应由反向代理保持可访问。
+
+Windows 公网版从 `Online` 源码快照运行 `scripts/build_online.ps1 -FetchSources`，分别生成 Web 阅读服务和云账号服务；两者随附相同的对应源码包。运行时将 `BINGDU_LEGAL_DIR` 指向服务旁的 `legal/` 目录，数据和私密环境配置使用独立目录，完整步骤见 [SOURCE-BUILD.txt](SOURCE-BUILD.txt)。
+
+历史安装包缺少声明的问题不会因新版本发布而自动消失；继续分发旧包时，需同时提供该旧版本的许可证、对应源码和构建材料。

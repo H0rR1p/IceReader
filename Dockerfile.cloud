@@ -5,6 +5,16 @@ WORKDIR /app
 COPY backend/requirements.txt backend/requirements-cloud.txt /app/backend/
 RUN pip install --no-cache-dir -r /app/backend/requirements-cloud.txt
 COPY backend /app/backend
+COPY src /app/src
+COPY desktop /app/desktop
+COPY scripts /app/scripts
+COPY public /app/public
+COPY assets /app/assets
+COPY ymm4-bridge /app/ymm4-bridge
+COPY third_party_licenses /app/third_party_licenses
+COPY LICENSE COPYRIGHT SOURCE-BUILD.txt README.md THIRD-PARTY-NOTICES.txt package.json package-lock.json electron-builder.yml index.html start.ps1 vite.config.ts tsconfig*.json Dockerfile.cloud compose.cloud.yml cloud.env.example .dockerignore /app/
+ENV BINGDU_LEGAL_DIR=/app/legal
+RUN python scripts/prepare_legal.py --cloud --fetch --output /app/legal && python scripts/verify_legal_bundle.py /app/legal
 RUN mkdir -p /app/data/cloud
 EXPOSE 8010
 CMD ["python", "-m", "uvicorn", "backend.cloud_app:app", "--host", "0.0.0.0", "--port", "8010", "--proxy-headers", "--forwarded-allow-ips", "*"]

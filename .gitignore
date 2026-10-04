@@ -19,6 +19,7 @@ ymm4-bridge/bin/
 ymm4-bridge/obj/
 *.ymmp
 /幻想乡口音剪辑器/
+/YukkuriMovieMaker/
 
 .runtime/
 

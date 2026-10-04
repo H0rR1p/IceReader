@@ -1,0 +1,11 @@
+{
+  "name": "lazy-val",
+  "version": "1.0.5",
+  "license": "MIT",
+  "repository": {
+    "url": "git+https://github.com/develar/lazy-val.git",
+    "type": "git"
+  },
+  "gitHead": "b69ad4119f1b19bdab13c61ee2fcc88d46b89071",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

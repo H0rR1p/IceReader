@@ -1,0 +1,11 @@
+{
+  "name": "compare-version",
+  "version": "0.1.2",
+  "license": "MIT",
+  "repository": {
+    "url": "git://github.com/kevva/compare-version",
+    "type": "git"
+  },
+  "gitHead": null,
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}
