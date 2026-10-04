@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+from .android_compat import BaseModel, Field, HttpUrl
 
 
 class AiSettings(BaseModel):
@@ -163,7 +163,7 @@ class ExplainSentenceRequest(BaseModel):
     tokens: list[TokenOut]
     annotation_mode: Literal["none", "grammar"] = "none"
     detail_mode: Literal["meaning", "full"] = "full"
-    context_before: list[str] = Field(default_factory=list, max_length=2)
+    context_before: list[str] = Field(default_factory=list, max_items=2)
     settings: AiSettings = Field(default_factory=AiSettings)
 
 
@@ -175,7 +175,7 @@ class ExplainBatchItem(BaseModel):
 class CorrectWordRequest(BaseModel):
     sentence: SentenceOut
     token: TokenOut
-    current_senses: list[str] = Field(default_factory=list, max_length=20)
+    current_senses: list[str] = Field(default_factory=list, max_items=20)
     hint: str = Field(default="", max_length=1000)
     settings: AiSettings = Field(default_factory=AiSettings)
 
@@ -186,10 +186,10 @@ class CorrectWordResponse(BaseModel):
 
 
 class ExplainBatchRequest(BaseModel):
-    items: list[ExplainBatchItem] = Field(min_length=1, max_length=12)
+    items: list[ExplainBatchItem] = Field(min_items=1, max_items=12)
     annotation_mode: Literal["none", "grammar"] = "none"
     detail_mode: Literal["meaning", "full"] = "full"
-    context_before: list[str] = Field(default_factory=list, max_length=2)
+    context_before: list[str] = Field(default_factory=list, max_items=2)
     settings: AiSettings = Field(default_factory=AiSettings)
 
 
@@ -245,3 +245,5 @@ class ImportedBook(BaseModel):
     author: str = ""
     chapters: list[ImportedChapter]
     import_report: ImportReport | None = None
+
+SegmentChapterRequest.update_forward_refs()

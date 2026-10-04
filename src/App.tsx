@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { checkHealth, loadApiSettings, loadVoiceSettings, saveApiSettings, saveVoiceSettings, uploadVoiceTemplate } from './api'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { checkHealth, loadApiSettings, saveApiSettings } from './api'
 import AppNavigation from './app/AppNavigation'
 import type { AppPage } from './app/AppNavigation'
 import { loadCurrentUser, logoutCurrentAccount } from './app/session'
@@ -9,7 +9,7 @@ import Library from './features/library/Library'
 import { useLibraryController } from './features/library/useLibraryController'
 import Workspace from './features/reader/Workspace'
 import { useAnalysisController } from './features/translation/useAnalysisController'
-import type { ApiSettings, CurrentUser, VoiceSettings } from './types'
+import type { ApiSettings, CurrentUser } from './types'
 import type { Book } from './types'
 import UserAvatar from './app/UserAvatar'
 import { useAppRoute } from './app/useAppRoute'
@@ -24,7 +24,6 @@ const AdminPage = lazy(() => import('./features/admin/AdminPage'))
 const ImportDialog = lazy(() => import('./features/settings/Dialogs').then((module) => ({ default: module.ImportDialog })))
 
 const DEFAULT_SETTINGS: ApiSettings = { apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', hasStoredApiKey: false, cacheHitUsdPerMillion: 0, cacheMissUsdPerMillion: 0, outputUsdPerMillion: 0 }
-const DEFAULT_VOICE_SETTINGS: VoiceSettings = { ymmPath: '', ymmFound: false, templateFound: false, characterName: '', characterNames: [], playbackRate: 85, volume: 50, ready: false }
 
 function App() {
   const [serverReady, setServerReady] = useState<boolean | null>(null)
@@ -38,25 +37,23 @@ function App() {
     }).catch(() => undefined)
   }, [])
   if (!entered || !currentUser) return <LoginPage currentUser={currentUser} serverReady={serverReady} onEnter={async (user) => { localStorage.setItem(`bingdu:${user.user_id}:entered`, '1'); setCurrentUser(user); setEntered(true) }} />
-  return <AuthenticatedApp currentUser={currentUser} serverReady={serverReady} onUserChange={setCurrentUser} onExit={(user) => { setCurrentUser(user); setEntered(false) }} />
+  return <AuthenticatedApp currentUser={currentUser} serverReady={serverReady} onUserChange={setCurrentUser} onReauthenticate={() => setEntered(false)} onExit={(user) => { setCurrentUser(user); setEntered(false) }} />
 }
 
-function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { currentUser: CurrentUser; serverReady: boolean | null; onUserChange: (user: CurrentUser) => void; onExit: (user: CurrentUser) => void }) {
+function AuthenticatedApp({ currentUser, serverReady, onUserChange, onReauthenticate, onExit }: { currentUser: CurrentUser; serverReady: boolean | null; onUserChange: (user: CurrentUser) => void; onReauthenticate: () => void; onExit: (user: CurrentUser) => void }) {
   const { page, setPage } = useAppRoute()
   const [showImport, setShowImport] = useState(false)
   const [settings, setSettings] = useState<ApiSettings>(DEFAULT_SETTINGS)
-  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS)
   const [notice, setNotice] = useState('')
   const [logoBouncing, setLogoBouncing] = useState(false)
   const [resumeBook, setResumeBook] = useState<Book | null>(null)
-  const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
   const library = useLibraryController(setNotice)
   const { books, activeBook, activeChapter, loadingBookId, loadingChapterId, libraryLoading, setActiveBook, setActiveChapter, refreshBooks, returnToLibrary, saveImportedBook, openBook, selectChapter, deleteBook, changeBookCover, setBookImageVisibility, saveBookCollection, dissolveBookCollection } = library
   const analysis = useAnalysisController({ userId: currentUser.user_id, activeBook, settings, setActiveBook, setActiveChapter, refreshBooks, setNotice })
   const { backgroundJob, dataRevision, translationMode, translationConcurrency, setTranslationMode, setTranslationConcurrency, processChapter, explainAndStoreSentence, runBackground, cancelBackground } = analysis
 
   useActivityTracker(currentUser.user_id, page === 'review' ? 'review' : page === 'cards' ? 'cards' : page === 'dictionary' ? 'dictionary' : activeBook && activeChapter ? 'reading' : null)
-  useEffect(() => { void Promise.all([loadApiSettings(), loadVoiceSettings()]).then(([nextApi, nextVoice]) => { setSettings(nextApi); setVoiceSettings(nextVoice) }).catch(() => undefined) }, [])
+  useEffect(() => { void loadApiSettings().then(setSettings).catch(() => undefined) }, [])
   useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 5000); return () => window.clearTimeout(timer) }, [notice])
 
   function navigate(target: AppPage) {
@@ -72,8 +69,6 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
   function updateTranslationConcurrency(value: number) { setTranslationConcurrency(value); localStorage.setItem(`bingdu:${currentUser.user_id}:translation-concurrency`, String(value)) }
   function bounceLogoAndOpenLibrary() {
     navigate('library')
-    const audio = new Audio('/bingdu-logo-click.wav'); logoAudiosRef.current.add(audio)
-    audio.addEventListener('ended', () => logoAudiosRef.current.delete(audio), { once: true }); void audio.play().catch(() => logoAudiosRef.current.delete(audio))
     setLogoBouncing(false); window.requestAnimationFrame(() => setLogoBouncing(true))
   }
   async function logout() { localStorage.removeItem(`bingdu:${currentUser.user_id}:entered`); cancelBackground(); const guest = await logoutCurrentAccount(); onUserChange(guest); onExit(guest) }
@@ -100,8 +95,8 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
         {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} />}
         {page === 'profile' && <ProfilePage user={currentUser} books={books} onUserChange={onUserChange} onLogout={logout} onOpenCards={() => setPage('cards')} onOpenReview={() => setPage('review')} />}
         {page === 'cloud' && <CloudAccountPage onNotice={setNotice} />}
-        {page === 'admin' && currentUser.cloud_role === 'admin' && <AdminPage onNotice={setNotice} />}
-        {page === 'settings' && <SettingsPage apiSettings={settings} voiceSettings={voiceSettings} books={books} translationMode={translationMode} translationConcurrency={translationConcurrency} onTranslationModeChange={updateTranslationMode} onTranslationConcurrencyChange={updateTranslationConcurrency} onBookImageVisibility={setBookImageVisibility} onSaveApi={async (next) => setSettings(await saveApiSettings(next))} onSaveVoice={async (next, template) => { if (template) await uploadVoiceTemplate(template); setVoiceSettings(await saveVoiceSettings(next)) }} onNotice={setNotice} />}
+        {page === 'admin' && currentUser.cloud_role === 'admin' && <AdminPage onNotice={setNotice} onReauthenticate={onReauthenticate} />}
+        {page === 'settings' && <SettingsPage apiSettings={settings} books={books} translationMode={translationMode} translationConcurrency={translationConcurrency} onTranslationModeChange={updateTranslationMode} onTranslationConcurrencyChange={updateTranslationConcurrency} onBookImageVisibility={setBookImageVisibility} onSaveApi={async (next) => setSettings(await saveApiSettings(next))} onNotice={setNotice} />}
       </Suspense>
     </div>
     {overlays}

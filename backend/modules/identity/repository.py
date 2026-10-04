@@ -128,6 +128,42 @@ def migration_user_id() -> str:
     return initialize_store()
 
 
+def create_cloud_session(issuer: str, cloud_user: dict, device_id: str,
+                         legacy_user_id: str | None = None) -> SessionIdentity:
+    """Resolve a verified remote identity without reusing another account's profile."""
+    initialize_store()
+    subject = hashlib.sha256((issuer.rstrip('/') + '\0' + str(cloud_user['id'])).encode()).hexdigest()
+    with _connect() as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        identity = connection.execute(
+            "SELECT user_id FROM auth_identities WHERE provider='cloud' AND provider_subject=?", (subject,),
+        ).fetchone()
+        user_id = str(identity['user_id']) if identity else None
+        if user_id is None and legacy_user_id:
+            legacy = connection.execute(
+                """SELECT id FROM users WHERE id=? AND disabled_at IS NULL
+                   AND NOT EXISTS(SELECT 1 FROM auth_identities WHERE user_id=users.id AND provider='cloud')""",
+                (legacy_user_id,),
+            ).fetchone()
+            if legacy:
+                user_id = str(legacy['id'])
+        if user_id is None:
+            user_id = str(uuid.uuid4())
+            now = _now()
+            connection.execute(
+                'INSERT INTO users(id,display_name,created_at,updated_at) VALUES(?,?,?,?)',
+                (user_id, str(cloud_user['display_name']), now, now),
+            )
+        if not identity:
+            connection.execute(
+                """INSERT INTO auth_identities(id,user_id,provider,provider_subject,created_at)
+                   VALUES(?,?,'cloud',?,?)""", (str(uuid.uuid4()), user_id, subject, _now()),
+            )
+        if not connection.execute('SELECT 1 FROM users WHERE id=? AND disabled_at IS NULL', (user_id,)).fetchone():
+            raise AuthenticationError()
+        return _create_session(connection, user_id, device_id, 'cloud')
+
+
 def _create_session(
     connection: sqlite3.Connection,
     user_id: str,
@@ -326,12 +362,13 @@ def user_profile(user_id: str) -> dict:
                       a.provider, a.provider_subject AS username
                FROM users AS u
                LEFT JOIN auth_identities AS a
-                 ON a.user_id = u.id AND a.provider IN ('local', 'guest')
+                 ON a.user_id = u.id AND a.provider IN ('local', 'guest', 'cloud')
                WHERE u.id = ? AND u.disabled_at IS NULL
                ORDER BY CASE
-                   WHEN a.provider = 'local' AND a.provider_subject <> ? THEN 0
-                   WHEN a.provider = 'guest' THEN 1
-                   ELSE 2 END
+                   WHEN a.provider = 'cloud' THEN 0
+                   WHEN a.provider = 'local' AND a.provider_subject <> ? THEN 1
+                   WHEN a.provider = 'guest' THEN 2
+                   ELSE 3 END
                LIMIT 1""",
             (user_id, MIGRATION_AUTH_KEY),
         ).fetchone()
@@ -340,7 +377,7 @@ def user_profile(user_id: str) -> dict:
         return {
             "user_id": str(row["id"]),
             "display_name": str(row["display_name"]),
-            "avatar_url": f"/api/me/avatar?v={int(float(row['updated_at']) * 1000)}" if row["avatar_filename"] else None,
+            "avatar_url": f"/api/me/avatar?user_id={row['id']}&v={int(float(row['updated_at']) * 1000)}" if row["avatar_filename"] else None,
             "created_at": float(row["created_at"]),
             "username": row["username"] if row["provider"] == "local" and row["username"] != MIGRATION_AUTH_KEY else None,
             "is_guest": row["provider"] == GUEST_AUTH_PROVIDER or row["username"] == MIGRATION_AUTH_KEY,

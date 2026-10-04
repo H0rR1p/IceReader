@@ -1,4 +1,5 @@
 import hashlib
+import os
 import json
 import re
 import shutil
@@ -12,6 +13,14 @@ from typing import Any
 
 from ...paths import DATA_DIR
 from .learning_transfer import LEARNING_TABLES, merge_learning, validate_learning
+
+
+def _connect_database(path):
+    # Transfers attach learning.sqlite3 and rebuild its FTS5 index in one transaction.
+    if os.environ.get('BINGDU_ANDROID') == '1':
+        from mobile_sqlite import Connection
+        return Connection(path)
+    return sqlite3.connect(path)
 
 
 BACKUP_SCHEMA_VERSION = 1
@@ -63,7 +72,7 @@ def _export_payload(user_id: str) -> dict[str, Any]:
         path = Path(spec["path"])
         tables: dict[str, list[dict]] = {}
         if path.is_file():
-            with sqlite3.connect(path) as connection:
+            with _connect_database(path) as connection:
                 for table, user_column in spec["tables"].items():
                     table_rows = _rows(connection, table, user_column, user_id)
                     tables[table] = table_rows
@@ -148,7 +157,7 @@ def _book_records(user_id: str, allowed_book_ids: set[str] | None = None) -> lis
     path = Path(DATABASE_SPECS["library"]["path"])
     if not path.is_file():
         return []
-    with sqlite3.connect(path) as connection:
+    with _connect_database(path) as connection:
         connection.row_factory = sqlite3.Row
         rows = [dict(row) for row in connection.execute(
             """SELECT table_name,record_key,payload FROM records
@@ -323,7 +332,7 @@ def import_book_transfer(user_id: str, archive_path: Path) -> dict[str, int]:
     path = Path(DATABASE_SPECS["library"]["path"])
     if not path.is_file():
         raise ValueError("本地书库尚未初始化")
-    with sqlite3.connect(path) as connection:
+    with _connect_database(path) as connection:
         existing_book_ids = {
             str(row[0]) for row in connection.execute("SELECT book_id FROM user_library_items WHERE user_id=?", (user_id,))
         }
@@ -353,7 +362,7 @@ def import_book_transfer(user_id: str, archive_path: Path) -> dict[str, int]:
     imported_records = 0
     now = time.time()
     learning_counts = {"imported_cards": 0, "imported_learning_records": 0}
-    with sqlite3.connect(path) as connection:
+    with _connect_database(path) as connection:
         connection.execute("PRAGMA foreign_keys=ON")
         learning_path = Path(DATABASE_SPECS.get("learning", {}).get("path", DATA_DIR / "learning.sqlite3"))
         if payload.get("learning"):
@@ -420,7 +429,7 @@ def _restore_database(name: str, user_id: str, tables: dict[str, list[dict]]) ->
     if not path.is_file():
         raise ValueError(f"本地数据库尚未初始化：{name}")
     restored = 0
-    with sqlite3.connect(path) as connection:
+    with _connect_database(path) as connection:
         connection.execute("PRAGMA foreign_keys=ON")
         for table, user_column in reversed(tuple(spec["tables"].items())):
             if _table_exists(connection, table):

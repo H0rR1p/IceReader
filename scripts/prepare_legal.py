@@ -30,12 +30,13 @@ from packaging.utils import canonicalize_name
 
 ROOT = Path(__file__).resolve().parent.parent
 LICENSE_NAME = re.compile(r"^(licen[cs]e|copying|notice|authors)([._-]|$)", re.I)
-SOURCE_DIRS = {"backend", "src", "desktop", "scripts", "ymm4-bridge", "public", "assets"}
+SOURCE_DIRS = {"backend", "src", "desktop", "scripts", "ymm4-bridge", "public", "assets", "android", "mobile", "docs"}
 SOURCE_ROOTS = {"README.md", "NOTICE.md", "LICENSE", "COPYRIGHT", "SOURCE-BUILD.txt", "THIRD-PARTY-NOTICES.txt", "package.json",
                 "package-lock.json", "electron-builder.yml", "index.html", "start.ps1",
                 "vite.config.ts", "tsconfig.json", "tsconfig.app.json", "tsconfig.node.json",
-                "Dockerfile.cloud", "compose.cloud.yml", "cloud.env.example", ".gitignore", ".dockerignore", ".gitattributes"}
-EXCLUDED_PARTS = {"node_modules", "__pycache__", ".pytest_cache", "bin", "obj"}
+                "Dockerfile.cloud", "compose.cloud.yml", "cloud.env.example", ".gitignore", ".dockerignore", ".gitattributes", "capacitor.config.json"}
+EXCLUDED_PARTS = {"node_modules", "__pycache__", ".pytest_cache", "bin", "obj", "build", ".gradle", "legal", ".idea"}
+ANDROID = False
 
 
 def read_url(url: str) -> bytes:
@@ -72,7 +73,8 @@ def requirements(path: Path):
 
 def python_dependencies(cloud=False):
     selected, pending = {}, []
-    for scope, file in (("runtime", "requirements-cloud.txt"), ("build", "requirements-build.txt")):
+    scopes = (("runtime", "requirements-android.txt"),) if ANDROID else (("runtime", "requirements-cloud.txt"), ("build", "requirements-build.txt"))
+    for scope, file in scopes:
         if cloud and scope == "build":
             continue
         pending.extend((req, scope) for req in requirements(ROOT / "backend" / file))
@@ -336,22 +338,33 @@ def own_source_files():
         if (ROOT / name).is_file():
             files.append(ROOT / name)
     for name in SOURCE_DIRS:
+        if ANDROID and name in {'desktop', 'ymm4-bridge'}:
+            continue
         for path in (ROOT / name).rglob("*"):
             relative = path.relative_to(ROOT)
             if not path.is_file() or any(part in EXCLUDED_PARTS for part in relative.parts):
                 continue
-            if path.suffix in {".pyc", ".log", ".ymmp"} or path.name.startswith(".env"):
+            if ANDROID and (relative.as_posix() == 'backend/voice_service.py' or relative.as_posix().startswith('backend/modules/voice/')):
+                continue
+            if path.suffix in {".pyc", ".log", ".ymmp", ".dic", ".jks", ".keystore"} or path.name in {'local.properties'} or path.name.startswith(".env"):
                 continue
             files.append(path)
     return sorted(files)
 
 
 def main():
+    global ANDROID
     parser = argparse.ArgumentParser()
     parser.add_argument("--fetch", action="store_true")
     parser.add_argument("--cloud", action="store_true", help="Cloud API build, no npm or PyInstaller runtime")
+    parser.add_argument("--android", action="store_true", help="Use exact Android Python wheels from the Gradle build")
     parser.add_argument("--output", type=Path, default=ROOT / "build" / "legal")
     args = parser.parse_args()
+    ANDROID = args.android
+    if ANDROID:
+        paths = list((ROOT / 'android/app/build/python/pip/debug').glob('*'))
+        installed = {canonicalize_name(dist.metadata['Name']): dist for dist in metadata.distributions(path=[str(path) for path in paths])}
+        metadata.distribution = lambda name: installed[canonicalize_name(name)]
     licenses_dir = ROOT / "third_party_licenses"
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -362,13 +375,16 @@ def main():
         name, selected = pair
         dist, scopes = selected["dist"], selected["scopes"]
         original = []
+        if ANDROID:
+            original = [(file.name, file.read_bytes()) for file in Path(dist._path).rglob('*')
+                        if file.is_file() and LICENSE_NAME.match(file.name)]
         for file in dist.files or []:
             # Only license documents, never a package called packaging.licenses.
             if LICENSE_NAME.match(Path(file).name) and Path(dist.locate_file(file)).is_file():
                 original.append((str(file), Path(dist.locate_file(file)).read_bytes()))
         archive = None
         source_url = f"https://pypi.org/project/{dist.metadata['Name']}/{dist.version}/"
-        if "runtime" in scopes or not original:
+        if ("runtime" in scopes or not original) and not name.startswith('chaquopy-'):
             archive, source_url = pypi_source(name, dist.version, args.fetch)
         if not original:
             original = archive_licenses(archive)
@@ -454,15 +470,22 @@ def main():
                  "source_url": "https://www.python.org/downloads/source/",
                  "licenses": save_licenses(licenses_dir / "runtime" / "python", [("LICENSE.txt", python_license.read_bytes())])})
     electron_notices = ROOT / "node_modules" / "electron" / "dist" / "LICENSES.chromium.html"
-    if not args.cloud and not electron_notices.is_file():
+    if not args.cloud and not ANDROID and not electron_notices.is_file():
         raise RuntimeError("Electron/Chromium runtime notices are missing")
-    if not args.cloud:
+    if not args.cloud and not ANDROID:
         save_licenses(licenses_dir / "runtime" / "chromium", [("LICENSES.chromium.html", electron_notices.read_bytes())])
     # certifi's upstream license file is a short notice, not the complete MPL.
     mpl = licenses_dir / "texts" / "MPL-2.0.txt"
     if not mpl.is_file():
         raise RuntimeError("Add the official full MPL-2.0 text under third_party_licenses/texts/")
 
+    if ANDROID:
+        native_inventory = json.loads((licenses_dir / 'android/inventory.json').read_text(encoding='utf-8'))
+        for component in native_inventory:
+            rows.append({**component, 'ecosystem': 'maven', 'scope': ['android-runtime']})
+            if component.get('source_archive'):
+                source_archives.append(ROOT / component['source_archive'])
+        source_archives.append(ROOT / 'build/android-native/sqlite-amalgamation.zip')
     inventory = {"project_license": "AGPL-3.0-or-later", "components": rows,
                  "uninstalled_optional_platform_packages": skipped,
                  "scope_note": "Includes installed build tools for transparency; this is not a count of bundled runtime modules."}
@@ -520,6 +543,8 @@ must make the matching historical source/build materials available for any
 old versions they still distribute; a moving GitHub main link is insufficient.
 Use this source-packaging workflow for every release, including modified ones.
 """
+    if ANDROID:
+        notices += '\nAndroid release\n---------------\nCapacitor 8.5.0 (MIT), Chaquopy 17.0.0 (MIT), Java Sudachi 0.7.5 (Apache-2.0),\nSudachi core 20250515 and its upstream notices, SQLite 3.46.1 (Public Domain).\nExact Maven coordinates and source JAR hashes: third_party_licenses/android/inventory.json.\nAndroid contains no Electron, PyInstaller, YMM4, dubbing engines or click audio.\nTheir desktop-specific descriptions above do not describe the Android APK.\n'
     (ROOT / "THIRD-PARTY-NOTICES.txt").write_text(notices, encoding="utf-8")
     shutil.copy2(ROOT / "LICENSE", output / "LICENSE")
     shutil.copy2(ROOT / "COPYRIGHT", output / "COPYRIGHT")
@@ -543,7 +568,7 @@ Use this source-packaging workflow for every release, including modified ones.
             if path.is_file():
                 archive.write(path, "IceReader/" + path.relative_to(ROOT).as_posix())
         for path in sorted(set(source_archives)):
-            archive.write(path, "dependency-sources/" + path.name)
+            archive.write(path, "dependency-sources/" + path.parent.name + '/' + path.name)
         archive.writestr("SOURCE-MANIFEST.json", json.dumps(source_manifest, ensure_ascii=False, indent=2))
         archive.writestr("IceReader/backend/requirements-release.txt", "\n".join(
             f"{row['name']}=={row['version']}" for row in rows if row["ecosystem"] == "python") + "\n")

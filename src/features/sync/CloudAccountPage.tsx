@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core'
+import { startAndroidOidc, androidSyncPreferences } from '../../mobile/runtime'
 import { useEffect, useState } from 'react'
 import {
   loadCloudConflicts, loadCloudProviders, loadCloudSessions, loadCloudStatus,
@@ -7,8 +9,11 @@ import {
 } from '../../api'
 import type { CloudAccountStatus, CloudConflict, CloudProvider, CloudSession } from '../../api'
 
+
 export default function CloudAccountPage({ onNotice }: { onNotice: (value: string) => void }) {
   const [status, setStatus] = useState<CloudAccountStatus | null>(null)
+  const [autoSync, setAutoSync] = useState(true)
+  useEffect(() => { if (Capacitor.isNativePlatform()) void androidSyncPreferences().then(value => setAutoSync(value.enabled)) }, [])
   const [providers, setProviders] = useState<CloudProvider[]>([])
   const [sessions, setSessions] = useState<CloudSession[]>([])
   const [conflicts, setConflicts] = useState<CloudConflict[]>([])
@@ -28,7 +33,7 @@ export default function CloudAccountPage({ onNotice }: { onNotice: (value: strin
     }
   }
   useEffect(() => { void refresh().catch((reason) => setError(reason instanceof Error ? reason.message : String(reason))) }, [])
-  async function run(work: () => Promise<unknown>, success: string) {
+  async function run(work: () => Promise<unknown>, success: string, reloadAccount = false) {
     setBusy(true); setError('')
     try {
       const result = await work()
@@ -38,22 +43,24 @@ export default function CloudAccountPage({ onNotice }: { onNotice: (value: strin
       if (result && typeof result === 'object' && 'development_token' in result) {
         setToken(String((result as { development_token?: string }).development_token || ''))
       }
+      if (reloadAccount) { window.location.reload(); return }
       await refresh(); onNotice(success)
     }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { setBusy(false) }
   }
-  async function openProvider(id: string) { try { if (window.bingduDesktop) await window.bingduDesktop.startOidc(id); else window.location.href = await startCloudOidc(id) } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) } }
+  async function openProvider(id: string) { try { if (Capacitor.isNativePlatform()) await startAndroidOidc(id); else if (window.bingduDesktop) await window.bingduDesktop.startOidc(id); else window.location.href = await startCloudOidc(id) } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) } }
   function submitAccount() {
     if (password.length < 10) {
       setError(`云端账号密码至少需要 10 个字符，当前为 ${password.length} 个字符。`)
       return
     }
-    void run(() => registering ? registerCloudAccount(email, password, displayName) : loginCloudAccount(email, password), registering ? '云端账号已创建' : '云端账号已绑定')
+    void run(() => registering ? registerCloudAccount(email, password, displayName) : loginCloudAccount(email, password), registering ? '云端账号已创建' : '云端账号已绑定', true)
   }
 
   return <main className="app-page cloud-page">
     <header className="page-heading"><div><span>账户与数据</span><h1>云端与同步</h1><p>绑定账号后，可在自己的设备之间同步学习数据和阅读进度。</p></div></header>
+    {Capacitor.isNativePlatform() && <section className="page-surface"><label className="field"><span><input type="checkbox" checked={autoSync} onChange={(event) => { const enabled = event.target.checked; void androidSyncPreferences(enabled).then(value => setAutoSync(value.enabled)).catch(reason => setError(String(reason))) }} /> 后台同步学习数据</span></label><p className="muted">仅绑定云账号后生效，约每 30 分钟检查一次；系统省电策略可能延后执行。完整书籍使用分享包或迁移包传输。</p></section>}
     <section className="page-surface cloud-settings-card">
       <header><div><h2>云端服务</h2><p>远程服务必须使用 HTTPS；本机测试可使用 localhost。</p></div><span className={status?.connected ? 'status-pill ok' : 'status-pill'}>{status?.connected ? '已绑定' : '未绑定'}</span></header>
       <div className="cloud-endpoint"><label className="field"><span>服务地址</span><input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} /></label><button className="button" disabled={busy} onClick={() => void run(() => saveCloudSettings(baseUrl), '云端地址已验证')}>验证并保存</button></div>

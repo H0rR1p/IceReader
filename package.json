@@ -1,9 +1,11 @@
 {
   "name": "jap-study-reader",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
+    "android:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_android.ps1",
+    "android:sync": "npm run build && cap sync android",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
@@ -12,6 +14,11 @@
     "desktop:test": "node scripts/test_desktop.cjs"
   },
   "dependencies": {
+    "@capacitor/android": "8.5.0",
+    "@capacitor/app": "8.0.0",
+    "@capacitor/core": "8.5.0",
+    "@capacitor/filesystem": "8.1.2",
+    "@capacitor/share": "8.0.1",
     "@vitejs/plugin-react": "latest",
     "dexie": "latest",
     "jszip": "latest",
@@ -19,6 +26,7 @@
     "react-dom": "latest"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.0",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "electron": "42.4.0",

@@ -2,7 +2,7 @@ import asyncio
 from datetime import date,timedelta
 
 from fastapi import APIRouter,Depends,HTTPException
-from pydantic import BaseModel,Field
+from ...android_compat import BaseModel,Field
 
 from ...core.request_context import RequestContext,current_request_context
 from . import repository

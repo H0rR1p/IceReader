@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import platform
 import time
+import weakref
 from urllib.parse import urlencode, urlsplit
 
 import httpx
@@ -10,6 +11,23 @@ import httpx
 from ..sync import repository as sync_repository
 from ..sync.projection import apply_remote_changes
 from . import repository
+from ..identity import repository as identity_repository
+from ...runtime_config import PUBLIC_MODE
+
+
+class CloudAuthenticationError(RuntimeError):
+    """The bound cloud account must authenticate again."""
+
+
+_refresh_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
+
+
+def _refresh_lock(local_user_id: str) -> asyncio.Lock:
+    lock = _refresh_locks.get(local_user_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _refresh_locks[local_user_id] = lock
+    return lock
 
 
 def validate_cloud_url(value: str) -> str:
@@ -29,7 +47,12 @@ def device_name() -> str:
 async def _plain_request(method: str, path: str, **kwargs) -> httpx.Response:
     base_url = validate_cloud_url(await asyncio.to_thread(repository.get_base_url))
     async with httpx.AsyncClient(base_url=base_url, timeout=30, follow_redirects=False) as client:
-        return await client.request(method, path, **kwargs)
+        try:
+            return await client.request(method, path, **kwargs)
+        except httpx.TimeoutException as exc:
+            raise RuntimeError('连接云端服务超时，请检查网络或服务地址。') from exc
+        except httpx.RequestError as exc:
+            raise RuntimeError(f'无法连接云端服务（{type(exc).__name__}），请检查网络或服务地址。') from exc
 
 
 def _error(response: httpx.Response) -> RuntimeError:
@@ -37,7 +60,8 @@ def _error(response: httpx.Response) -> RuntimeError:
         detail = response.json().get("detail")
     except Exception:
         detail = response.text.strip()
-    return RuntimeError(str(detail or f"云端服务返回 {response.status_code}"))
+    error_type = CloudAuthenticationError if response.status_code == 401 else RuntimeError
+    return error_type(str(detail or f"云端服务返回 {response.status_code}"))
 
 
 async def _authorized_request(local_user_id: str, method: str, path: str, **kwargs) -> httpx.Response:
@@ -45,13 +69,13 @@ async def _authorized_request(local_user_id: str, method: str, path: str, **kwar
     if not credentials:
         raise RuntimeError("尚未绑定云端账号")
     if float(credentials["access_expires_at"]) <= time.time() + 30:
-        await refresh(local_user_id)
+        await refresh(local_user_id, expected_access_token=credentials["access_token"])
         credentials = await asyncio.to_thread(repository.account_credentials, local_user_id)
     headers = dict(kwargs.pop("headers", {}))
     headers["Authorization"] = f"Bearer {credentials['access_token']}"
     response = await _plain_request(method, path, headers=headers, **kwargs)
     if response.status_code == 401:
-        await refresh(local_user_id)
+        await refresh(local_user_id, expected_access_token=credentials["access_token"])
         credentials = await asyncio.to_thread(repository.account_credentials, local_user_id)
         headers["Authorization"] = f"Bearer {credentials['access_token']}"
         response = await _plain_request(method, path, headers=headers, **kwargs)
@@ -90,8 +114,23 @@ async def register(local_user_id: str, device_id: str, email: str, password: str
     if response.status_code >= 400:
         raise _error(response)
     payload = response.json()
-    await asyncio.to_thread(repository.save_account, local_user_id, payload)
-    return {**repository.account_status(local_user_id), "verification_delivery": payload.get("verification_delivery"), "development_verification_token": payload.get("development_verification_token")}
+    result = await _save_authenticated_account(local_user_id, device_id, payload)
+    return {**result, "verification_delivery": payload.get("verification_delivery"), "development_verification_token": payload.get("development_verification_token")}
+
+
+async def _save_authenticated_account(local_user_id: str, device_id: str, payload: dict) -> dict:
+    identity = None
+    if PUBLIC_MODE or __import__("os").environ.get("BINGDU_ANDROID") == "1":
+        issuer = await asyncio.to_thread(repository.get_base_url)
+        legacy_user_id = await asyncio.to_thread(repository.legacy_local_user, str(payload['user']['id']), local_user_id)
+        identity = await asyncio.to_thread(identity_repository.create_cloud_session, issuer, payload['user'], device_id, legacy_user_id)
+        local_user_id = identity.user_id
+    async with _refresh_lock(local_user_id):
+        await asyncio.to_thread(repository.save_account, local_user_id, payload)
+    result = await asyncio.to_thread(repository.account_status, local_user_id)
+    if identity is not None:
+        result['_identity'] = identity
+    return result
 
 
 async def login(local_user_id: str, device_id: str, email: str, password: str) -> dict:
@@ -100,19 +139,24 @@ async def login(local_user_id: str, device_id: str, email: str, password: str) -
     })
     if response.status_code >= 400:
         raise _error(response)
-    await asyncio.to_thread(repository.save_account, local_user_id, response.json())
-    return repository.account_status(local_user_id)
+    return await _save_authenticated_account(local_user_id, device_id, response.json())
 
 
-async def refresh(local_user_id: str) -> None:
-    credentials = await asyncio.to_thread(repository.account_credentials, local_user_id)
-    if not credentials:
-        raise RuntimeError("尚未绑定云端账号")
-    response = await _plain_request("POST", "/v1/auth/refresh", json={"refresh_token": credentials["refresh_token"]})
-    if response.status_code >= 400:
-        await asyncio.to_thread(repository.update_sync_state, local_user_id, error=str(_error(response)))
-        raise _error(response)
-    await asyncio.to_thread(repository.update_tokens, local_user_id, response.json())
+async def refresh(local_user_id: str, *, expected_access_token: str | None = None) -> None:
+    # Hold the per-account lock until rotated credentials have been persisted.
+    # Waiting requests must reread the store instead of replaying their old token.
+    async with _refresh_lock(local_user_id):
+        credentials = await asyncio.to_thread(repository.account_credentials, local_user_id)
+        if not credentials:
+            raise CloudAuthenticationError("尚未绑定云端账号，请重新登录")
+        if expected_access_token is not None and credentials["access_token"] != expected_access_token:
+            return
+        response = await _plain_request("POST", "/v1/auth/refresh", json={"refresh_token": credentials["refresh_token"]})
+        if response.status_code >= 400:
+            error = _error(response)
+            await asyncio.to_thread(repository.update_sync_state, local_user_id, error=str(error))
+            raise error
+        await asyncio.to_thread(repository.update_tokens, local_user_id, response.json())
 
 
 async def logout(local_user_id: str) -> None:
@@ -143,12 +187,11 @@ async def oidc_start_url(provider_id: str, device_id: str, local_callback: str) 
     return f"{base}/v1/auth/oidc/start/{provider_id}?{query}"
 
 
-async def exchange_handoff(local_user_id: str, code: str) -> dict:
+async def exchange_handoff(local_user_id: str, code: str, device_id: str = '') -> dict:
     response = await _plain_request("POST", "/v1/auth/oidc/exchange", json={"code": code})
     if response.status_code >= 400:
         raise _error(response)
-    await asyncio.to_thread(repository.save_account, local_user_id, response.json())
-    return repository.account_status(local_user_id)
+    return await _save_authenticated_account(local_user_id, device_id, response.json())
 
 
 async def request_verification(email: str) -> dict:

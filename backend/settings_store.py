@@ -8,6 +8,7 @@ from .paths import DATA_DIR
 SETTINGS_PATH = DATA_DIR / "settings.json"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"
+_secret_store = None  # Android installs its Keystore-backed credential store.
 
 
 def _path_for_user(user_id: str) -> Path:
@@ -24,7 +25,15 @@ def migrate_legacy_settings(user_id: str) -> None:
 def _read(user_id: str) -> dict:
     try:
         data = json.loads(_path_for_user(user_id).read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict): return {}
+        if _secret_store is not None:
+            key = str(_secret_store.read('api-key:' + user_id) or '')
+            if data.get('api_key'):
+                key = str(data.pop('api_key'))
+                _secret_store.write('api-key:' + user_id, key)
+                _path_for_user(user_id).write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+            data['api_key'] = key
+        return data
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
 
@@ -55,6 +64,9 @@ def save_settings(user_id: str, incoming: LocalAiSettingsInput) -> LocalAiSettin
     target = _path_for_user(user_id)
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(".tmp")
+    if _secret_store is not None:
+        _secret_store.write('api-key:' + user_id, api_key)
+        payload.pop('api_key', None)
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     temporary.replace(target)
     return get_settings_status(user_id)

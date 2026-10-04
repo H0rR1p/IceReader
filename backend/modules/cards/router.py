@@ -4,7 +4,7 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from ...android_compat import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from ..learning.service import record_learning_events
@@ -47,12 +47,12 @@ class CandidateInput(BaseModel):
 
 
 class BulkInput(BaseModel):
-    card_ids: list[str] = Field(min_length=1,max_length=500)
+    card_ids: list[str] = Field(min_items=1,max_items=500)
     status: Literal["active","suspended","archived"]
 
 
 class BulkTagInput(BaseModel):
-    card_ids: list[str] = Field(min_length=1,max_length=500)
+    card_ids: list[str] = Field(min_items=1,max_items=500)
     tag: str = Field(min_length=1,max_length=100)
     remove: bool = False
 
@@ -77,7 +77,7 @@ class CardPreferencesInput(BaseModel):
 
 class MergeCardsInput(BaseModel):
     target_card_id: str = Field(min_length=1, max_length=200)
-    source_card_ids: list[str] = Field(min_length=1, max_length=100)
+    source_card_ids: list[str] = Field(min_items=1, max_items=100)
 
 
 @router.post("/candidates")

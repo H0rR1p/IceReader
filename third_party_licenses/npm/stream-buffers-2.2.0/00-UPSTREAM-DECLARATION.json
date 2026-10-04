@@ -1,0 +1,11 @@
+{
+  "name": "stream-buffers",
+  "version": "2.2.0",
+  "license": "Unlicense",
+  "repository": {
+    "url": "git+https://github.com/samcday/node-stream-buffer.git",
+    "type": "git"
+  },
+  "gitHead": "17024f70e0107175ede0ebcfbe9de7102d8be25f",
+  "note": "Build-only upstream publishes no standalone license text at this version; declaration is not a substitute for a runtime license."
+}

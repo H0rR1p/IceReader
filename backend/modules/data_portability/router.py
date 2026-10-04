@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
-from pydantic import BaseModel, Field
+from ...android_compat import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from .service import create_backup, create_book_transfer, import_book_transfer, restore_backup, save_upload
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/data", tags=["data-portability"])
 
 
 class BookShareRequest(BaseModel):
-    book_ids: list[str] = Field(min_length=1, max_length=1000)
+    book_ids: list[str] = Field(min_items=1, max_items=1000)
 
 
 @router.post("/book-share")

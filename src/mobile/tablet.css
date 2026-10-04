@@ -1,0 +1,57 @@
+/* Window width, not device labels, selects the reading layout. */
+html, body, #root { height: 100%; }
+body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.app-dashboard-shell { height: 100dvh; }
+.button, .app-nav-item, .chapter-item, .mode-button, .sidebar-collapse { min-height: 48px; }
+button, input, select, textarea { touch-action: manipulation; }
+.japanese-text { user-select: text; -webkit-user-select: text; overflow-wrap: anywhere; }
+.app-page, .reader-pane, .reading-stage { min-width: 0; }
+.study-panel { overscroll-behavior: contain; }
+.modal { max-height: 90dvh; overflow-y: auto; }
+.dictionary-actions, .top-actions, .display-toggles { flex-wrap: wrap; }
+@media (min-width: 840px) {
+  .book-background-actions { grid-template-columns: minmax(0, 1fr); }
+  .workspace { grid-template-columns: 180px minmax(0,1fr); }
+  .reader-layout { grid-template-columns: minmax(360px,1fr) 280px; }
+  .reader-pane { padding: 26px 24px 60px; }
+  .workspace.left-collapsed { grid-template-columns: 42px minmax(0,1fr); }
+  .reader-layout.right-collapsed { grid-template-columns: minmax(0,1fr) 42px; }
+}
+@media (max-width: 1099px) {
+  .app-dashboard-shell { grid-template-columns: 165px minmax(0,1fr); }
+  .app-page { width: calc(100% - 32px); padding-top: 28px; }
+  .book-grid { grid-template-columns: repeat(auto-fill,minmax(145px,1fr)); }
+}
+@media (max-width: 839px) {
+  .workspace { display: block; }
+  .chapter-nav { width: 100%; height:auto; max-height: 220px; position: relative; top:auto; padding:12px; overflow-y: auto; }
+  .chapter-nav-content { padding: 12px; }
+  .chapter-nav-content > nav { display: flex; overflow-x: auto; gap: 6px; }
+  .chapter-item { min-width: 95px; }
+  .book-heading { display:none; }
+  .reader-layout, .reader-layout.right-collapsed { display: block; }
+  .reader-pane { padding: 20px 18px 35px; }
+  .study-panel { width: 100%; position: relative; top:auto; height:auto; max-height: 55dvh; overflow-y: auto; }
+  .right-collapsed .study-panel { max-height: 48px; }
+  .chapter-nav .sidebar-collapse { position: absolute; right: 8px; top: 8px; left: auto; }
+  .left-collapsed .chapter-nav { height: 48px; }
+  .reader-toolbar, .page-heading { flex-wrap: wrap; gap: 12px; }
+  .login-page { grid-template-columns: 1fr; }
+  .login-intro { display:none; }
+}
+@media (max-width: 599px) {
+  .app-dashboard-shell { display: flex; flex-direction: column; }
+  .app-navigation { max-height: 185px; border-right: 0; flex-shrink: 0; }
+  .nav-brand { padding: 8px 14px; }
+  .nav-brand img { width: 30px; height: 30px; }
+  .app-navigation > nav { display:flex; flex-wrap:wrap; padding: 4px 8px; gap: 3px; }
+  .app-nav-item { width:auto; min-width:72px; padding:6px; grid-template-columns:18px 1fr; }
+  .app-nav-item small, .nav-section-label, .nav-user, .app-navigation > .legal-links { display:none; }
+  .app-page-column { flex:1; }
+  .topbar { height:auto; min-height:60px; padding:10px 12px; gap:8px; }
+  .brand small { display:none; }
+  .brand strong { font-size:16px; }
+  .top-actions .button { padding:8px; }
+  .book-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .card-summary-grid, .profile-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}

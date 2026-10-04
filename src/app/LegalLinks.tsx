@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { exportAndroidPackage } from '../mobile/runtime'
 
 export default function LegalLinks() {
   const [open, setOpen] = useState(false)
@@ -19,6 +21,7 @@ export default function LegalLinks() {
   async function downloadSource() {
     setBusy(true); setError('')
     try {
+      if (Capacitor.isNativePlatform()) { await exportAndroidPackage('/api/legal/source'); return }
       const response = await fetch('/api/legal/source')
       if (!response.ok) throw new Error('对应源码包尚未生成，请使用完整发行构建。')
       const url = URL.createObjectURL(await response.blob())

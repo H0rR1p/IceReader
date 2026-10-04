@@ -1,7 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter,Depends,HTTPException
-from pydantic import BaseModel,Field
+from ...android_compat import BaseModel,Field
 
 from ...core.request_context import RequestContext,current_request_context
 from . import repository
@@ -22,7 +22,7 @@ class Mutation(BaseModel):
 
 
 class PushBatch(BaseModel):
-    changes: list[Mutation]=Field(max_length=1000)
+    changes: list[Mutation]=Field(max_items=1000)
 
 
 @router.post("/push")

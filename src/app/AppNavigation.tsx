@@ -19,10 +19,6 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
   const [logoBouncing, setLogoBouncing] = useState(false)
   const logoAudiosRef = useRef(new Set<HTMLAudioElement>())
   function activateBrand() {
-    const audio = new Audio('/bingdu-logo-click.wav')
-    logoAudiosRef.current.add(audio)
-    audio.addEventListener('ended', () => logoAudiosRef.current.delete(audio), { once: true })
-    void audio.play().catch(() => logoAudiosRef.current.delete(audio))
     setLogoBouncing(false)
     window.requestAnimationFrame(() => setLogoBouncing(true))
     onNavigate('library')
@@ -33,7 +29,7 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
     </button>
   )
   return <aside className="app-navigation">
-    <button className={`nav-brand ${logoBouncing ? 'is-bouncing' : ''}`} onClick={activateBrand} onAnimationEnd={() => setLogoBouncing(false)} aria-label="返回书架并播放冰读语音">
+    <button className={`nav-brand ${logoBouncing ? 'is-bouncing' : ''}`} onClick={activateBrand} onAnimationEnd={() => setLogoBouncing(false)} aria-label="返回书架">
       <img src="/bingdu-logo.png" alt="" />
       <span><strong>冰读</strong><small>日语学习阅读器</small></span>
     </button>

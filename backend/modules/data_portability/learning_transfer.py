@@ -34,6 +34,7 @@ def merge_learning(connection: sqlite3.Connection, tables: dict, source: str, ta
     connection.row_factory = sqlite3.Row
     existing = {row[0] for row in connection.execute("SELECT name FROM learning.sqlite_master WHERE type='table'")}
     id_map = {}
+    knowledge_map = {}
     for table in LEARNING_TABLES:
         if table == "knowledge_items":
             continue
@@ -43,7 +44,10 @@ def merge_learning(connection: sqlite3.Connection, tables: dict, source: str, ta
     for row in tables.get("knowledge_items", []):
         found = connection.execute("SELECT id FROM learning.knowledge_items WHERE type=? AND canonical_key=?", (row["type"], row["canonical_key"])).fetchone()
         item_id = found[0] if found else str(uuid.uuid5(uuid.NAMESPACE_URL, f"bingdu-knowledge:{row['type']}:{row['canonical_key']}"))
-        id_map[str(row["id"])] = item_id
+        knowledge_map[str(row["id"])] = item_id
+        # Review evidence can use the card ID as its knowledge-item ID.
+        # Keep card references distinct from knowledge references in that case.
+        id_map.setdefault(str(row["id"]), item_id)
 
     def rewrite(value):
         if isinstance(value, str):
@@ -51,7 +55,7 @@ def merge_learning(connection: sqlite3.Connection, tables: dict, source: str, ta
         if isinstance(value, list):
             return [rewrite(item) for item in value]
         if isinstance(value, dict):
-            return {key: rewrite(item) for key, item in value.items()}
+            return {key: knowledge_map.get(item, item) if key == 'knowledge_item_id' and isinstance(item, str) else rewrite(item) for key, item in value.items()}
         return value
 
     counts = {"imported_cards": 0, "imported_learning_records": 0}
@@ -62,7 +66,7 @@ def merge_learning(connection: sqlite3.Connection, tables: dict, source: str, ta
             continue
         columns = {row[1] for row in connection.execute(f'PRAGMA learning.table_info("{table}")')}
         for original in tables.get(table, []):
-            row = {key: rewrite(value) for key, value in original.items() if key in columns}
+            row = {key: knowledge_map.get(value, value) if key == 'knowledge_item_id' or table == 'knowledge_items' and key == 'id' else rewrite(value) for key, value in original.items() if key in columns}
             if "user_id" in columns:
                 row["user_id"] = target
             for key, value in list(row.items()):

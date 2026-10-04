@@ -13,7 +13,7 @@ from ...paths import DATA_DIR
 
 CLIENT_PATH = DATA_DIR / "cloud-client.sqlite3"
 KEY_PATH = DATA_DIR / "cloud-client.key"
-DEFAULT_CLOUD_URL = "http://127.0.0.1:8010"
+DEFAULT_CLOUD_URL = "https://8-139-254-69.sslip.io"
 _lock = threading.Lock()
 _initialized_path: Path | None = None
 
@@ -51,9 +51,10 @@ def initialize_store() -> None:
                     local_cursor INTEGER NOT NULL DEFAULT 0,last_sync_at REAL,last_error TEXT,
                     created_at REAL NOT NULL,updated_at REAL NOT NULL
                 );
-                INSERT OR IGNORE INTO cloud_settings(id,base_url,updated_at) VALUES(1,'http://127.0.0.1:8010',0);
                 """
             )
+            connection.execute('INSERT OR IGNORE INTO cloud_settings(id,base_url,updated_at) VALUES(1,?,0)', (DEFAULT_CLOUD_URL,))
+            connection.execute("UPDATE cloud_settings SET base_url=? WHERE updated_at=0 AND base_url='http://127.0.0.1:8010'", (DEFAULT_CLOUD_URL,))
             columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(cloud_accounts)")}
             if "role" not in columns:
                 connection.execute("ALTER TABLE cloud_accounts ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
@@ -151,6 +152,16 @@ def account_credentials(local_user_id: str) -> dict | None:
     value["access_token"] = _decrypt(value["access_token"])
     value["refresh_token"] = _decrypt(value["refresh_token"])
     return value
+
+
+def legacy_local_user(cloud_user_id: str, preferred_user_id: str) -> str | None:
+    with _connect() as connection:
+        row = connection.execute(
+            """SELECT local_user_id FROM cloud_accounts WHERE cloud_user_id=?
+               ORDER BY CASE WHEN local_user_id=? THEN 0 ELSE 1 END,updated_at DESC LIMIT 1""",
+            (cloud_user_id, preferred_user_id),
+        ).fetchone()
+    return str(row['local_user_id']) if row else None
 
 
 def account_status(local_user_id: str) -> dict:

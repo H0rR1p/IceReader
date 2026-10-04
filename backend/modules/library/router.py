@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from ...android_compat import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from ...epub import BOOK_DATA_DIR
@@ -35,7 +35,7 @@ router = APIRouter(prefix="/api", tags=["library"])
 
 
 class LexemeBulkInput(BaseModel):
-    keys: list[str] = Field(min_length=1, max_length=500)
+    keys: list[str] = Field(min_items=1, max_items=500)
     operation: str
     value: Any = None
 

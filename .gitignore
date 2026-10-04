@@ -25,3 +25,10 @@ ymm4-bridge/obj/
 
 /桌面客户端重构计划书.md
 
+# Android dictionary and generated legal bundle are reproduced by build scripts.
+/android/app/src/main/assets/nlp/*.dic
+/android/app/src/main/assets/legal/
+*.jks
+*.keystore
+/android/app/src/main/jniLibs/
+

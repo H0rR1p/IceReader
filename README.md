@@ -4,14 +4,14 @@
 
 <p align="center"><small>Logo 为「东方 Project」琪露诺的非官方二次创作，由 H0rR1p 绘制。<a href="NOTICE.md">二次创作与素材声明</a></small></p>
 
-<h1 align="center">冰读 · IceReader</h1>
+<h1 align="center">冰读 · IceReader Android</h1>
 
 <p align="center"><strong>让baka都能好好读书</strong></p>
 <p align="center">从喜欢的日文开始，把阅读、理解、积累和复习连在一起。</p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="许可证：AGPL-3.0-or-later" /></a>
-  <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" alt="Windows x64" />
+  <img src="https://img.shields.io/badge/platform-Android%2010%2B-blue" alt="Android 10+" />
 </p>
 
 <p align="center">
@@ -33,6 +33,31 @@
 > **版本说明**：`main` 为本地桌面客户端，[`Online`](https://github.com/H0rR1p/IceReader/tree/Online) 为公网 Web 版本。桌面版无需云账号即可使用，也可通过数据迁移包将书籍、卡片和学习记录带到云端账号。
 
 ![书架概览：最近阅读、合集与隐藏封面](docs/images/bookshelf.png)
+
+## Android 平板版
+
+此分支提供 Android 10+ 的本地客户端（arm64-v8a / x86_64），不是加载公网首页的网页壳。内置界面、EPUB 解析、core 切词字典、SQLite 书库、词卡和复习调度。AI 分析与云同步需要联网并配置服务。
+
+- 安装、构建与验收：[安卓安装与验收](docs/安卓安装与验收.md)。
+- 产品与架构：[安卓平板应用规格说明书](docs/安卓平板应用规格说明书.md)。
+- Android 版没有配音、YMM4、语音包或 Logo 点击音频。
+- 书籍正文和图片通过分享包或迁移包传输；学习数据使用现有云同步。
+- `main` 为 Windows 客户端，`Online` 为公网版本；本分支为 `Android`。
+
+```mermaid
+flowchart LR
+  UI[React / 本地 WebView] --> Bridge[Capacitor / Java]
+  Bridge --> Python[Chaquopy / ASGI 进程内调用]
+  Python --> DB[(SQLite / 书籍文件)]
+  Python --> NLP[Java Sudachi / core]
+  Python --> AI[用户配置的 AI / HTTPS]
+  Python --> Cloud[现有云账号与同步 / HTTPS]
+  Bridge --> SAF[系统文件选择与保存]
+  Bridge --> Keys[Keystore / 加密凭据]
+  Work[WorkManager 后台同步] --> Python
+```
+
+以下截图展示共享功能；Windows 专属构建说明仅适用于 main。
 
 ## 功能介绍
 

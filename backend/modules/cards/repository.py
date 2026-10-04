@@ -3,6 +3,8 @@ import sqlite3
 import threading
 import time
 import uuid
+import os
+import math
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -23,8 +25,13 @@ class DailyNewLimitError(ValueError):
 
 def _raw_connection() -> sqlite3.Connection:
     CARDS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(CARDS_PATH, timeout=15)
+    if os.environ.get('BINGDU_ANDROID') == '1':
+        from mobile_sqlite import connect
+        connection = connect(CARDS_PATH, timeout=15)
+    else:
+        connection = sqlite3.connect(CARDS_PATH, timeout=15)
     connection.row_factory = sqlite3.Row
+    connection.create_function('pow', 2, math.pow, deterministic=True)
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA synchronous=NORMAL")
     connection.execute("PRAGMA foreign_keys=ON")
@@ -100,12 +107,11 @@ def initialize_store() -> None:
                     daily_review_limit INTEGER NOT NULL DEFAULT 200,
                     updated_at REAL NOT NULL
                 );
-                CREATE VIRTUAL TABLE IF NOT EXISTS card_search USING fts5(
-                    card_id UNINDEXED, user_id UNINDEXED, lemma, reading, gloss, sentence, book_title, tags,
-                    tokenize='unicode61'
-                );
                 """
             )
+            connection.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS card_search USING fts5(
+                card_id UNINDEXED, user_id UNINDEXED, lemma, reading, gloss, sentence, book_title, tags,
+                tokenize='unicode61')""")
             connection.commit()
             _initialized_path = resolved
         finally:
@@ -221,6 +227,11 @@ def _index_card(connection: sqlite3.Connection, user_id: str, card_id: str) -> N
         connection.execute("INSERT INTO card_search(card_id,user_id,lemma,reading,gloss,sentence,book_title,tags) VALUES(?,?,?,?,?,?,?,?)",(row["id"],user_id,row["lemma"],row["reading"],row["gloss"],row["sentence"],row["book_title"]," ".join(json.loads(row["tags_json"] or "[]"))))
 
 
+def _search_terms(query: str) -> str:
+    words = [part.replace('"', '""') for part in query.split()]
+    return ' AND '.join(f'"{word}"*' for word in words)
+
+
 def search_cards(user_id: str, query: str = "", status: str = "", due: str = "", limit: int = 100, offset: int = 0) -> list[dict]:
     clauses = ["c.user_id=?", "c.deleted_at IS NULL", "n.deleted_at IS NULL"]
     values: list[object] = [user_id]
@@ -232,7 +243,7 @@ def search_cards(user_id: str, query: str = "", status: str = "", due: str = "",
         values.append(time.time())
     if query.strip():
         clauses.append("c.id IN (SELECT card_id FROM card_search WHERE user_id=? AND card_search MATCH ?)")
-        values.extend([user_id, " AND ".join(f'\"{part.replace(chr(34), chr(34)*2)}\"*' for part in query.split())])
+        values.extend([user_id, _search_terms(query)])
     values.extend([min(500,max(1,limit)),max(0,offset)])
     sql = f"""SELECT c.*,n.lemma,n.reading,n.gloss,n.sentence,n.book_id,n.book_title,n.chapter_id,n.sentence_id,n.tags_json,
               m.difficulty,m.stability,m.due_at,m.last_review_at,m.reps,m.lapses,
@@ -272,7 +283,7 @@ def count_cards(user_id: str, query: str = "", status: str = "", due: str = "") 
         values.append(time.time())
     if query.strip():
         clauses.append("c.id IN (SELECT card_id FROM card_search WHERE user_id=? AND card_search MATCH ?)")
-        values.extend([user_id, " AND ".join(f'\"{part.replace(chr(34), chr(34)*2)}\"*' for part in query.split())])
+        values.extend([user_id, _search_terms(query)])
     with _connect() as connection:
         return int(connection.execute(
             f"""SELECT COUNT(*) FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id

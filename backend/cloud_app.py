@@ -10,7 +10,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from .android_compat import BaseModel, Field
 
 from .cloud.config import load_config
 from .cloud.mailer import Mailer
@@ -140,7 +140,7 @@ class Mutation(BaseModel):
 
 
 class PushBatch(BaseModel):
-    changes: list[Mutation] = Field(max_length=1000)
+    changes: list[Mutation] = Field(max_items=1000)
 
 
 class ResolveInput(BaseModel):

@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core'
+import { startAndroidOidc } from '../../mobile/runtime'
 import { useEffect, useRef, useState } from 'react'
 import LegalLinks from '../../app/LegalLinks'
 import { loadCurrentUser, loadLocalProfiles, logoutCurrentAccount, switchLocalProfile } from '../../app/session'
@@ -14,7 +16,7 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
 }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [displayName, setDisplayName] = useState('')
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(currentUser?.cloud_email || '')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -33,10 +35,6 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
   }, [currentUser])
 
   function playLogoSound() {
-    const audio = new Audio('/bingdu-logo-click.wav')
-    logoAudiosRef.current.add(audio)
-    audio.addEventListener('ended', () => logoAudiosRef.current.delete(audio), { once: true })
-    void audio.play().catch(() => logoAudiosRef.current.delete(audio))
     setLogoBouncing(false)
     window.requestAnimationFrame(() => setLogoBouncing(true))
   }
@@ -59,7 +57,7 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
 
   async function openProvider(providerId: string) {
     setBusy(true); setError('')
-    try { if (window.bingduDesktop) await window.bingduDesktop.startOidc(providerId); else window.location.href = await startCloudOidc(providerId) }
+    try { if (Capacitor.isNativePlatform()) await startAndroidOidc(providerId); else if (window.bingduDesktop) await window.bingduDesktop.startOidc(providerId); else window.location.href = await startCloudOidc(providerId) }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setBusy(false) }
   }
 

@@ -42,7 +42,6 @@ from .modules.jobs.router import router as jobs_router
 from .modules.settings.router import router as settings_router
 from .modules.sync.repository import initialize_store as initialize_sync_store
 from .modules.sync.router import router as sync_router
-from .modules.voice.router import router as voice_router
 from .paths import DIST_DIR
 from .legal import router as legal_router
 from .runtime_config import (
@@ -52,7 +51,6 @@ from .runtime_config import (
     CORS_ORIGINS,
 )
 from .settings_store import migrate_legacy_settings
-from .voice_service import migrate_legacy_voice_settings
 
 
 @asynccontextmanager
@@ -62,7 +60,6 @@ async def lifespan(_app: FastAPI):
         await asyncio.to_thread(remove_retired_builtin)
         migration_user_id = await asyncio.to_thread(initialize_identity_store)
         await asyncio.to_thread(migrate_legacy_settings, migration_user_id)
-        await asyncio.to_thread(migrate_legacy_voice_settings, migration_user_id)
         await asyncio.to_thread(initialize_library_store, migration_user_id)
         await asyncio.to_thread(initialize_job_store)
         await asyncio.to_thread(initialize_learning_store)
@@ -78,14 +75,13 @@ async def lifespan(_app: FastAPI):
             close_ai_store()
 
 
-app = FastAPI(title="冰读本地 API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="冰读本地 API", version="0.4.0", lifespan=lifespan)
 app.include_router(legal_router)
 app.include_router(identity_router)
 app.include_router(content_router)
 app.include_router(data_portability_router)
 app.include_router(library_router)
 app.include_router(settings_router)
-app.include_router(voice_router)
 app.include_router(analysis_router)
 app.include_router(jobs_router)
 app.include_router(learning_router)
@@ -149,15 +145,14 @@ async def request_context_middleware(request: Request, call_next):
         response = await call_next(request)
     finally:
         reset_request_context(token)
-    identity_endpoint_sets_session = request.url.path in {
-        "/api/auth/local/register", "/api/auth/local/login", "/api/auth/local/switch",
-    }
+    set_cookies = [value.decode('latin1') for key, value in response.raw_headers if key.lower() == b'set-cookie']
+    identity_endpoint_sets_session = any(value.startswith('bingdu_session=') for value in set_cookies)
     if identity.token and not identity_endpoint_sets_session:
         response.set_cookie(
             "bingdu_session", identity.token, max_age=30 * 24 * 60 * 60,
             httponly=True, samesite="strict", secure=COOKIE_SECURE,
         )
-    if request.cookies.get("bingdu_device") != identity.device_id:
+    if request.cookies.get("bingdu_device") != identity.device_id and not any(value.startswith('bingdu_device=') for value in set_cookies):
         response.set_cookie(
             "bingdu_device", identity.device_id, max_age=365 * 24 * 60 * 60,
             httponly=True, samesite="strict", secure=COOKIE_SECURE,

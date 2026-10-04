@@ -125,7 +125,7 @@ def test_profile_nickname_and_avatar_are_user_scoped(tmp_path, monkeypatch):
         files={"file": ("avatar.png", b"avatar-image-data", "image/png")},
     )
     assert uploaded.status_code == 200
-    assert uploaded.json()["avatar_url"].startswith("/api/me/avatar?v=")
+    assert uploaded.json()["avatar_url"].startswith(f"/api/me/avatar?user_id={current['user_id']}&v=")
     avatar = client.get("/api/me/avatar")
     assert avatar.status_code == 200
     assert avatar.content == b"avatar-image-data"

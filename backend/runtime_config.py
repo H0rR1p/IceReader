@@ -14,7 +14,7 @@ COOKIE_SECURE = bool(_parsed_origin and _parsed_origin.scheme.casefold() == "htt
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
 ALLOWED_HOSTS = LOCAL_HOSTS | ({PUBLIC_HOST} if PUBLIC_HOST else set())
 ALLOWED_ORIGIN_HOSTS = ALLOWED_HOSTS
-CORS_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"]
+CORS_ORIGINS = ["https://localhost", "http://127.0.0.1:5173", "http://localhost:5173"]
 if PUBLIC_ORIGIN:
     CORS_ORIGINS.append(PUBLIC_ORIGIN)
 

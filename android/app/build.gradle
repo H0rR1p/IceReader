@@ -1,0 +1,97 @@
+apply plugin: 'com.android.application'
+apply plugin: 'com.chaquo.python'
+
+android {
+    namespace = "io.github.h0rr1p.icereader"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "io.github.h0rr1p.icereader"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        ndk { abiFilters "arm64-v8a", "x86_64" }
+        versionName "0.4.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            def keyPath = System.getenv('BINGDU_ANDROID_KEYSTORE')
+            if (keyPath) {
+                storeFile file(keyPath)
+                storePassword System.getenv('BINGDU_ANDROID_STORE_PASSWORD')
+                keyAlias System.getenv('BINGDU_ANDROID_KEY_ALIAS') ?: 'icereader'
+                keyPassword System.getenv('BINGDU_ANDROID_KEY_PASSWORD') ?: System.getenv('BINGDU_ANDROID_STORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    packaging { jniLibs { useLegacyPackaging = true } }
+}
+
+tasks.matching { it.name == 'validateSigningRelease' }.configureEach {
+    doFirst { if (!System.getenv('BINGDU_ANDROID_KEYSTORE')) throw new GradleException('Release APK requires BINGDU_ANDROID_KEYSTORE and signing passwords.') }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation 'androidx.work:work-runtime:2.11.1'
+    implementation 'com.worksap.nlp:sudachi:0.7.5'
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.12"
+        buildPython(System.getenv("BINGDU_BUILD_PYTHON") ?: "python")
+        pip { install("-r", "../../backend/requirements-android.txt") }
+    }
+    sourceSets { main { srcDir "../../mobile/python"; srcDir "../.."; exclude "build/**", "node_modules/**", "data/**", ".git/**", ".venv*/**", "third_party_licenses/**", "desktop/**", "ymm4-bridge/**", "scripts/**", "src/**", "public/**", "docs/**", "android/**", "mobile/**", "backend/test_*.py", "backend/voice_service.py", "backend/modules/voice/**", "backend/cloud/**", "backend/cloud_app.py" } }
+}
+
+tasks.register('androidDependencyInventory') {
+    doLast {
+        def rows = configurations.debugRuntimeClasspath.incoming.resolutionResult.allComponents.findAll {
+            it.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier
+        }.collect { component ->
+            [group: component.id.group, name: component.id.module, version: component.id.version]
+        }
+        def output = rootProject.file('../build/android-java-dependencies.json')
+        output.parentFile.mkdirs()
+        output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(rows))
+    }
+}

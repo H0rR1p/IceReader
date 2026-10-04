@@ -1,4 +1,6 @@
-import type { AiUsageSummary, AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme, Sentence, Token, TranslationQueuePage, VoiceJob, VoiceSettings } from './types'
+import { Capacitor } from '@capacitor/core'
+import { exportAndroidPackage, saveAndroidDownload } from './mobile/runtime'
+import type { AiUsageSummary, AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme, Sentence, Token, TranslationQueuePage } from './types'
 
 export class ApiRequestError extends Error {
   constructor(message: string, public status: number, public retryAfterMs: number | null = null) {
@@ -74,70 +76,6 @@ export async function saveApiSettings(settings: ApiSettings): Promise<ApiSetting
 
 export async function loadAiUsage(): Promise<AiUsageSummary> {
   return parseResponse(await fetch('/api/ai/usage'))
-}
-
-function mapVoiceSettings(data: {
-  ymm_path: string; ymm_found: boolean; template_found: boolean; character_name: string
-  character_names?: string[]; playback_rate: number; volume: number; ready: boolean
-}): VoiceSettings {
-  return {
-    ymmPath: data.ymm_path,
-    ymmFound: data.ymm_found,
-    templateFound: data.template_found,
-    characterName: data.character_name,
-    characterNames: data.character_names ?? (data.character_name ? [data.character_name] : []),
-    playbackRate: data.playback_rate,
-    volume: data.volume,
-    ready: data.ready,
-  }
-}
-
-export async function loadVoiceSettings(): Promise<VoiceSettings> {
-  return mapVoiceSettings(await parseResponse(await fetch('/api/voice/settings')))
-}
-
-export async function saveVoiceSettings(settings: Pick<VoiceSettings, 'ymmPath' | 'characterName' | 'playbackRate' | 'volume'>): Promise<VoiceSettings> {
-  const response = await fetch('/api/voice/settings', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ymm_path: settings.ymmPath, character_name: settings.characterName, playback_rate: settings.playbackRate, volume: settings.volume }),
-  })
-  return mapVoiceSettings(await parseResponse(response))
-}
-
-export async function uploadVoiceTemplate(file: File): Promise<VoiceSettings> {
-  const form = new FormData()
-  form.append('file', file)
-  return mapVoiceSettings(await parseResponse(await fetch('/api/voice/template', { method: 'POST', body: form })))
-}
-
-function mapVoiceJob(data: {
-  id: string; status: VoiceJob['status']; message: string
-  audio_url?: string | null; cached: boolean
-}): VoiceJob {
-  return {
-    id: data.id,
-    status: data.status,
-    message: data.message,
-    audioUrl: data.audio_url,
-    cached: data.cached,
-  }
-}
-
-export async function startVoiceJob(text: string, force = false): Promise<VoiceJob> {
-  return mapVoiceJob(await parseResponse(await fetch('/api/voice/jobs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, force }),
-  })))
-}
-
-export async function loadVoiceJob(jobId: string, signal?: AbortSignal): Promise<VoiceJob> {
-  return mapVoiceJob(await parseResponse(await fetch(`/api/voice/jobs/${encodeURIComponent(jobId)}`, { signal })))
-}
-
-export async function cancelVoiceJob(jobId: string): Promise<VoiceJob> {
-  return mapVoiceJob(await parseResponse(await fetch(`/api/voice/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' })))
 }
 
 export async function importPlainText(title: string, text: string): Promise<ImportedBook> {
@@ -489,12 +427,14 @@ export async function reviewCard(cardId: string, rating: 'again' | 'hard' | 'goo
 }
 
 export async function downloadFullBackup(): Promise<void> {
+  if (Capacitor.isNativePlatform()) { await exportAndroidPackage('/api/data/backup'); return }
   const response = await fetch('/api/data/backup')
   if (!response.ok) throw new Error((await response.text()) || '无法创建备份')
   const blob = await response.blob()
   const disposition = response.headers.get('Content-Disposition') ?? ''
   const encoded = disposition.match(/filename\*=utf-8''([^;]+)/i)?.[1]
   const filename = encoded ? decodeURIComponent(encoded) : `冰读备份-${new Date().toISOString().slice(0, 10)}.zip`
+  if (Capacitor.isNativePlatform()) { await saveAndroidDownload(blob, filename); return }
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url; link.download = filename; link.click()
@@ -507,6 +447,7 @@ export async function restoreFullBackup(file: File): Promise<{ restored_rows: nu
 }
 
 export async function downloadBookTransfer(bookIds?: string[]): Promise<void> {
+  if (Capacitor.isNativePlatform()) { await exportAndroidPackage(bookIds ? '/api/data/book-share' : '/api/data/book-transfer', bookIds); return }
   const response = bookIds ? await fetch('/api/data/book-share', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_ids: bookIds }),
   }) : await fetch('/api/data/book-transfer')
@@ -515,6 +456,7 @@ export async function downloadBookTransfer(bookIds?: string[]): Promise<void> {
   const disposition = response.headers.get('Content-Disposition') ?? ''
   const encoded = disposition.match(/filename\*=utf-8''([^;]+)/i)?.[1]
   const filename = encoded ? decodeURIComponent(encoded) : `冰读书籍迁移包-${new Date().toISOString().slice(0, 10)}.zip`
+  if (Capacitor.isNativePlatform()) { await saveAndroidDownload(blob, filename); return }
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url; link.download = filename; link.click()

@@ -140,7 +140,7 @@ def test_transfer_cards_reviews_learning_and_time_without_credentials(tmp_path, 
     source_card = cards.accept_candidate("source", _candidate("source")["id"])
     cards.review_card("source", "device", source_card["id"], "good", 1_000_000, "review-source")
     target_card = cards.accept_candidate("target", _candidate("target", "other")["id"])
-    item = {"id": "learning-item", "type": "vocabulary", "canonical_key": "読む|よむ", "lemma": "読む", "reading": "よむ"}
+    item = {"id": source_card["id"], "type": "vocabulary", "canonical_key": f"card:{source_card['id']}", "lemma": "読む", "reading": "よむ"}
     learning.append_events("source", "device", [{"id": "event-source", "item": item, "event_type": "lookup", "occurred_at": 10, "context": {}}])
     with sqlite3.connect(learning_path) as connection:
         connection.execute("INSERT INTO daily_learning_stats(user_id,local_date,timezone,active_seconds,reading_seconds,updated_at) VALUES('source','2026-10-03','Asia/Shanghai',120,120,1)")

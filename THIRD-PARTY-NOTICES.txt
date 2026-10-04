@@ -49,3 +49,11 @@ The new notices do not retroactively change those binaries. Distributors
 must make the matching historical source/build materials available for any
 old versions they still distribute; a moving GitHub main link is insufficient.
 Use this source-packaging workflow for every release, including modified ones.
+
+Android release
+---------------
+Capacitor 8.5.0 (MIT), Chaquopy 17.0.0 (MIT), Java Sudachi 0.7.5 (Apache-2.0),
+Sudachi core 20250515 and its upstream notices, SQLite 3.46.1 (Public Domain).
+Exact Maven coordinates and source JAR hashes: third_party_licenses/android/inventory.json.
+Android contains no Electron, PyInstaller, YMM4, dubbing engines or click audio.
+Their desktop-specific descriptions above do not describe the Android APK.

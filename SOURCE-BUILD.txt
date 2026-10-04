@@ -1,4 +1,6 @@
 IceReader corresponding-source build instructions
+Android branch: follow docs/安卓安装与验收.md and scripts/build_android.ps1.
+The Windows-specific steps below apply only to the desktop branch.
 ================================================
 
 The source archive shipped with a release contains the exact working-tree

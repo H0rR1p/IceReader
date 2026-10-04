@@ -3,7 +3,7 @@ import hashlib
 from typing import Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from ...android_compat import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from .repository import append_events, knowledge_states, list_blindspots, replay_user
@@ -33,11 +33,11 @@ class LearningEventInput(BaseModel):
 
 
 class LearningEventBatch(BaseModel):
-    events: list[LearningEventInput] = Field(min_length=1, max_length=100)
+    events: list[LearningEventInput] = Field(min_items=1, max_items=100)
 
 
 class KnowledgeStateQuery(BaseModel):
-    items: list[KnowledgeItemInput] = Field(min_length=1,max_length=2000)
+    items: list[KnowledgeItemInput] = Field(min_items=1,max_items=2000)
 
 
 router = APIRouter(prefix="/api/learning", tags=["learning"])

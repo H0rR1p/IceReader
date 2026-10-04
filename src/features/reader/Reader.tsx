@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { cancelVoiceJob, correctWordSense, createCardCandidate, loadKnowledgeStates, loadVoiceJob, lookupDictionary, recordActivityMetric, recordLearningEvents, startVoiceJob } from '../../api'
+import { correctWordSense, createCardCandidate, loadKnowledgeStates, lookupDictionary, recordActivityMetric, recordLearningEvents } from '../../api'
 import type { KnowledgeState, WordCorrection } from '../../api'
 import { db, loadChapterDetails, syncRecords } from '../../db'
 import type {
@@ -13,9 +13,10 @@ import type {
   Sentence,
   SentenceBookmark,
   Token,
-  VoiceJob,
 } from '../../types'
 import { toHiragana } from '../../text'
+import { Capacitor } from '@capacitor/core'
+import { setAndroidKeepAwake } from '../../mobile/runtime'
 
 type ReaderBackgroundJob = {
   kind: 'segment' | 'translate'
@@ -48,6 +49,12 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   bookmarks: SentenceBookmark[]
   onToggleBookmark: (sentence: Sentence) => Promise<void>
 }) {
+  const [keepAwake, setKeepAwake] = useState(() => localStorage.getItem(`bingdu:${userId}:${book.id}:keep-awake`) === '1')
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    void setAndroidKeepAwake(keepAwake)
+    return () => { void setAndroidKeepAwake(false) }
+  }, [keepAwake])
   const [sentences, setSentences] = useState<Sentence[]>([])
   const [tokens, setTokens] = useState<Token[]>([])
   const [annotations, setAnnotations] = useState<Annotation[]>([])
@@ -68,16 +75,11 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   const [readerLoading, setReaderLoading] = useState(true)
   const [visibleSentenceCount, setVisibleSentenceCount] = useState(120)
   const [rightCollapsed, setRightCollapsed] = useState(false)
-  const [voiceJob, setVoiceJob] = useState<VoiceJob | null>(null)
-  const [voicePlaying, setVoicePlaying] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
-  const voiceJobIdRef = useRef<string | null>(null)
-  const voicePollAbortRef = useRef<AbortController | null>(null)
   const lookupHistoryRef = useRef(new Set<string>())
   const forcedAssistanceRef = useRef(new Set<string>())
   const assistedSentenceIdsRef = useRef(new Set<string>())
   const exposedSentenceIdsRef = useRef(new Set<string>())
-  const sentenceAudioRef = useRef<HTMLAudioElement | null>(null)
   const detailsLoadedRef = useRef(0)
 
   useEffect(() => {
@@ -142,11 +144,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
     return () => controller.abort()
   }, [chapter.id, onNotice, sentences.length, visibleSentenceCount])
 
-  useEffect(() => () => {
-    voicePollAbortRef.current?.abort()
-    sentenceAudioRef.current?.pause()
-    if (voiceJobIdRef.current) void cancelVoiceJob(voiceJobIdRef.current).catch(() => undefined)
-  }, [])
+
 
   const tokensBySentence = useMemo(() => {
     const map = new Map<string, Token[]>()
@@ -317,81 +315,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
     return () => controller.abort()
   }, [selectedSentenceId, tokensBySentence, contextSenses])
 
-  useEffect(() => {
-    voicePollAbortRef.current?.abort()
-    voicePollAbortRef.current = null
-    sentenceAudioRef.current?.pause()
-    sentenceAudioRef.current = null
-    setVoicePlaying(false)
-    setVoiceJob(null)
-    const runningId = voiceJobIdRef.current
-    voiceJobIdRef.current = null
-    if (runningId) void cancelVoiceJob(runningId).catch(() => undefined)
-  }, [selectedSentenceId])
 
-  function playVoiceAudio(url: string) {
-    sentenceAudioRef.current?.pause()
-    const audio = new Audio(`${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`)
-    sentenceAudioRef.current = audio
-    audio.addEventListener('play', () => setVoicePlaying(true))
-    audio.addEventListener('pause', () => setVoicePlaying(false))
-    audio.addEventListener('ended', () => setVoicePlaying(false))
-    void audio.play().catch((error) => onNotice(error instanceof Error ? error.message : String(error)))
-  }
-
-  async function waitForVoice(initial: VoiceJob) {
-    let current = initial
-    setVoiceJob(current)
-    if (current.status === 'complete' && current.audioUrl) {
-      voiceJobIdRef.current = null
-      playVoiceAudio(current.audioUrl)
-      return
-    }
-    const controller = new AbortController()
-    voicePollAbortRef.current?.abort()
-    voicePollAbortRef.current = controller
-    while (!controller.signal.aborted && (current.status === 'queued' || current.status === 'running')) {
-      await new Promise((resolve) => window.setTimeout(resolve, 500))
-      current = await loadVoiceJob(current.id, controller.signal)
-      setVoiceJob(current)
-    }
-    if (current.status === 'complete' && current.audioUrl) {
-      voiceJobIdRef.current = null
-      playVoiceAudio(current.audioUrl)
-    }
-  }
-
-  async function synthesizeVoice(force = false) {
-    if (!selectedSentence || voiceJob?.status === 'queued' || voiceJob?.status === 'running') return
-    try {
-      const job = await startVoiceJob(selectedSentence.original, force)
-      voiceJobIdRef.current = job.status === 'complete' ? null : job.id
-      await waitForVoice(job)
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return
-      const message = error instanceof Error ? error.message : String(error)
-      setVoiceJob({ id: '', status: 'failed', message, cached: false })
-    }
-  }
-
-  async function cancelCurrentVoice() {
-    voicePollAbortRef.current?.abort()
-    const jobId = voiceJobIdRef.current
-    if (!jobId) return
-    try {
-      const canceled = await cancelVoiceJob(jobId)
-      setVoiceJob(canceled)
-    } finally {
-      voiceJobIdRef.current = null
-    }
-  }
-
-  function toggleVoicePlayback() {
-    const audio = sentenceAudioRef.current
-    if (!audio) return
-    if (audio.paused) void audio.play()
-    else audio.pause()
-  }
 
   async function selectSentence(sentence: Sentence) {
     setSelectedSentenceId(sentence.id)
@@ -633,6 +557,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
         <div className="reader-toolbar">
           <div><p className="eyebrow">{book.title}</p><h1>{chapter.title}</h1></div>
           <div className="display-toggles">
+            {Capacitor.isNativePlatform() && <label className="assistance-select"><input type="checkbox" checked={keepAwake} onChange={(event) => { setKeepAwake(event.target.checked); localStorage.setItem(`bingdu:${userId}:${book.id}:keep-awake`, event.target.checked ? '1' : '0') }} /><span>保持亮屏</span></label>}
             {chapter.originalHtmlUrl && <button className={`mode-button ${viewMode === 'original' ? 'active' : ''}`} onClick={() => setViewMode(viewMode === 'study' ? 'original' : 'study')}>{viewMode === 'study' ? '原书预览' : '冰读模式'}</button>}
             <label className="assistance-select"><span>阅读辅助</span><select value={assistanceMode} onChange={(event) => { const value=event.target.value as typeof assistanceMode; setAssistanceMode(value); setShowFurigana(true); localStorage.setItem(`bingdu:${userId}:assistance-mode`,value) }}><option value="auto">自动渐退</option><option value="always">始终显示</option><option value="challenge">挑战模式</option></select></label>
             <Toggle label="语法" value={showAnnotations} onChange={setShowAnnotations} />
@@ -674,17 +599,6 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
               {explaining ? '正在释义…' : sentenceExplained ? '重新释义本句' : '释义本句'}
             </button>
             <button className="button full grammar-analysis-button" disabled={explaining} onClick={() => void explainCurrentSentence('grammar')}>语法句法分析</button>
-            <div className="voice-controls" aria-live="polite">
-              <div className="voice-actions">
-                <button className="button full" disabled={voiceJob?.status === 'queued' || voiceJob?.status === 'running'} onClick={() => void synthesizeVoice(false)}>
-                  {voiceJob?.status === 'queued' ? '等待配音…' : voiceJob?.status === 'running' ? '正在配音…' : voiceJob?.status === 'complete' ? '再次播放' : '配音本句'}
-                </button>
-                {voiceJob?.status === 'complete' && <button className="button small" onClick={toggleVoicePlayback}>{voicePlaying ? '暂停' : '播放'}</button>}
-                {(voiceJob?.status === 'queued' || voiceJob?.status === 'running') && <button className="button small" onClick={() => void cancelCurrentVoice()}>取消</button>}
-                {voiceJob?.status === 'complete' && <button className="text-button" onClick={() => void synthesizeVoice(true)}>重新生成</button>}
-              </div>
-              {voiceJob && <small className={`voice-status ${voiceJob.status}`}>{voiceJob.message}{voiceJob.cached ? ' · 缓存' : ''}</small>}
-            </div>
             {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
             {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
             {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} knowledge={knowledgeStates[`vocabulary:${selectedToken.lexemeKey}`]} assistanceMode={assistanceMode} assistanceLevel={assistanceLevel(selectedToken)} forced={forcedAssistanceRef.current.has(selectedToken.lexemeKey)} onSave={saveLexeme} onAddCard={addCurrentCard} onAiCorrect={requestCorrection} onAcceptCorrection={acceptCorrection} />}
@@ -732,63 +646,9 @@ function DictionaryCard({ token, lexeme, contextGloss, knowledge, assistanceMode
     catch (error) { setCorrectionError(error instanceof Error ? error.message : String(error)) }
     finally { setCorrectionBusy(false) }
   }
-  const [wordVoice, setWordVoice] = useState<VoiceJob | null>(null)
-  const wordVoiceAbortRef = useRef<AbortController | null>(null)
-  const wordVoiceJobIdRef = useRef<string | null>(null)
-  const wordAudioRef = useRef<HTMLAudioElement | null>(null)
-  useEffect(() => { setValue(lexeme?.senses_zh.join('\n') ?? '') }, [lexeme])
-  useEffect(() => {
-    wordVoiceAbortRef.current?.abort()
-    wordAudioRef.current?.pause()
-    setWordVoice(null)
-  }, [token.id])
-  useEffect(() => () => {
-    wordVoiceAbortRef.current?.abort()
-    wordAudioRef.current?.pause()
-    if (wordVoiceJobIdRef.current) void cancelVoiceJob(wordVoiceJobIdRef.current).catch(() => undefined)
-  }, [])
-
-  function playWord(url: string) {
-    wordAudioRef.current?.pause()
-    const audio = new Audio(url)
-    wordAudioRef.current = audio
-    void audio.play()
-  }
-
-  async function voiceWord(force = false) {
-    if (!force && wordVoice?.status === 'complete' && wordVoice.audioUrl) {
-      playWord(wordVoice.audioUrl)
-      return
-    }
-    try {
-      let job = await startVoiceJob(token.surface, force)
-      setWordVoice(job)
-      wordVoiceJobIdRef.current = job.status === 'complete' ? null : job.id
-      if (job.status === 'complete' && job.audioUrl) {
-        playWord(job.audioUrl)
-        return
-      }
-      const controller = new AbortController()
-      wordVoiceAbortRef.current = controller
-      while (!controller.signal.aborted && (job.status === 'queued' || job.status === 'running')) {
-        await new Promise((resolve) => window.setTimeout(resolve, 500))
-        job = await loadVoiceJob(job.id, controller.signal)
-        setWordVoice(job)
-      }
-      if (job.status === 'complete' && job.audioUrl) {
-        wordVoiceJobIdRef.current = null
-        playWord(job.audioUrl)
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return
-      setWordVoice({ id: '', status: 'failed', message: error instanceof Error ? error.message : String(error), cached: false })
-      wordVoiceJobIdRef.current = null
-    }
-  }
   return (
     <section className="dictionary-card">
-      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" onClick={() => void onAddCard()}>加入词卡</button><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}</div></div>
-      {wordVoice?.status === 'failed' && <small className="voice-status failed">{wordVoice.message}</small>}
+      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" onClick={() => void onAddCard()}>加入词卡</button></div></div>
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
         <div className="section-title"><h3>日中词典</h3><div><button className="text-button" onClick={() => { setCorrecting(true); setEditing(false) }}>AI 修正释义</button><button className="text-button" onClick={() => setEditing(!editing)}>{editing ? '取消' : '修正'}</button></div></div>
