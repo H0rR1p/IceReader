@@ -31,7 +31,7 @@ from packaging.utils import canonicalize_name
 ROOT = Path(__file__).resolve().parent.parent
 LICENSE_NAME = re.compile(r"^(licen[cs]e|copying|notice|authors)([._-]|$)", re.I)
 SOURCE_DIRS = {"backend", "src", "desktop", "scripts", "ymm4-bridge", "public", "assets"}
-SOURCE_ROOTS = {"README.md", "LICENSE", "COPYRIGHT", "SOURCE-BUILD.txt", "THIRD-PARTY-NOTICES.txt", "package.json",
+SOURCE_ROOTS = {"README.md", "NOTICE.md", "LICENSE", "COPYRIGHT", "SOURCE-BUILD.txt", "THIRD-PARTY-NOTICES.txt", "package.json",
                 "package-lock.json", "electron-builder.yml", "index.html", "start.ps1",
                 "vite.config.ts", "tsconfig.json", "tsconfig.app.json", "tsconfig.node.json",
                 "Dockerfile.cloud", "compose.cloud.yml", "cloud.env.example", ".gitignore", ".dockerignore", ".gitattributes"}
@@ -495,10 +495,20 @@ The independently developed YMM bridge source is part of IceReader; building
 it requires the user's separately licensed YMM4 SDK/installation.
 Its limited additional linking permission is stated in ymm4-bridge/COPYRIGHT;
 it does not relicense YMM4, its SDK/engines, or any third-party code.
-The project author has confirmed that the logo, icons and click audio are
-original works created by H0rR1p, distributed with IceReader. All rights in
-these assets are reserved unless separately licensed; the AGPL code license
-does not grant rights to those assets or trademarks.
+The logo is a chibi Cirno portrait drawn by H0rR1p: an unofficial fan-made
+derivative work based on Touhou Project. Derived icons share this status.
+Touhou Project and its characters are (C) ZUN / 上海アリス幻樂団. H0rR1p
+claims rights only in the author's own artistic contribution, not in the
+underlying characters. IceReader is not affiliated with, sponsored by, or
+endorsed by Team Shanghai Alice, and claims no individual official approval.
+The Touhou-derived logo and visual assets, including their appearance in
+documentation, are excluded from AGPL-3.0-or-later. No character, branding,
+commercial-use or relicensing rights are granted by the software license.
+The click audio was separately created by the project author and also remains
+outside the software license; it is not classified here as Touhou-derived.
+Separate asset reuse requires the author's permission and compliance with
+the original-rightsholder rules where applicable. See NOTICE.md and
+https://touhou-project.news/guideline/ for the fan-art notice and guidelines.
 Icons are derived from public/bingdu-logo.png. No Aozora source/assets are used.
 Architecture reference: https://github.com/meokisama/aozora (GPL-3.0).
 
@@ -513,6 +523,7 @@ Use this source-packaging workflow for every release, including modified ones.
     (ROOT / "THIRD-PARTY-NOTICES.txt").write_text(notices, encoding="utf-8")
     shutil.copy2(ROOT / "LICENSE", output / "LICENSE")
     shutil.copy2(ROOT / "COPYRIGHT", output / "COPYRIGHT")
+    shutil.copy2(ROOT / "NOTICE.md", output / "NOTICE.md")
     shutil.copy2(ROOT / "THIRD-PARTY-NOTICES.txt", output / "THIRD-PARTY-NOTICES.txt")
     shutil.copytree(licenses_dir, output / "third_party_licenses", dirs_exist_ok=True)
     try:

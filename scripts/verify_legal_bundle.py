@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 
 def verify(folder: Path):
-    for name in ("LICENSE", "COPYRIGHT", "THIRD-PARTY-NOTICES.txt", "release.json", "corresponding-source.zip", "third_party_licenses/inventory.json"):
+    for name in ("LICENSE", "COPYRIGHT", "NOTICE.md", "THIRD-PARTY-NOTICES.txt", "release.json", "corresponding-source.zip", "third_party_licenses/inventory.json"):
         if not (folder / name).is_file():
             raise ValueError(f"Missing legal release file: {name}")
     info = json.loads((folder / "release.json").read_text(encoding="utf-8"))
@@ -29,7 +29,7 @@ def verify(folder: Path):
         names = archive.namelist()
         if any("/.env" in name or "/data/" in name or "/YukkuriMovieMaker/" in name or name.endswith(".ymmp") for name in names):
             raise ValueError("Private or proprietary resources found in source archive")
-        for required in ("IceReader/LICENSE", "IceReader/scripts/build_desktop.ps1", "IceReader/backend/requirements-release.txt"):
+        for required in ("IceReader/LICENSE", "IceReader/NOTICE.md", "IceReader/scripts/build_desktop.ps1", "IceReader/backend/requirements-release.txt"):
             if required not in names:
                 raise ValueError(f"Source archive missing build material: {required}")
     inventory = json.loads((folder / "third_party_licenses" / "inventory.json").read_text(encoding="utf-8"))

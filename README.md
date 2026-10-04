@@ -2,6 +2,8 @@
   <img src="public/bingdu-logo.png" width="128" alt="冰读 logo" />
 </p>
 
+<p align="center"><small>Logo 为「东方 Project」琪露诺的非官方二次创作，由 H0rR1p 绘制。<a href="NOTICE.md">二次创作与素材声明</a></small></p>
+
 <h1 align="center">冰读 · IceReader</h1>
 
 <p align="center"><strong>让baka都能好好读书</strong></p>
@@ -295,7 +297,9 @@ docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
 | 重建发行版 | [源码构建说明](SOURCE-BUILD.txt)；源码包包含文件哈希、依赖源码和版本锁定信息 |
 | 配音桥 | [桥接代码附加许可](ymm4-bridge/COPYRIGHT)；外部 YMM4、SDK 和语音包遵循各自条款 |
 
-**自有素材**：项目作者已确认 logo、图标及点击音频均由其原创制作，版权归项目作者 H0rR1p 所有，并随冰读发布。这些素材保留版权，不包含在代码的 AGPL 授权范围内。第三方清单如实标注了少数仅发布许可证声明的构建／测试依赖。以下材料覆盖当前发行版本，不表示旧安装包已自动补齐，也不表示用户书籍或外部语音软件获得了重新授权。
+**二次创作素材**：本项目 Logo 为「东方 Project」的非官方二次创作，是 H0rR1p 自行绘制的 Q 版琪露诺头像；衍生图标适用同一声明。东方 Project 及相关角色的原作权利归 ZUN／上海アリス幻樂団所有，作者仅对自己的绘制创作部分主张相应权利。冰读与上海アリス幻樂団不存在官方隶属、赞助或认可关系，也不宣称获得个别官方授权。Logo 及相关二创视觉素材不包含在代码的 AGPL 授权中；该许可证不授予角色、品牌或素材的商业使用及再授权权利。完整声明见 [NOTICE.md](NOTICE.md)，使用时请遵守[东方 Project 官方二次创作指引](https://touhou-project.news/guideline/)。点击音频由作者确认自行制作，版权独立于代码许可证。
+
+第三方清单如实标注了少数仅发布许可证声明的构建／测试依赖。以下材料覆盖当前发行版本，不表示旧安装包已自动补齐，也不表示用户书籍或外部语音软件获得了重新授权。
 
 **桌面运行时仍有待办**：已保留 Electron/Chromium 的上游许可声明，但当前源码包尚未提供其中 FFmpeg 等 LGPL 原生组件的匹配源码与重建资料。这些组件的源码发布义务需要继续补齐；现有材料不能作为“所有第三方许可义务均已完成”的证明。参见 [FFmpeg 官方许可说明](https://ffmpeg.org/legal.html)。公网 Web 服务不分发 Electron 桌面运行时。
 
@@ -303,7 +307,7 @@ docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
 - 保留 EbookLib 0.19 作为 EPUB 解析器，遵守其 AGPL 许可。完整的组件版本、许可证原文和版权信息见 [第三方清单](third_party_licenses/inventory.json) 和 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
 - 登录页、导航和设置页的「下载对应源码」提供该发行版本的完整源码包，包含当前应用源码、构建脚本、依赖锁定版本及 Python/JavaScript 运行依赖的原始源码包。
 - 部署修改版本时，也须向网络用户提供**实际运行版本**的对应源码；请保留 `/api/legal/source` 及界面入口，不要用不断变化的 `main` 分支链接替代。
-- logo、图标及点击音频由项目作者原创制作，随冰读发布；素材与商标不包含在代码的 AGPL 授权中，另行许可前保留相关权利。
+- Logo、衍生图标、东方 Project 二创视觉素材和点击音频不包含在代码的 AGPL 授权中；再利用作者素材需另获作者许可，涉及原作角色的用途还须遵守原作方规则。下游项目可替换二创视觉素材后使用代码。
 - 书籍、词典和语音包的使用与分享遵循各自版权和许可；仅导入或分享你有权处理的内容。
 - 客户端使用 Electron、React、Python、FastAPI、Sudachi 等组件，相关说明见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
 - YMM4 和专有语音包由用户自行安装，不随冰读安装包分发。

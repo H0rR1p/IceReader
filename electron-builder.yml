@@ -18,6 +18,8 @@ extraResources:
     to: LICENSE
   - from: COPYRIGHT
     to: COPYRIGHT
+  - from: NOTICE.md
+    to: NOTICE.md
   - from: build/desktop-backend/bingdu-service
     to: backend
   - from: assets/bingdu.ico

@@ -21,9 +21,18 @@ code, build scripts and documentation. Third-party code retains its own
 copyright and license. Logo/icon artwork, click audio, trademarks, user
 books/dictionaries, and external YMM4/voice software are excluded from this
 code-license grant; no additional content rights are granted by the code license.
-The project author has confirmed that the logo, icons and click audio are
-original works created by H0rR1p. They are distributed with IceReader;
-all rights in these assets are reserved unless separately licensed.
+The logo is a chibi Cirno portrait drawn by H0rR1p: an unofficial fan-made
+derivative work based on Touhou Project. Derived icons share this status.
+Touhou Project and its characters are (C) ZUN / 上海アリス幻樂団.
+H0rR1p claims rights only in the author's own artistic contribution;
+the underlying character rights remain with the original rightsholder.
+IceReader is not affiliated with, sponsored by, or endorsed by Team Shanghai
+Alice and does not claim individually granted official authorization.
+Touhou-derived visual assets are excluded from the software license; no
+character or branding rights are granted by that license. See NOTICE.md and
+https://touhou-project.news/guideline/ for the fan-art notice and guidelines.
+The author also confirms creating the click audio. It has separate rights;
+no independent asset-reuse permission is granted unless separately licensed.
 See THIRD-PARTY-NOTICES.txt and third_party_licenses/inventory.json.
 The separately built YMM4 interoperability bridge has the limited additional
 linking permission in ymm4-bridge/COPYRIGHT; it does not change EbookLib's AGPL.
