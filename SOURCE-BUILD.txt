@@ -85,6 +85,12 @@ this is not a count of modules actually shipped or executed by the app.
 Some non-runtime upstreams only publish SPDX license declarations; these are
 explicitly marked instead of inventing copyright holders or original texts.
 
+Remaining desktop-native source work: the archive retains Electron/Chromium
+license notices but does not yet include matching FFmpeg and other LGPL native
+runtime source/build materials. Their source-distribution obligations still
+need completion. This bundle is not a certificate of full third-party legal
+clearance. The Online Web services do not ship the Electron desktop runtime.
+
 These materials accompany THIS source snapshot. To continue distributing
 historical binaries, also provide their corresponding source/build materials
 and applicable notices. The new archive does not prove that all older releases

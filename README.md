@@ -345,6 +345,8 @@ docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
 
 **授权范围尚待补充**：logo、图标及点击音频的来源和公开分发授权尚未独立核实，不能将代码的 AGPL 许可理解为这些素材的授权。第三方清单还如实标注了少数仅发布许可证声明的构建／测试依赖。以下材料覆盖当前发行版本，不表示旧安装包已自动补齐，也不表示用户书籍或外部语音软件获得了重新授权。
 
+**桌面运行时仍有待办**：已保留 Electron/Chromium 的上游许可声明，但当前源码包尚未提供其中 FFmpeg 等 LGPL 原生组件的匹配源码与重建资料。这些组件的源码发布义务需要继续补齐；现有材料不能作为“所有第三方许可义务均已完成”的证明。参见 [FFmpeg 官方许可说明](https://ffmpeg.org/legal.html)。公网 Web 服务不分发 Electron 桌面运行时。
+
 - 冰读自身代码、构建脚本和文档采用 **AGPL-3.0-or-later**，详见 [LICENSE](LICENSE) 与 [COPYRIGHT](COPYRIGHT)。程序按现状提供，不提供任何担保。
 - 保留 EbookLib 0.19 作为 EPUB 解析器，遵守其 AGPL 许可。完整的组件版本、许可证原文和版权信息见 [第三方清单](third_party_licenses/inventory.json) 和 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
 - 登录页、导航和设置页的「下载对应源码」提供该发行版本的完整源码包，包含当前应用源码、构建脚本、依赖锁定版本及 Python/JavaScript 运行依赖的原始源码包。
