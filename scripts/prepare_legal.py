@@ -34,7 +34,7 @@ SOURCE_DIRS = {"backend", "src", "desktop", "scripts", "ymm4-bridge", "public", 
 SOURCE_ROOTS = {"README.md", "LICENSE", "COPYRIGHT", "SOURCE-BUILD.txt", "THIRD-PARTY-NOTICES.txt", "package.json",
                 "package-lock.json", "electron-builder.yml", "index.html", "start.ps1",
                 "vite.config.ts", "tsconfig.json", "tsconfig.app.json", "tsconfig.node.json",
-                "Dockerfile.cloud", "compose.cloud.yml", "cloud.env.example", ".gitignore", ".dockerignore"}
+                "Dockerfile.cloud", "compose.cloud.yml", "cloud.env.example", ".gitignore", ".dockerignore", ".gitattributes"}
 EXCLUDED_PARTS = {"node_modules", "__pycache__", ".pytest_cache", "bin", "obj"}
 
 
