@@ -55,7 +55,7 @@ Windows Online web + account services:
 Use the Online source snapshot and the supplied requirements-release.txt,
 create .venv64, run npm ci, then:
 
-  powershell -NoProfile -File scripts/build_online.ps1 -FetchSources
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_online.ps1 -FetchSources
 
 The build sets VITE_BINGDU_DEPLOYMENT=online and produces both services under
 build/online-release. Use private startup environment files to set data paths,
