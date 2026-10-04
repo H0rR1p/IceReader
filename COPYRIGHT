@@ -20,7 +20,10 @@ Scope: this grant covers IceReader's independently developed application
 code, build scripts and documentation. Third-party code retains its own
 copyright and license. Logo/icon artwork, click audio, trademarks, user
 books/dictionaries, and external YMM4/voice software are excluded from this
-code-license grant; no additional content rights are represented or granted.
+code-license grant; no additional content rights are granted by the code license.
+The project author has confirmed that the logo, icons and click audio are
+original works created by H0rR1p. They are distributed with IceReader;
+all rights in these assets are reserved unless separately licensed.
 See THIRD-PARTY-NOTICES.txt and third_party_licenses/inventory.json.
 The separately built YMM4 interoperability bridge has the limited additional
 linking permission in ymm4-bridge/COPYRIGHT; it does not change EbookLib's AGPL.

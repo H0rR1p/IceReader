@@ -79,11 +79,21 @@ License scope and historical versions
 --------------------------------------
 IceReader code: AGPL-3.0-or-later, see LICENSE and COPYRIGHT. Third-party
 components retain their licenses; logo/audio/user content rights are separate.
+The project author has confirmed that the logo, icons and click audio are
+original works created by H0rR1p. They are distributed with IceReader and
+remain outside the code-license grant; all asset rights are reserved unless
+separately licensed.
 No warranty is provided. Full component inventory is in third_party_licenses.
 The inventory also records build-only and platform/test-superset dependencies;
 this is not a count of modules actually shipped or executed by the app.
 Some non-runtime upstreams only publish SPDX license declarations; these are
 explicitly marked instead of inventing copyright holders or original texts.
+
+Remaining desktop-native source work: the archive retains Electron/Chromium
+license notices but does not yet include matching FFmpeg and other LGPL native
+runtime source/build materials. Their source-distribution obligations still
+need completion. This bundle is not a certificate of full third-party legal
+clearance. The Online Web services do not ship the Electron desktop runtime.
 
 These materials accompany THIS source snapshot. To continue distributing
 historical binaries, also provide their corresponding source/build materials
