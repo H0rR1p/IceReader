@@ -1,0 +1,102 @@
+[
+  {
+    "id": "ja.me_ni_suru",
+    "label": "目にする",
+    "pattern": "目に(?:する|した|します)",
+    "anchor": "fixed",
+    "explanation_zh": "看见、目睹。这是目にする整段的意思，不是第几次。",
+    "positive": [
+      "珍しい鳥を目にした。"
+    ],
+    "negative": [
+      "三回目に会った。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 76,
+    "kind": "idiom",
+    "first_token_lemma": "目",
+    "first_token_pos": "名詞",
+    "excluded_first_subpos": [
+      "数詞",
+      "接尾辞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ki_ga_suru",
+    "label": "気がする",
+    "pattern": "気が(?:する|した|します)",
+    "anchor": "fixed",
+    "explanation_zh": "觉得、感觉是这样，通常是自己的感觉。",
+    "positive": [
+      "雨が降る気がする。"
+    ],
+    "negative": [
+      "空気が澄んでいる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 77,
+    "kind": "idiom",
+    "first_token_lemma": "気",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ki_ni_naru",
+    "label": "気になる",
+    "pattern": "気に(?:なる|なった|なります)",
+    "anchor": "fixed",
+    "explanation_zh": "在意、担心，或产生兴趣。具体是哪种要看内容。",
+    "positive": [
+      "遠くの音が気になる。"
+    ],
+    "negative": [
+      "元気になった。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 78,
+    "kind": "idiom",
+    "first_token_lemma": "気",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_ni_ireru",
+    "label": "手に入れる",
+    "pattern": "手に(?:入れる|入れた|入れます)",
+    "anchor": "fixed",
+    "explanation_zh": "得到、拿到。这是手に入れる整段的意思。",
+    "positive": [
+      "新しい資料を手に入れた。"
+    ],
+    "negative": [
+      "袋に手を入れた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 79,
+    "kind": "idiom",
+    "first_token_lemma": "手",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.mimi_ni_suru",
+    "label": "耳にする",
+    "pattern": "耳に(?:する|した|します)",
+    "anchor": "fixed",
+    "explanation_zh": "听到、听说。这是耳にする整段的意思。",
+    "positive": [
+      "噂を耳にした。"
+    ],
+    "negative": [
+      "耳に飾りを付けた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 85,
+    "kind": "idiom",
+    "first_token_lemma": "耳",
+    "semantic_features": []
+  }
+]

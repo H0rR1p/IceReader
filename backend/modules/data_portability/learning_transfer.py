@@ -2,11 +2,14 @@
 import json
 import sqlite3
 import uuid
+import re
+from .identity import TransferIds
 
 LEARNING_TABLES = (
     "knowledge_items", "learning_events", "user_knowledge_states", "card_candidates",
     "notes", "cards", "memory_states", "review_logs", "saved_card_views",
     "card_preferences", "activity_windows", "daily_learning_stats",
+    "card_undo_log", "knowledge_aliases", "canonical_aliases", "transfer_daily_credits",
 )
 
 
@@ -28,33 +31,30 @@ def validate_learning(tables: dict) -> None:
                     raise ValueError("迁移包学习统计格式错误")
 
 
-def merge_learning(connection: sqlite3.Connection, tables: dict, source: str, target: str) -> dict:
+def merge_learning(connection: sqlite3.Connection, tables: dict, source: str, target: str, *, ids: TransferIds | None = None, replace: bool = False) -> dict:
     """Called inside the library transaction with the learning database attached."""
     validate_learning(tables)
     connection.row_factory = sqlite3.Row
     existing = {row[0] for row in connection.execute("SELECT name FROM learning.sqlite_master WHERE type='table'")}
-    id_map = {}
+    if tables.get("transfer_daily_credits") and "transfer_daily_credits" not in existing:
+        connection.execute("CREATE TABLE learning.transfer_daily_credits(target_user_id TEXT,source_user_id TEXT,local_date TEXT,timezone TEXT,payload TEXT,PRIMARY KEY(target_user_id,source_user_id,local_date,timezone))")
+        existing.add("transfer_daily_credits")
+    ids = ids or TransferIds(source, target)
+    knowledge_map = {}
     for table in LEARNING_TABLES:
         if table == "knowledge_items":
             continue
         for row in tables.get(table, []):
             if row.get("id"):
-                id_map[str(row["id"])] = str(row["id"]) if source == target else str(uuid.uuid5(uuid.NAMESPACE_URL, f"bingdu-transfer:{target}:{source}:{table}:{row['id']}"))
+                ids.add(table, str(row["id"]))
     for row in tables.get("knowledge_items", []):
         found = connection.execute("SELECT id FROM learning.knowledge_items WHERE type=? AND canonical_key=?", (row["type"], row["canonical_key"])).fetchone()
         item_id = found[0] if found else str(uuid.uuid5(uuid.NAMESPACE_URL, f"bingdu-knowledge:{row['type']}:{row['canonical_key']}"))
-        id_map[str(row["id"])] = item_id
-
-    def rewrite(value):
-        if isinstance(value, str):
-            return id_map.get(value, value)
-        if isinstance(value, list):
-            return [rewrite(item) for item in value]
-        if isinstance(value, dict):
-            return {key: rewrite(item) for key, item in value.items()}
-        return value
+        knowledge_map[str(row["id"])] = item_id
+        ids.add("knowledge", str(row["id"]), item_id)
 
     counts = {"imported_cards": 0, "imported_learning_records": 0}
+    affected = set()
     for table in LEARNING_TABLES:
         if table not in existing:
             if tables.get(table):
@@ -62,14 +62,25 @@ def merge_learning(connection: sqlite3.Connection, tables: dict, source: str, ta
             continue
         columns = {row[1] for row in connection.execute(f'PRAGMA learning.table_info("{table}")')}
         for original in tables.get(table, []):
-            row = {key: rewrite(value) for key, value in original.items() if key in columns}
+            if set(original) - columns:
+                raise ValueError(f"目标服务缺少学习数据列：{table}")
+            row = {key: knowledge_map.get(value, value)
+                   if key == "knowledge_item_id" or table == "knowledge_items" and key == "id"
+                   else ids.get(table, value) if key == "id" else ids.rewrite({key: value})[key]
+                   for key, value in original.items() if key in columns}
             if "user_id" in columns:
                 row["user_id"] = target
             for key, value in list(row.items()):
                 if key.endswith("_json") and isinstance(value, str):
-                    row[key] = json.dumps(rewrite(json.loads(value)), ensure_ascii=False)
+                    domain = "cards" if table == "card_undo_log" and row.get("action") == "status" else None
+                    row[key] = json.dumps(ids.rewrite(json.loads(value), domain), ensure_ascii=False)
             if table == "daily_learning_stats":
-                if source == target:
+                if source == target and not replace:
+                    continue
+                if replace:
+                    names = list(row)
+                    connection.execute(f'INSERT INTO learning.daily_learning_stats ({",".join(names)}) VALUES ({",".join("?" for _ in names)})', list(row.values()))
+                    counts["imported_learning_records"] += 1
                     continue
                 # Source snapshots are credited only once per source/day. Later exports
                 # add the positive delta, retaining activity already present at target.
@@ -89,12 +100,25 @@ def merge_learning(connection: sqlite3.Connection, tables: dict, source: str, ta
             names = list(row)
             if not names:
                 raise ValueError("迁移包包含空学习记录")
+            if table == "knowledge_aliases" and row["alias_id"] == row["target_id"]:
+                continue
             quoted = ','.join(f'"{name}"' for name in names)
-            cursor = connection.execute(f'INSERT OR IGNORE INTO learning."{table}" ({quoted}) VALUES ({",".join("?" for _ in names)})', list(row.values()))
+            cursor = connection.execute(f'INSERT INTO learning."{table}" ({quoted}) VALUES ({",".join("?" for _ in names)}) ON CONFLICT DO NOTHING', list(row.values()))
+            if table == "learning_events" and cursor.rowcount:
+                affected.add(row["knowledge_item_id"])
             if table == "cards":
                 counts["imported_cards"] += cursor.rowcount
             elif table != "knowledge_items":
                 counts["imported_learning_records"] += cursor.rowcount
+    if affected and not replace:
+        from ..learning.repository import _project_item
+        class LearningConnection:
+            def execute(self, query, args=()):
+                query = re.sub(r'\b(FROM|INTO|UPDATE|JOIN)\s+(learning_events|knowledge_aliases|user_knowledge_states)\b',
+                               lambda match: match[1] + " learning." + match[2], query, flags=re.I)
+                return connection.execute(query, args)
+        for item_id in affected:
+            _project_item(LearningConnection(), target, item_id)
     if "card_search" in existing:
         connection.execute("DELETE FROM learning.card_search WHERE user_id=?", (target,))
         for row in connection.execute("SELECT c.id,n.* FROM learning.cards c JOIN learning.notes n ON n.id=c.note_id WHERE c.user_id=? AND c.deleted_at IS NULL", (target,)).fetchall():

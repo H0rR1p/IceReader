@@ -35,7 +35,7 @@ def release_info() -> dict:
     return result
 
 
-@router.get("/source")
+@router.api_route("/source", methods=["GET", "HEAD"])
 def corresponding_source() -> FileResponse:
     return FileResponse(_file("corresponding-source.zip"), media_type="application/zip",
                         filename="IceReader-corresponding-source.zip", headers={"Cache-Control": "no-cache"})

@@ -20,6 +20,10 @@ from .core.request_context import (
     reset_request_context,
 )
 from .modules.analysis.router import router as analysis_router
+from .modules.analysis.resegmentation_router import router as resegmentation_router
+from .modules.linguistics.router import router as linguistics_router
+from .modules.linguistics.ambiguity_router import router as ambiguity_router
+from .modules.book_memory.router import router as book_memory_router
 from .modules.activity.repository import initialize_store as initialize_activity_store
 from .modules.activity.router import router as activity_router
 from .modules.cards.repository import initialize_store as initialize_cards_store
@@ -39,6 +43,7 @@ from .modules.learning.repository import initialize_store as initialize_learning
 from .modules.learning.router import router as learning_router
 from .modules.jobs.service import initialize_store as initialize_job_store, record_observation
 from .modules.jobs.router import router as jobs_router
+from .modules.jobs import runner as task_runner
 from .modules.settings.router import router as settings_router
 from .modules.sync.repository import initialize_store as initialize_sync_store
 from .modules.sync.router import router as sync_router
@@ -70,15 +75,21 @@ async def lifespan(_app: FastAPI):
         await asyncio.to_thread(initialize_cloud_client_store)
         await asyncio.to_thread(initialize_activity_store)
         await asyncio.to_thread(initialize_sync_store)
+        from .modules.analysis.resegmentation import replay_events
+        await asyncio.to_thread(replay_events)
+        from .modules.jobs.repository import retire_task_kind
+        await asyncio.to_thread(retire_task_kind, 'grammar-disambiguation-v1', 'AI 消歧功能已移除，此任务已取消')
+        await task_runner.start()
         yield
     finally:
         try:
+            await task_runner.stop()
             await close_http_client()
         finally:
             close_ai_store()
 
 
-app = FastAPI(title="冰读本地 API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="冰读本地 API", version="0.5.0", lifespan=lifespan)
 app.include_router(legal_router)
 app.include_router(identity_router)
 app.include_router(content_router)
@@ -87,6 +98,10 @@ app.include_router(library_router)
 app.include_router(settings_router)
 app.include_router(voice_router)
 app.include_router(analysis_router)
+app.include_router(resegmentation_router)
+app.include_router(linguistics_router)
+app.include_router(ambiguity_router)
+app.include_router(book_memory_router)
 app.include_router(jobs_router)
 app.include_router(learning_router)
 app.include_router(cards_router)
@@ -149,15 +164,14 @@ async def request_context_middleware(request: Request, call_next):
         response = await call_next(request)
     finally:
         reset_request_context(token)
-    identity_endpoint_sets_session = request.url.path in {
-        "/api/auth/local/register", "/api/auth/local/login", "/api/auth/local/switch",
-    }
+    set_cookies = [value.decode('latin1') for key, value in response.raw_headers if key.lower() == b'set-cookie']
+    identity_endpoint_sets_session = any(value.startswith('bingdu_session=') for value in set_cookies)
     if identity.token and not identity_endpoint_sets_session:
         response.set_cookie(
             "bingdu_session", identity.token, max_age=30 * 24 * 60 * 60,
             httponly=True, samesite="strict", secure=COOKIE_SECURE,
         )
-    if request.cookies.get("bingdu_device") != identity.device_id:
+    if request.cookies.get("bingdu_device") != identity.device_id and not any(value.startswith('bingdu_device=') for value in set_cookies):
         response.set_cookie(
             "bingdu_device", identity.device_id, max_age=365 * 24 * 60 * 60,
             httponly=True, samesite="strict", secure=COOKIE_SECURE,

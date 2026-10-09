@@ -1,6 +1,7 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+from .model_compat import BaseModel, Field, HttpUrl
+from .modules.linguistics.models import ContextPolicy, LearningSpan
 
 
 class AiSettings(BaseModel):
@@ -89,6 +90,7 @@ class StudyDataSnapshot(BaseModel):
 class LibraryPatch(BaseModel):
     upserts: dict[str, list[dict]] = Field(default_factory=dict)
     deletes: dict[str, list[str]] = Field(default_factory=dict)
+    expected_revisions: dict[str, int] = Field(default_factory=dict)
 
 
 class AnalyzeRequest(BaseModel):
@@ -109,6 +111,14 @@ class TokenOut(BaseModel):
     reading: str
     part_of_speech: str
     is_content: bool
+    pos_full: list[str] = Field(default_factory=list)
+    conjugation_type: str = ""
+    conjugation_form: str = ""
+    normalized_form: str = ""
+    surface_reading: str = ""
+    lemma_reading: str | None = None
+    role: Literal["lexical", "grammatical", "punctuation", "unknown"] = "unknown"
+    analysis_revision: int = 1
 
 
 class AnnotationOut(BaseModel):
@@ -120,11 +130,19 @@ class AnnotationOut(BaseModel):
     quote: str
     structure: str = ""
     explanation_zh: str
+    analysis_revision: int = 1
 
 
 class ContextSenseOut(BaseModel):
     token_id: str
     gloss_zh: str
+    analysis_revision: int = 1
+
+
+class LearningSpanSenseOut(BaseModel):
+    span_id: str
+    gloss_zh: str
+    sentence_id: str | None = None
 
 
 class LexemeOut(BaseModel):
@@ -142,11 +160,14 @@ class SentenceOut(BaseModel):
     start: int
     end: int
     original: str
-    translation_zh: str
+    translation_zh: str = ""
     status: Literal["complete", "failed"] = "complete"
     error: str | None = None
     explanation_status: Literal["idle", "processing", "complete", "failed"] = "idle"
     explanation_detail: Literal["meaning", "full"] | None = None
+    analysis_revision: int = 1
+    translation_quality_status: Literal['unreviewed','confirmed','verified','user_confirmed','needs_review','rejected'] = 'unreviewed'
+    analysis_stale_reason: str | None = None
 
 
 class AnalyzeResponse(BaseModel):
@@ -156,6 +177,12 @@ class AnalyzeResponse(BaseModel):
     context_senses: list[ContextSenseOut]
     lexemes: list[LexemeOut]
     warnings: list[str] = Field(default_factory=list)
+    learning_spans: list[LearningSpan] = Field(default_factory=list)
+    learning_span_senses: list[LearningSpanSenseOut] = Field(default_factory=list)
+    analysis_manifest: dict | None = None
+    analysis_contexts: list[dict] = Field(default_factory=list)
+    analysis_source: str = ""
+    context_hash: str = ""
 
 
 class ExplainSentenceRequest(BaseModel):
@@ -164,6 +191,7 @@ class ExplainSentenceRequest(BaseModel):
     annotation_mode: Literal["none", "grammar"] = "none"
     detail_mode: Literal["meaning", "full"] = "full"
     context_before: list[str] = Field(default_factory=list, max_length=2)
+    context_policy: ContextPolicy | None = None
     settings: AiSettings = Field(default_factory=AiSettings)
 
 
@@ -177,6 +205,7 @@ class CorrectWordRequest(BaseModel):
     token: TokenOut
     current_senses: list[str] = Field(default_factory=list, max_length=20)
     hint: str = Field(default="", max_length=1000)
+    context_policy: ContextPolicy | None = None
     settings: AiSettings = Field(default_factory=AiSettings)
 
 
@@ -190,6 +219,7 @@ class ExplainBatchRequest(BaseModel):
     annotation_mode: Literal["none", "grammar"] = "none"
     detail_mode: Literal["meaning", "full"] = "full"
     context_before: list[str] = Field(default_factory=list, max_length=2)
+    context_policy: ContextPolicy | None = None
     settings: AiSettings = Field(default_factory=AiSettings)
 
 

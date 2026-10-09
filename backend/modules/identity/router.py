@@ -94,14 +94,17 @@ async def upload_current_user_avatar(
         (user_dir / f"avatar{old_suffix}").unlink(missing_ok=True)
     (user_dir / filename).write_bytes(payload)
     profile = await asyncio.to_thread(update_user_profile, context.user_id, None, filename)
-    profile["avatar_url"] = f"/api/me/avatar?v={time.time_ns()}"
+    profile["avatar_url"] = f"/api/me/avatar?user_id={context.user_id}&v={time.time_ns()}"
     return profile
 
 
 @router.get("/me/avatar")
 async def read_current_user_avatar(
+    user_id: str | None = None,
     context: RequestContext = Depends(current_request_context),
 ) -> FileResponse:
+    if user_id is not None and user_id != context.user_id:
+        raise HTTPException(404, "头像不存在")
     filename = await asyncio.to_thread(avatar_filename, context.user_id)
     if not filename or Path(filename).name != filename:
         raise HTTPException(404, "头像不存在")
@@ -109,7 +112,7 @@ async def read_current_user_avatar(
     root = AVATAR_DIR.resolve()
     if not target.is_relative_to(root) or not target.is_file():
         raise HTTPException(404, "头像不存在")
-    return FileResponse(target)
+    return FileResponse(target, headers={"Cache-Control": "private, no-store", "Vary": "Cookie"})
 
 
 @router.post("/auth/local/register")

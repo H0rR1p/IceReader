@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "license": "AGPL-3.0-or-later",
+  "source": "IceReader contributors: original synthetic Japanese examples; no imported corpus",
+  "annotation_status": "initial_authored_seed_not_human_adjudicated",
+  "cases": [
+    {
+      "id": "construction-01",
+      "category": "construction",
+      "text": "駅に着いたところで電話が鳴った。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "着いたところ",
+            "start": 2,
+            "end": 8,
+            "kind": "construction",
+            "required_features": [
+              "past"
+            ],
+            "lemma": "着く",
+            "semantic_key": "tokoro"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-02",
+      "category": "construction",
+      "text": "忙しいわけではない。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "わけではない",
+            "start": 3,
+            "end": 9,
+            "kind": "construction",
+            "required_features": [
+              "partial_negation"
+            ],
+            "semantic_key": "wake_dewa_nai"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-03",
+      "category": "construction",
+      "text": "雨が降るかもしれない。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "かもしれない",
+            "start": 4,
+            "end": 10,
+            "kind": "construction",
+            "required_features": [
+              "possibility"
+            ],
+            "semantic_key": "kamoshirenai"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-04",
+      "category": "construction",
+      "text": "何度読んでも意味が分からない。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読んでも",
+            "start": 2,
+            "end": 6,
+            "kind": "construction",
+            "required_features": [
+              "concessive"
+            ],
+            "lemma": "読む",
+            "semantic_key": "temo"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-05",
+      "category": "construction",
+      "text": "練習すればするほど上達する。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "練習すればするほど",
+            "start": 0,
+            "end": 9,
+            "kind": "construction",
+            "required_features": [
+              "correlative"
+            ],
+            "semantic_key": "ba_hodo"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-06",
+      "category": "construction",
+      "text": "遅れないように早く出た。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "遅れないように",
+            "start": 0,
+            "end": 7,
+            "kind": "construction",
+            "required_features": [
+              "purpose"
+            ],
+            "lemma": "遅れる",
+            "semantic_key": "youni"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-07",
+      "category": "construction",
+      "text": "帰る途中で店に寄った。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "帰る途中で",
+            "start": 0,
+            "end": 5,
+            "kind": "construction",
+            "required_features": [
+              "in_progress"
+            ],
+            "lemma": "帰る",
+            "semantic_key": "tochu_de"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-08",
+      "category": "construction",
+      "text": "部屋は暗いままだ。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "暗いまま",
+            "start": 3,
+            "end": 7,
+            "kind": "construction",
+            "required_features": [
+              "unchanged_state"
+            ],
+            "lemma": "暗い",
+            "semantic_key": "mama"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-09",
+      "category": "construction",
+      "text": "見たことがある景色だ。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "見たことがある",
+            "start": 0,
+            "end": 7,
+            "kind": "construction",
+            "required_features": [
+              "experience"
+            ],
+            "lemma": "見る",
+            "semantic_key": "koto_ga_aru"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-10",
+      "category": "construction",
+      "text": "この歌を耳にすると春を思い出す。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "耳にする",
+            "start": 4,
+            "end": 8,
+            "kind": "construction",
+            "required_features": [
+              "idiom",
+              "perception"
+            ],
+            "semantic_key": "mimi_ni_suru"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-11",
+      "category": "construction",
+      "text": "その光景を目にした。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "目にした",
+            "start": 5,
+            "end": 9,
+            "kind": "construction",
+            "required_features": [
+              "idiom",
+              "perception",
+              "past"
+            ],
+            "semantic_key": "me_ni_suru"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-12",
+      "category": "construction",
+      "text": "箱には三つ目の番号を書いた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [
+          {
+            "semantic_key": "me_ni_suru",
+            "reason": "ordinal_me"
+          }
+        ],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-13",
+      "category": "construction",
+      "text": "耳に小さな飾りを付けた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [
+          {
+            "semantic_key": "mimi_ni_suru",
+            "reason": "literal_body_part"
+          }
+        ],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-14",
+      "category": "construction",
+      "text": "分かる。かもしれないという言葉を調べた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [
+          {
+            "semantic_key": "kamoshirenai",
+            "reason": "quoted_metalanguage"
+          }
+        ],
+        "unknown": [
+          "quoted_metalanguage"
+        ],
+        "sentence_texts": [
+          "分かる。",
+          "かもしれないという言葉を調べた。"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "construction-15",
+      "category": "construction",
+      "text": "好きになったわけ。ではない話を聞こう。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [
+          {
+            "semantic_key": "wake_dewa_nai",
+            "reason": "sentence_boundary"
+          }
+        ],
+        "unknown": [],
+        "sentence_texts": [
+          "好きになったわけ。",
+          "ではない話を聞こう。"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    }
+  ]
+}

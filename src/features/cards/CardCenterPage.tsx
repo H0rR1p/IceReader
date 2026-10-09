@@ -9,7 +9,7 @@ import { toHiragana } from '../../text'
 
 type CardSort = 'due' | 'updated' | 'difficulty' | 'alphabetical'
 
-export default function CardCenterPage({ onNotice, onStartReview }: { onNotice: (value: string) => void; onStartReview: () => void }) {
+export default function CardCenterPage({ onNotice, onStartReview, onSourceRead }: { onNotice: (value: string) => void; onStartReview: () => void; onSourceRead?: (bookId: string, chapterId: string, start: number) => void }) {
   const [tab, setTab] = useState<'inbox' | 'cards'>('inbox')
   const [candidates, setCandidates] = useState<CardCandidate[]>([])
   const [cards, setCards] = useState<StudyCard[]>([])
@@ -28,6 +28,8 @@ export default function CardCenterPage({ onNotice, onStartReview }: { onNotice: 
   const [editing, setEditing] = useState<StudyCard | null>(null)
   const [textAction, setTextAction] = useState<'view' | 'add-tag' | 'remove-tag' | null>(null)
   const [undoId, setUndoId] = useState('')
+  const [busyCandidate, setBusyCandidate] = useState('')
+  const [error, setError] = useState('')
   const pageSize = 40
 
   const reload = useCallback(async (signal?: AbortSignal) => {
@@ -53,8 +55,12 @@ export default function CardCenterPage({ onNotice, onStartReview }: { onNotice: 
   }, [onNotice, reload])
 
   async function handleCandidate(candidate: CardCandidate, accept: boolean) {
-    if (accept) await acceptCardCandidate(candidate.id); else await rejectCardCandidate(candidate.id)
-    await reload(); onNotice(accept ? '已加入今日复习队列。' : '已忽略候选卡。')
+    if (busyCandidate) return
+    setBusyCandidate(candidate.id); setError('')
+    try {
+      if (accept) await acceptCardCandidate(candidate.id); else await rejectCardCandidate(candidate.id)
+      await reload(); onNotice(accept ? '已加入今日复习队列。' : '已忽略候选卡。')
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) } finally { setBusyCandidate('') }
   }
   async function bulk(nextStatus: 'active' | 'suspended' | 'archived') {
     const result = await updateCardStatuses([...selected], nextStatus)
@@ -101,7 +107,8 @@ export default function CardCenterPage({ onNotice, onStartReview }: { onNotice: 
   })
 
   return <main className="app-page cards-page">
-    <header className="page-heading"><div><span>记忆管理</span><h1>词语卡片</h1><p>先确认阅读中收集的候选词，再用筛选和标签整理已进入学习的卡片。</p></div><button className="button primary" onClick={onStartReview} disabled={!summary?.due_now}>开始今日复习{summary?.due_now ? ` · ${Math.min(summary.due_now, summary.daily_review_limit)}` : ''}</button></header>
+    <header className="page-heading"><div><span>记忆管理</span><h1>词语与语法卡片</h1><p>先确认阅读中收集的候选卡，再用筛选和标签整理已进入学习的卡片。</p></div><button className="button primary" onClick={onStartReview} disabled={!summary?.due_now}>开始今日复习{summary?.due_now ? ` · ${Math.min(summary.due_now, summary.daily_review_limit)}` : ''}</button></header>
+    {error && <p role="alert" className="error-message">{error}</p>}
     {undoId && <div className="card-undo-bar" role="status"><span>操作已完成</span><button onClick={() => void undo()}>撤销</button><button aria-label="关闭撤销提示" onClick={() => setUndoId('')}>×</button></div>}
     {summary && <div className="card-summary-grid"><button className={due === 'today' ? 'active' : ''} onClick={() => { setTab('cards'); setDue(due === 'today' ? '' : 'today') }}><strong>{summary.due_now}</strong><span>今日到期</span></button><div><strong>{summary.due_7_days}</strong><span>未来 7 天</span></div><div><strong>{summary.active}</strong><span>学习中</span></div><button className={tab === 'inbox' ? 'active' : ''} onClick={() => setTab('inbox')}><strong>{summary.candidates}</strong><span>待确认</span></button></div>}
     <section className="page-surface">
@@ -119,8 +126,8 @@ export default function CardCenterPage({ onNotice, onStartReview }: { onNotice: 
       {!!selected.size && <div className="bulk-card-actions"><span>已选 {selected.size} 项</span><button onClick={() => setTextAction('add-tag')}>加标签</button><button onClick={() => setTextAction('remove-tag')}>移除标签</button>{selected.size > 1 && <button onClick={() => void mergeSelected()}>合并重复卡</button>}<button onClick={() => void bulk('active')}>恢复</button><button onClick={() => void bulk('suspended')}>暂停</button><button onClick={() => void bulk('archived')}>封存</button></div>}
     </>}
     {loading ? <p className="muted">正在读取卡片…</p> : tab === 'inbox'
-      ? <div className="candidate-list">{candidates.length ? candidates.map((item) => <article key={item.id}><div><strong lang="ja">{item.lemma}</strong><span>{toHiragana(item.reading)}</span></div><p>{item.gloss || '等待补充本句义项'}</p><blockquote lang="ja">{item.sentence}</blockquote><small>{item.book_title}</small><div><button className="button primary small" onClick={() => void handleCandidate(item, true)}>加入学习</button><button className="button small" onClick={() => void handleCandidate(item, false)}>忽略</button></div></article>) : <p className="muted">阅读时可从词典卡片加入候选词卡。</p>}</div>
-      : <div className="study-card-table">{visibleCards.length ? visibleCards.map((card) => <article key={card.id} className={selected.has(card.id) ? 'selected' : ''}><input type="checkbox" checked={selected.has(card.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(card.id)) next.delete(card.id); else next.add(card.id); return next })} /><div><strong lang="ja">{card.lemma}</strong><small>{toHiragana(card.reading)} · {card.book_title || '手动添加'}</small>{!!card.tags.length && <div className="card-tags">{card.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}<p>{card.gloss}</p><blockquote lang="ja">{card.sentence}</blockquote></div><div className="card-memory"><span>{card.status === 'active' ? '学习中' : card.status === 'leech' ? '难卡' : card.status === 'suspended' ? '已暂停' : '已封存'}</span><small>稳定度 {card.stability.toFixed(1)} 天</small><small>复习 {card.reps} · 遗忘 {card.lapses}</small><button onClick={() => setEditing(card)}>编辑</button></div></article>) : <p className="muted">没有匹配的卡片。</p>}</div>}
+      ? <div className="candidate-list">{candidates.length ? candidates.map((item) => <article key={item.id} data-template={item.card_template}><div><strong lang="ja">{item.lemma}</strong><span>{toHiragana(item.reading)}</span></div>{item.source?.kind === 'grammar' && <p>{item.card_template === 'form-restoration' ? '词形恢复' : '结构识别'} · 语法候选</p>}<p>{item.gloss || '等待补充本句义项'}</p><blockquote lang="ja">{item.source?.question || item.sentence}</blockquote>{item.source && <GrammarSourceDetails card={item} onSourceRead={onSourceRead} />}<small>{item.book_title}</small><div><button className="button primary small" disabled={Boolean(busyCandidate)} onClick={() => void handleCandidate(item, true)}>加入学习</button><button className="button small" disabled={Boolean(busyCandidate)} onClick={() => void handleCandidate(item, false)}>忽略</button></div></article>) : <p className="muted">阅读时可从词典或语法结构加入候选卡。</p>}</div>
+      : <div className="study-card-table">{visibleCards.length ? visibleCards.map((card) => <article key={card.id} data-template={card.card_template} className={selected.has(card.id) ? 'selected' : ''}><input type="checkbox" aria-label={`选择${card.lemma}`} checked={selected.has(card.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(card.id)) next.delete(card.id); else next.add(card.id); return next })} /><div><strong lang="ja">{card.lemma}</strong><small>{card.source?.kind === 'grammar' ? card.card_template === 'form-restoration' ? '词形恢复' : '结构识别' : toHiragana(card.reading)} · {card.book_title || '手动添加'}</small>{!!card.tags.length && <div className="card-tags">{card.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}<p>{card.gloss}</p><blockquote lang="ja">{card.source?.question || card.sentence}</blockquote>{card.source && <GrammarSourceDetails card={card} onSourceRead={onSourceRead} />}</div><div className="card-memory"><span>{card.status === 'active' ? '学习中' : card.status === 'leech' ? '难卡' : card.status === 'suspended' ? '已暂停' : '已封存'}</span><small>稳定度 {card.stability.toFixed(1)} 天</small><small>复习 {card.reps} · 遗忘 {card.lapses}</small><button onClick={() => setEditing(card)}>编辑</button></div></article>) : <p className="muted">没有匹配的卡片。</p>}</div>}
     {tab === 'cards' && total > pageSize && <div className="card-pagination"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - pageSize))}>上一页</button><span>{Math.floor(offset / pageSize) + 1} / {Math.ceil(total / pageSize)} · 共 {total} 张</span><button disabled={offset + pageSize >= total} onClick={() => setOffset(offset + pageSize)}>下一页</button></div>}
     <details className="card-limit-settings"><summary>每日学习上限</summary><div><label>每日新卡<input type="number" min="0" max="200" value={preferences.daily_new_limit} onChange={(event) => setPreferences((current) => ({ ...current, daily_new_limit: Number(event.target.value) }))} /></label><label>每日复习<input type="number" min="1" max="1000" value={preferences.daily_review_limit} onChange={(event) => setPreferences((current) => ({ ...current, daily_review_limit: Number(event.target.value) }))} /></label><button className="button small" onClick={() => void saveLimits()}>保存上限</button>{summary && <small>今日已加入 {summary.new_today}/{summary.daily_new_limit} 张新卡</small>}</div></details>
     </section>
@@ -132,6 +139,11 @@ export default function CardCenterPage({ onNotice, onStartReview }: { onNotice: 
       setTextAction(null)
     }} />}
   </main>
+}
+
+function GrammarSourceDetails({ card, onSourceRead }: { card: CardCandidate | StudyCard; onSourceRead?: (bookId: string, chapterId: string, start: number) => void }) {
+  if (!card.source) return null
+  return <details><summary>原始例句与来源</summary><blockquote lang="ja">{card.source.original_sentence}</blockquote><p>{card.source.explanation}</p><p lang="ja">{card.source.derivation.join(' → ')}</p><small>创建时句子版本 {card.source.analysis_revision} · 规则 {card.source.rules_version}</small>{onSourceRead && <button className="button small" onClick={() => onSourceRead(card.book_id, card.chapter_id, card.source!.chapter_anchor)}>定位来源原文</button>}</details>
 }
 
 function CardTextActionDialog({ action, onClose, onSubmit }: { action: 'view' | 'add-tag' | 'remove-tag'; onClose: () => void; onSubmit: (value: string) => Promise<void> }) {

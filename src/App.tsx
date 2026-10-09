@@ -38,10 +38,10 @@ function App() {
     }).catch(() => undefined)
   }, [])
   if (!entered || !currentUser) return <LoginPage currentUser={currentUser} serverReady={serverReady} onEnter={async (user) => { localStorage.setItem(`bingdu:${user.user_id}:entered`, '1'); setCurrentUser(user); setEntered(true) }} />
-  return <AuthenticatedApp currentUser={currentUser} serverReady={serverReady} onUserChange={setCurrentUser} onExit={(user) => { setCurrentUser(user); setEntered(false) }} />
+  return <AuthenticatedApp currentUser={currentUser} serverReady={serverReady} onUserChange={setCurrentUser} onReauthenticate={() => setEntered(false)} onExit={(user) => { setCurrentUser(user); setEntered(false) }} />
 }
 
-function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { currentUser: CurrentUser; serverReady: boolean | null; onUserChange: (user: CurrentUser) => void; onExit: (user: CurrentUser) => void }) {
+function AuthenticatedApp({ currentUser, serverReady, onUserChange, onReauthenticate, onExit }: { currentUser: CurrentUser; serverReady: boolean | null; onUserChange: (user: CurrentUser) => void; onReauthenticate: () => void; onExit: (user: CurrentUser) => void }) {
   const { page, setPage } = useAppRoute()
   const [showImport, setShowImport] = useState(false)
   const [settings, setSettings] = useState<ApiSettings>(DEFAULT_SETTINGS)
@@ -96,11 +96,11 @@ function AuthenticatedApp({ currentUser, serverReady, onUserChange, onExit }: { 
       <Suspense fallback={<section className="page-loading" aria-live="polite"><div className="loading-dango" /><span>正在打开页面…</span></section>}>
         {page === 'library' && <Library books={books} loading={libraryLoading} loadingBookId={loadingBookId} onOpen={openBook} onDelete={deleteBook} onChangeCover={changeBookCover} onImport={() => setShowImport(true)} onSaveCollection={saveBookCollection} onDissolveCollection={dissolveBookCollection} onNotice={setNotice} onRefresh={refreshBooks} />}
         {page === 'dictionary' && <LexiconManagerPage />}
-        {page === 'cards' && <CardCenterPage onNotice={setNotice} onStartReview={() => setPage('review')} />}
-        {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} />}
+        {page === 'cards' && <CardCenterPage onNotice={setNotice} onStartReview={() => setPage('review')} onSourceRead={(bookId, chapterId, start) => { const book=books.find((row) => row.id===bookId); if (book) { setPage('library'); void openBook(book,chapterId,start) } else setNotice('原书已移除，卡片中的历史例句仍保留。') }} />}
+        {page === 'review' && <ReviewPage onNotice={setNotice} onManageCards={() => setPage('cards')} onSourceRead={(bookId, chapterId, start) => { const book=books.find((row) => row.id===bookId); if (book) { setPage('library'); void openBook(book,chapterId,start) } else setNotice('原书已移除，卡片中的历史例句仍保留。') }} />}
         {page === 'profile' && <ProfilePage user={currentUser} books={books} onUserChange={onUserChange} onLogout={logout} onOpenCards={() => setPage('cards')} onOpenReview={() => setPage('review')} />}
         {page === 'cloud' && <CloudAccountPage onNotice={setNotice} />}
-        {page === 'admin' && currentUser.cloud_role === 'admin' && <AdminPage onNotice={setNotice} />}
+        {page === 'admin' && currentUser.cloud_role === 'admin' && <AdminPage onNotice={setNotice} onReauthenticate={onReauthenticate} />}
         {page === 'settings' && <SettingsPage apiSettings={settings} voiceSettings={voiceSettings} books={books} translationMode={translationMode} translationConcurrency={translationConcurrency} onTranslationModeChange={updateTranslationMode} onTranslationConcurrencyChange={updateTranslationConcurrency} onBookImageVisibility={setBookImageVisibility} onSaveApi={async (next) => setSettings(await saveApiSettings(next))} onSaveVoice={async (next, template) => { if (template) await uploadVoiceTemplate(template); setVoiceSettings(await saveVoiceSettings(next)) }} onNotice={setNotice} />}
       </Suspense>
     </div>

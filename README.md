@@ -32,6 +32,8 @@
 
 > **版本说明**：`main` 为本地桌面客户端，[`Online`](https://github.com/H0rR1p/IceReader/tree/Online) 为公网 Web 版本。桌面版无需云账号即可使用，也可通过数据迁移包将书籍、卡片和学习记录带到云端账号。
 
+> **维护范围（2026-10-09起）**：后续只开发和维护Windows桌面客户端；Android及Online分支作为历史版本保留，停止后续开发。
+
 ![书架概览：最近阅读、合集与隐藏封面](docs/images/bookshelf.png)
 
 ## 功能介绍
@@ -47,13 +49,23 @@
 - **原书与插图**：支持原书预览，插图开关按书统一管理。实际封面每次启动默认隐藏，书内插图默认关闭。
 - **后台处理**：可处理当前章节或全书，显示进度并支持取消；已完成的切分与翻译保留供下次使用。
 
-![阅读与释义：章节目录、振假名、句意与语境词义](docs/images/reader.png)
+### 完整活用、语法与前文
+
+- **学习跨度**：保留原始词素，同时将活用链与常见定式组合成可点击的学习单位。选择后可查看词典形、读音和词形怎样变化；88条原创定式说明使用简短中文，补齐常见敬语与授受组合，仍有多种含义时保留候选。
+- **可配置前文**：在设置中选择前0、2、4或8句，手动释义、后台翻译与词义修正使用同一规则。已有译文仅作为辅助线索，缺少人物性别证据时使用中立称呼。
+- **人工确认候选**：可手动选择或清除语法解释；不能可靠确定的结构保留候选，不自动调用AI判定。
+- **重新切分**：已切分的章节也可重新切分，或对全书发起任务。新版本先暂存校验再激活，保留阅读位置、书签映射与卡片历史例句；可查看版本并恢复。
+- **语法卡片**：从已识别的结构创建“识别含义”或“恢复形式”卡片，进入现有卡片管理与每日复习。
+
+### 结合前文理解
+
+翻译结合前文和内部上下文资料，减少人物称呼、指代和语境理解错误。人物与原文证据仅用于 AI 请求，不提供读者管理页面；没有依据的性别保持未知。
 
 ### 把阅读中的词汇留下来
 
 个人词库提供词形、读音和释义搜索，可按假名、词性、来源与自定义分组浏览，并支持分页、虚拟列表和批量修正。你也可以导入自己有权使用的 Yomitan 格式日中词典。
 
-阅读中的词语可加入词卡；卡片支持标签、筛选、编辑和合并。复习使用四档反馈与每日学习上限，知识状态会参与阅读辅助的调整。
+阅读中的词语与语法结构可加入卡片；卡片支持标签、筛选、编辑和合并。复习使用四档反馈与每日学习上限，知识状态会参与阅读辅助的调整。重新切分不会清空已有复习历史。
 
 ![个人词库：假名树形浏览、搜索与筛选](docs/images/lexicon.png)
 
@@ -99,7 +111,8 @@
 | --- | --- | --- |
 | 快速句意 | 中文句意，不补充词语翻译 | 先读懂故事、预先翻译全书 |
 | 完整释义 | 中文句意、未命中词的词义与本句语境义 | 逐句学习、积累词汇 |
-| 语法句法分析 | 句中的语法结构与简洁说明 | 遇到难句时单独调用 |
+| 本地学习结构 | 完整活用链、常见定式、步骤与候选 | 点击学习单位查看，不产生AI请求 |
+| 语法句法分析 | AI对句中结构的按需解释 | 遇到难句时单独调用 |
 
 AI 接口可能按用量收费。设置页可查看 token、缓存命中、耗时和估算费用；本地切词与已有结果复用不产生 AI 请求。
 
@@ -133,6 +146,10 @@ AI 接口可能按用量收费。设置页可查看 token、缓存命中、耗�
 
 分享包和迁移包会跳过目标账号已有的书籍，避免覆盖。完整备份的恢复会替换当前账号数据，恢复前自动保存一份安全备份。
 
+完整备份与迁移包默认使用schema 3，保留语法学习、内部上下文修订和学习引用所需的历史来源。设置页也可选择面向旧客户端的兼容导出；导出前显示不能表示的数据，兼容包无法完整保留新版历史。书籍分享包只包含激活版本的书籍分析，不包含个人上下文记录或人工覆盖。
+
+云同步先协商服务端能力。不支持新版领域的旧服务会显示部分同步及未传输项，旧版本写回不会静默覆盖已更新的切分来源。
+
 ## 数据保存在哪里
 
 桌面版默认保存到 `%APPDATA%\IceReader\data`，也可在设置页打开实际数据目录。
@@ -142,6 +159,9 @@ data/
 ├── books/                  原书副本、封面、插图与原书预览
 ├── library.sqlite3         书籍、章节、切分、释义与阅读进度
 ├── learning.sqlite3        词卡、复习与学习记录
+├── linguistics.sqlite3     学习结构、跨度词义与人工修订
+├── book_memory.sqlite3     人物、事实、证据与修订历史
+├── jobs.sqlite3            后台任务、预算与断点
 ├── dictionary.sqlite3      用户导入的词典
 ├── ai.sqlite3              AI 用量与缓存记录
 ├── users/                  按用户隔离的设置
@@ -164,18 +184,25 @@ flowchart LR
         Cache["IndexedDB<br/>书籍索引与已打开章节缓存"]
         Main["Electron 主进程<br/>窗口 / 会话 / 请求转发 / 原生接口"]
         API["Python + FastAPI<br/>书库 / 账号 / AI / 配音 / 数据迁移"]
-        NLP["Sudachi + 本地句界处理<br/>切词 / 读音 / 振假名"]
-        DB[("SQLite<br/>书库 / 词典 / 词卡 / 学习 / AI 缓存")]
+        NLP["Sudachi + 语法规则<br/>原始词素 / 活用链 / 学习跨度"]
+        Context["上下文与人物证据<br/>前文范围 / 来源版本 / 缓存依赖"]
+        Jobs["持久后台任务<br/>重切 / 翻译 / 取消与续跑"]
+        DB[("SQLite<br/>书库 / 学习 / 结构 / 人物 / 任务")]
         Files["本地文件目录<br/>EPUB / 图片 / 配音缓存 / 备份"]
         UI <--> Cache
         UI <-->|"bingdu://app"| Main
         Main <-->|"回环 HTTP + 实例密钥"| API
         API --> NLP
+        API --> Context
+        API --> Jobs
+        NLP <--> DB
+        Context <--> DB
+        Jobs <--> DB
         API <--> DB
         API <--> Files
     end
 
-    AI["用户配置的 AI 接口<br/>句意 / 词义 / 语法 / 边界审校"]
+    AI["用户配置的 AI 接口<br/>句意 / 词义 / 语法"]
     YMM["本机 YMM4 + 冰读配音桥<br/>用户安装的语音引擎与语音包"]
     Cloud["可选：冰读云端账号服务<br/>认证 / 学习数据同步 / 冲突处理"]
     API -->|"按需请求"| AI
@@ -187,7 +214,8 @@ flowchart LR
 | --- | --- |
 | 界面与系统 | 渲染进程启用沙箱、关闭 Node 集成；原生操作通过有限的桥接接口完成 |
 | 本机服务与数据 | 主进程管理服务启动和退出；按用户隔离保存，正文按章读取、分析结果增量写入 |
-| AI 与本地处理 | 本地完成切词和确定性句界；需要新释义、语法或边界审校时才调用外部接口 |
+| AI 与本地处理 | 本地完成原始分词、活用链与定式识别；新释义与AI语法解释按明确范围请求 |
+| 来源与后台任务 | 重切通过暂存和版本校验激活；历史来源保留，任务在安全边界取消并记录断点 |
 | 配音与客户端 | YMM4 单独安装，通过本机配音桥调用；语音包不打进客户端安装包 |
 | 云同步与书籍迁移 | 云同步传输学习相关数据；完整书籍资源通过迁移包载入 |
 
@@ -246,36 +274,19 @@ npm run desktop:test
 | `assets/`、`public/` | logo、Windows 图标与自有配音桥 |
 | `scripts/` | 构建、验收和性能检查工具 |
 
-长章节按章与分批加载，保存采用增量更新；后台翻译使用动态组批、缓存和可调并发。Sudachi 字典在需要分词时加载，AI 只处理必要的句意、词义与低置信度边界。
+长章节按章与分批加载，保存采用增量更新；后台翻译使用动态组批、缓存和可调并发。Sudachi字典在需要分词时加载。语言分析、人物证据、迁移与同步按用户和来源版本隔离。
 
 <details>
-<summary><strong>Web 调试与自建云端服务</strong></summary>
+<summary><strong>桌面界面的 Web 调试</strong></summary>
 
-### Web 界面调试
-
-分别打开两个终端：
+开发时可分别启动本机内部服务与 Vite：
 
 ```powershell
 .\.venv64\Scripts\python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
-```
-
-```powershell
 npm run dev
 ```
 
-正式桌面发行仍使用 Electron。公网 Web 版本的部署请查看 `Online` 分支。
-
-### 自建云端账号服务
-
-```powershell
-Copy-Item cloud.env.example cloud.env
-# 编辑 cloud.env，填入实际配置后启动。
-docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
-```
-
-生产环境需配置公开 HTTPS 地址、随机 `BINGDU_CLOUD_SECRET` 和 SMTP。第三方登录需配置相应 OAuth/OIDC 提供商；具体环境变量见 [cloud.env.example](cloud.env.example)。
-
-客户端的「云端与同步」页面提供绑定账号、立即同步、拉取数据、冲突处理与设备会话管理。邮箱验证、密码恢复和第三方登录依赖已配置的云端账号服务。
+自2026年10月9日起，项目仅维护 Windows 桌面客户端及其本机服务。`Online`、`Android` 分支为历史版本，不再进行开发、构建或部署。
 
 </details>
 
@@ -293,7 +304,7 @@ docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
 | --- | --- |
 | 冰读代码、脚本与文档 | [LICENSE](LICENSE)、[COPYRIGHT](COPYRIGHT) |
 | 第三方依赖 | [组件清单](third_party_licenses/inventory.json)、[第三方声明](THIRD-PARTY-NOTICES.txt) 及清单中的原始许可文件 |
-| 发行版对应源码 | 应用内「下载对应源码」；公网提供 `/api/legal/source`，版本及校验值见 `/api/legal` |
+| 发行版对应源码 | 应用内「下载对应源码」；本机 `/api/legal/source` 提供同一归档，版本及校验值见 `/api/legal` |
 | 重建发行版 | [源码构建说明](SOURCE-BUILD.txt)；源码包包含文件哈希、依赖源码和版本锁定信息 |
 | 配音桥 | [桥接代码附加许可](ymm4-bridge/COPYRIGHT)；外部 YMM4、SDK 和语音包遵循各自条款 |
 
@@ -301,7 +312,7 @@ docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
 
 第三方清单如实标注了少数仅发布许可证声明的构建／测试依赖。以下材料覆盖当前发行版本，不表示旧安装包已自动补齐，也不表示用户书籍或外部语音软件获得了重新授权。
 
-**桌面运行时仍有待办**：已保留 Electron/Chromium 的上游许可声明，但当前源码包尚未提供其中 FFmpeg 等 LGPL 原生组件的匹配源码与重建资料。这些组件的源码发布义务需要继续补齐；现有材料不能作为“所有第三方许可义务均已完成”的证明。参见 [FFmpeg 官方许可说明](https://ffmpeg.org/legal.html)。公网 Web 服务不分发 Electron 桌面运行时。
+**桌面原生组件源码**：发行包提供匹配 Electron 42.4.0／Chromium 148.0.7778.254 的完整上游源码、精确 FFmpeg 提交、上游补丁与 Windows 构建配置，也提供 FFmpeg DLL 替换和完整运行时重新链接说明。构建会验证源码归档及实际运行时的 SHA-256，依赖升级未审校时会阻止发布。详见[固定版本清单](third_party_licenses/runtime/desktop-native/manifest.json)、[重建说明](SOURCE-BUILD.txt)与 [FFmpeg 官方许可说明](https://ffmpeg.org/legal.html)。
 
 - 冰读自身代码、构建脚本和文档采用 **AGPL-3.0-or-later**，详见 [LICENSE](LICENSE) 与 [COPYRIGHT](COPYRIGHT)。程序按现状提供，不提供任何担保。
 - 保留 EbookLib 0.19 作为 EPUB 解析器，遵守其 AGPL 许可。完整的组件版本、许可证原文和版权信息见 [第三方清单](third_party_licenses/inventory.json) 和 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
@@ -324,9 +335,5 @@ npm run desktop:build
 ```
 
 `build/legal/corresponding-source.zip` 随客户端安装，可离线获取；ZIP 内的 `SOURCE-MANIFEST.json` 记录版本、基准提交和每个应用文件的 SHA-256。依赖归档位于 `dependency-sources/`；准确的 Python 版本位于 `IceReader/backend/requirements-release.txt`。解压后，在 `IceReader/` 内使用 Python 3.12 创建 `.venv64`，安装该 Python 锁文件，运行 `npm ci`、`scripts/prepare_legal.py --fetch` 和 `npm run desktop:build`。常规重建需联网下载安装工具及相同版本的官方 wheel；原生依赖源码编译另需各上游规定的 C/C++、Rust 工具链。YMM 桥的编译需要合法安装的 YMM4 SDK。完整步骤见 [SOURCE-BUILD.txt](SOURCE-BUILD.txt)。
-
-云端 Docker 构建会为容器中实际安装的 Python 依赖重新生成源码包。服务首页及 `/api/legal/source` 无需登录即可下载，下载入口应由反向代理保持可访问。
-
-Windows 公网版从 `Online` 源码快照运行 `scripts/build_online.ps1 -FetchSources`，分别生成 Web 阅读服务和云账号服务；两者随附相同的对应源码包。运行时将 `BINGDU_LEGAL_DIR` 指向服务旁的 `legal/` 目录，数据和私密环境配置使用独立目录，完整步骤见 [SOURCE-BUILD.txt](SOURCE-BUILD.txt)。
 
 历史安装包缺少声明的问题不会因新版本发布而自动消失；继续分发旧包时，需同时提供该旧版本的许可证、对应源码和构建材料。

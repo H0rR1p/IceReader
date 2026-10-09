@@ -15,6 +15,14 @@ JSZip is used under its MIT option. certifi retains MPL-2.0; its unmodified
 source (including the certificate bundle) is supplied in the source archive.
 PyInstaller uses GPL with a bootloader exception; preserve that exception.
 Electron/Chromium notices remain LICENSE.electron.txt / LICENSES.chromium.html.
+The desktop archive also contains full Electron and Chromium source repositories,
+the matching Chromium FFmpeg fork, upstream patches/configuration, dictionaries
+and MPL Readability sources. Pinned revisions, archive and runtime hashes are in
+third_party_licenses/runtime/desktop-native/manifest.json. See SOURCE-BUILD.txt
+for rebuilding FFmpeg, replacing its shared DLL, and relinking the runtime with
+modified Blink/libusb/etc. Debugging such changes by reverse engineering is
+permitted; no project EULA restricts rights granted by the component licenses.
+This release uses FFmpeg under LGPL-2.1-or-later (GPL/nonfree config disabled).
 Build-only tools are listed for transparency, not as shipped app modules.
 
 External software and content

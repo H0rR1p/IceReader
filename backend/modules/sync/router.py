@@ -5,6 +5,7 @@ from pydantic import BaseModel,Field
 
 from ...core.request_context import RequestContext,current_request_context
 from . import repository
+from .protocol import capabilities
 
 
 router=APIRouter(prefix="/api/sync",tags=["sync"])
@@ -23,17 +24,27 @@ class Mutation(BaseModel):
 
 class PushBatch(BaseModel):
     changes: list[Mutation]=Field(max_length=1000)
+    schema_version: int = 1
+    capabilities: list[str] = Field(default_factory=list)
 
 
 @router.post("/push")
 async def push(payload: PushBatch,context: RequestContext=Depends(current_request_context)) -> dict:
-    try: return await asyncio.to_thread(repository.push_changes,context.user_id,context.device_id,[value.model_dump(exclude_none=True) for value in payload.changes])
+    try: return await asyncio.to_thread(repository.push_changes,context.user_id,context.device_id,[value.model_dump(exclude_none=True) for value in payload.changes], schema_version=payload.schema_version,peer_capabilities=payload.capabilities)
     except ValueError as error: raise HTTPException(409,str(error)) from None
 
 
 @router.get("/pull")
-async def pull(after: int=0,limit: int=500,context: RequestContext=Depends(current_request_context)) -> dict:
-    return await asyncio.to_thread(repository.pull_changes,context.user_id,context.device_id,after,limit)
+async def pull(after: int=0,limit: int=500,schema_version: int=1,capabilities: str="",context: RequestContext=Depends(current_request_context)) -> dict:
+    try:
+        return await asyncio.to_thread(repository.pull_changes,context.user_id,context.device_id,after,limit,schema_version=schema_version,peer_capabilities=capabilities.split(",") if capabilities else [])
+    except ValueError as error:
+        raise HTTPException(409,str(error)) from None
+
+
+@router.get("/capabilities")
+async def sync_capabilities(context: RequestContext=Depends(current_request_context)) -> dict:
+    return capabilities()
 
 
 @router.get("/conflicts")

@@ -1,0 +1,370 @@
+{
+  "schema_version": 1,
+  "license": "AGPL-3.0-or-later",
+  "source": "IceReader contributors: original synthetic Japanese examples; no imported corpus",
+  "annotation_status": "initial_authored_seed_not_human_adjudicated",
+  "cases": [
+    {
+      "id": "basic-01",
+      "category": "basic",
+      "text": "夕方、駅まで歩いた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "歩いた",
+            "start": 6,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "past"
+            ],
+            "lemma": "歩く"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-02",
+      "category": "basic",
+      "text": "窓の外で雨が降っている。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "降っている",
+            "start": 6,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "progressive"
+            ],
+            "lemma": "降る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-03",
+      "category": "basic",
+      "text": "今日は図書館へ行かない。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "行かない",
+            "start": 7,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "negative"
+            ],
+            "lemma": "行く"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-04",
+      "category": "basic",
+      "text": "明日は早く起きます。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "起きます",
+            "start": 5,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "polite"
+            ],
+            "lemma": "起きる"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-05",
+      "category": "basic",
+      "text": "今朝、パンを食べた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "食べた",
+            "start": 6,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "past"
+            ],
+            "lemma": "食べる"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-06",
+      "category": "basic",
+      "text": "姉はまだ帰っていない。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "帰っていない",
+            "start": 4,
+            "end": 10,
+            "kind": "morphology",
+            "required_features": [
+              "teiru",
+              "negative"
+            ],
+            "lemma": "帰る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "『ている』はここでは帰宅という変化の結果状態を表す。進行と断定しない。"
+    },
+    {
+      "id": "basic-07",
+      "category": "basic",
+      "text": "写真を見れば思い出す。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "見れば",
+            "start": 3,
+            "end": 6,
+            "kind": "morphology",
+            "required_features": [
+              "conditional"
+            ],
+            "lemma": "見る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-08",
+      "category": "basic",
+      "text": "友達と少し話そう。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "話そう",
+            "start": 5,
+            "end": 8,
+            "kind": "morphology",
+            "required_features": [
+              "volitional"
+            ],
+            "lemma": "話す"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-09",
+      "category": "basic",
+      "text": "合図が出たら来い。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "来い",
+            "start": 6,
+            "end": 8,
+            "kind": "morphology",
+            "required_features": [
+              "imperative"
+            ],
+            "lemma": "来る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-10",
+      "category": "basic",
+      "text": "今夜は部屋を掃除しよう。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "しよう",
+            "start": 8,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "volitional"
+            ],
+            "lemma": "する"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-11",
+      "category": "basic",
+      "text": "昨日はとても寒かった。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "寒かった",
+            "start": 6,
+            "end": 10,
+            "kind": "morphology",
+            "required_features": [
+              "past"
+            ],
+            "lemma": "寒い"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-12",
+      "category": "basic",
+      "text": "この道は広くない。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "広くない",
+            "start": 4,
+            "end": 8,
+            "kind": "morphology",
+            "required_features": [
+              "negative"
+            ],
+            "lemma": "広い"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-13",
+      "category": "basic",
+      "text": "海が青ければ写真を撮る。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "青ければ",
+            "start": 2,
+            "end": 6,
+            "kind": "morphology",
+            "required_features": [
+              "conditional"
+            ],
+            "lemma": "青い"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-14",
+      "category": "basic",
+      "text": "その部屋は静かだった。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "静かだった",
+            "start": 5,
+            "end": 10,
+            "kind": "morphology",
+            "required_features": [
+              "past",
+              "copula"
+            ],
+            "lemma": "静か"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "basic-15",
+      "category": "basic",
+      "text": "もっと丁寧に読んで。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読んで",
+            "start": 6,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "te_form"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    }
+  ]
+}

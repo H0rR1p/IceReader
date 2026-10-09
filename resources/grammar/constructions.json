@@ -1,0 +1,1603 @@
+[
+  {
+    "id": "ja.te_iru",
+    "label": "〜ている",
+    "pattern": "[てで](?:いる|いた|い(?:る|た|ます|ました))",
+    "anchor": "te_predicate",
+    "explanation_zh": "表示正在做、经常做，或做完后保持的状态。例如结婚している是已婚，不是正在结婚。",
+    "positive": [
+      "猫が窓を見ている。"
+    ],
+    "negative": [
+      "「ている」という名前を考えた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 1,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_aru",
+    "label": "〜てある",
+    "pattern": "[てで](?:ある|あった|あり(?:ます|ました))",
+    "anchor": "te_predicate",
+    "explanation_zh": "有人提前做了这件事，现在还保持着结果。例如窓が開けてある：窗户被人打开了。",
+    "positive": [
+      "窓が開けてある。"
+    ],
+    "negative": [
+      "ある日は雨だった。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 2,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_oku",
+    "label": "〜ておく",
+    "pattern": "[てで](?:おく|おいた|おき(?:ます|ました))",
+    "anchor": "te_predicate",
+    "explanation_zh": "提前做好，或先保持这样。例如買っておく：先买好。",
+    "positive": [
+      "水を買っておく。"
+    ],
+    "negative": [
+      "奥の部屋へ進む。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 3,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_shimau",
+    "label": "〜てしまう",
+    "pattern": "[てで]しま(?:う|った|い(?:ます|ました))",
+    "anchor": "te_predicate",
+    "explanation_zh": "做完了；也可能带有不小心或遗憾的语气。具体看这句话。",
+    "positive": [
+      "鍵を忘れてしまった。"
+    ],
+    "negative": [
+      "島の景色を見る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 4,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_miru",
+    "label": "〜てみる",
+    "pattern": "[てで](?:みる|みた|見た|見る|み(?:ます|ました))",
+    "anchor": "te_predicate",
+    "explanation_zh": "试着做一下。例如読んでみる：试着读读。",
+    "positive": [
+      "別の道を歩いてみる。"
+    ],
+    "negative": [
+      "店を見る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 5,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_kureru",
+    "label": "〜てくれる",
+    "pattern": "[てで]くれ(?:る|た|ます|ました)",
+    "anchor": "te_predicate",
+    "explanation_zh": "别人帮我或我这一方做某事。是谁帮谁，要结合这句话。",
+    "positive": [
+      "友達が手伝ってくれた。"
+    ],
+    "negative": [
+      "暮れの空が赤い。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 6,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_ageru",
+    "label": "〜てあげる",
+    "pattern": "[てで]あげ(?:る|た|ます|ました)",
+    "anchor": "te_predicate",
+    "explanation_zh": "帮别人做某事。例如読んであげる：读给别人听。",
+    "positive": [
+      "弟に読んであげた。"
+    ],
+    "negative": [
+      "上げた手が痛い。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 7,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_morau",
+    "label": "〜てもらう",
+    "pattern": "[てで]もら(?:う|った|い(?:ます|ました))",
+    "anchor": "te_predicate",
+    "explanation_zh": "请别人帮忙，或得到别人的帮助。例如見てもらう：请别人看看。",
+    "positive": [
+      "先生に見てもらう。"
+    ],
+    "negative": [
+      "お金をもらう。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 8,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_iku",
+    "label": "〜ていく",
+    "pattern": "[てで](?:いく|いった|行く|行った|いきます)",
+    "anchor": "te_predicate",
+    "explanation_zh": "做了再离开，或以后逐渐变化。例如覚えていく：以后慢慢记住。",
+    "positive": [
+      "少しずつ覚えていく。"
+    ],
+    "negative": [
+      "駅へ行く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 9,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_kuru",
+    "label": "〜てくる",
+    "pattern": "[てで](?:くる|きた|来る|来た|きます)",
+    "anchor": "te_predicate",
+    "explanation_zh": "做了再来、朝这边发生，或逐渐出现变化。例如寒くなってきた：开始变冷了。",
+    "positive": [
+      "風が強くなってきた。"
+    ],
+    "negative": [
+      "明日ここへ来る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 10,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_hoshii",
+    "label": "〜てほしい",
+    "pattern": "[てで](?:ほしい|欲しい)",
+    "anchor": "te_predicate",
+    "explanation_zh": "希望别人做某事。例如待ってほしい：希望你等一下。",
+    "positive": [
+      "もう少し待ってほしい。"
+    ],
+    "negative": [
+      "新しい本がほしい。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 11,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_kudasai",
+    "label": "〜てください",
+    "pattern": "[てで](?:ください|下さい)",
+    "anchor": "te_predicate",
+    "explanation_zh": "礼貌地请别人做某事。例如待ってください：请等一下。",
+    "positive": [
+      "ここで待ってください。"
+    ],
+    "negative": [
+      "水をください。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 12,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.naide",
+    "label": "〜ないで",
+    "pattern": "ないで",
+    "anchor": "predicate",
+    "explanation_zh": "不做某事就去做别的事；也能用来请求不要做。例如急がないで：别着急。",
+    "positive": [
+      "急がないで歩く。"
+    ],
+    "negative": [
+      "内では静かにする。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 13,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_mo_ii",
+    "label": "〜てもいい",
+    "pattern": "[てで]も(?:いい|良い)",
+    "anchor": "te_predicate",
+    "explanation_zh": "可以做某事，表示允许。例如座ってもいい：可以坐下。",
+    "positive": [
+      "ここに座ってもいい。"
+    ],
+    "negative": [
+      "とてもいい天気だ。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 14,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": [
+      "permission"
+    ]
+  },
+  {
+    "id": "ja.te_wa_ikenai",
+    "label": "〜てはいけない",
+    "pattern": "[てで]はいけない",
+    "anchor": "te_predicate",
+    "explanation_zh": "不可以做某事。例如走ってはいけない：不能跑。",
+    "positive": [
+      "ここで走ってはいけない。"
+    ],
+    "negative": [
+      "彼には行けない理由がある。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 15,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.nakute_mo_ii",
+    "label": "〜なくてもいい",
+    "pattern": "なくても(?:いい|良い)",
+    "anchor": "predicate",
+    "explanation_zh": "不做也可以，没有必须做的要求。不是不许做。",
+    "positive": [
+      "今日は来なくてもいい。"
+    ],
+    "negative": [
+      "泣くと気持ちがいい。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 16,
+    "kind": "construction",
+    "semantic_features": [
+      "permission",
+      "unnecessary"
+    ]
+  },
+  {
+    "id": "ja.nakereba_naranai",
+    "label": "〜なければならない",
+    "pattern": "なければならない",
+    "anchor": "predicate",
+    "explanation_zh": "必须做某事。例如寝なければならない：必须睡觉了。",
+    "positive": [
+      "早く寝なければならない。"
+    ],
+    "negative": [
+      "なければという言葉を書く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 17,
+    "kind": "construction",
+    "semantic_features": [
+      "obligation"
+    ]
+  },
+  {
+    "id": "ja.nakute_wa_naranai",
+    "label": "〜なくてはならない",
+    "pattern": "なくてはならない",
+    "anchor": "predicate",
+    "explanation_zh": "必须做某事。例如守らなくてはならない：必须遵守。",
+    "positive": [
+      "約束を守らなくてはならない。"
+    ],
+    "negative": [
+      "亡くてはという文字列だ。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 18,
+    "kind": "construction",
+    "semantic_features": [
+      "obligation"
+    ]
+  },
+  {
+    "id": "ja.koto_ga_dekiru",
+    "label": "〜ことができる",
+    "pattern": "ことが(?:できる|出来る|できた|できます)",
+    "anchor": "predicate",
+    "explanation_zh": "能做某事。例如読むことができる：能够阅读。",
+    "positive": [
+      "この道を通ることができる。"
+    ],
+    "negative": [
+      "出来る人が集まる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 19,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.koto_ga_nai",
+    "label": "〜ことがない",
+    "pattern": "ことがない",
+    "anchor": "predicate",
+    "explanation_zh": "没有做过，或不会出现这种情况。看前面的动作和时间来判断。",
+    "positive": [
+      "そこへ行ったことがない。"
+    ],
+    "negative": [
+      "事がないと書く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 20,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ta_koto_ga_aru",
+    "label": "〜たことがある",
+    "pattern": "ことが(?:ある|あります)",
+    "anchor": "predicate",
+    "explanation_zh": "动词用た形时通常是曾经做过；其他形式有时是偶尔会做。",
+    "positive": [
+      "この歌を聞いたことがある。"
+    ],
+    "negative": [
+      "机の上に本がある。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 21,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.koto_ni_suru",
+    "label": "〜ことにする",
+    "pattern": "ことに(?:する|した|します)",
+    "anchor": "predicate",
+    "explanation_zh": "自己决定做某事。例如歩くことにした：决定走路。",
+    "positive": [
+      "今日は歩くことにした。"
+    ],
+    "negative": [
+      "ことにするという名前だ。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 22,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.koto_ni_naru",
+    "label": "〜ことになる",
+    "pattern": "ことに(?:なる|なった|なります)",
+    "anchor": "predicate",
+    "explanation_zh": "事情被安排好，或结果变成这样。通常不是自己单方面决定的。",
+    "positive": [
+      "明日会うことになった。"
+    ],
+    "negative": [
+      "鳴る音が大きい。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 23,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.you_ni_suru",
+    "label": "〜ようにする",
+    "pattern": "ように(?:する|した|します)",
+    "anchor": "predicate",
+    "explanation_zh": "努力做到，或养成这样做的习惯。例如毎日読むようにする：尽量每天读。",
+    "positive": [
+      "毎日読むようにする。"
+    ],
+    "negative": [
+      "同じ模様にする。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 24,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.you_ni_naru",
+    "label": "〜ようになる",
+    "pattern": "ように(?:なる|なった|なります)",
+    "anchor": "predicate",
+    "explanation_zh": "变得能做、开始这样做，或情况发生变化。例如書けるようになった：学会写了。",
+    "positive": [
+      "一人で書けるようになった。"
+    ],
+    "negative": [
+      "模様になる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 25,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.tsumori",
+    "label": "〜つもり",
+    "pattern": "つもり",
+    "anchor": "predicate",
+    "explanation_zh": "打算做，或自己认为是这样。不表示已经做了。",
+    "positive": [
+      "明日は休むつもりだ。"
+    ],
+    "negative": [
+      "雪が積もり始めた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 26,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.hazu",
+    "label": "〜はず",
+    "pattern": "はず",
+    "anchor": "predicate",
+    "explanation_zh": "按已知情况，应该是这样。例如着いたはず：应该已经到了。",
+    "positive": [
+      "彼はもう着いたはずだ。"
+    ],
+    "negative": [
+      "箱を外す。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 27,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.wake_da",
+    "label": "〜わけだ",
+    "pattern": "わけ(?:だ|です)",
+    "anchor": "predicate",
+    "explanation_zh": "原来如此、难怪会这样；根据前面的情况说明原因或结果。",
+    "positive": [
+      "道が近いから早く着くわけだ。"
+    ],
+    "negative": [
+      "わけだという文字を書く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 28,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.wake_dewa_nai",
+    "label": "〜わけではない",
+    "pattern": "わけ(?:では|じゃ)ない",
+    "anchor": "predicate",
+    "explanation_zh": "并不是都这样，或并不是这个意思。不是把整件事完全否定。",
+    "positive": [
+      "嫌いなわけではない。"
+    ],
+    "negative": [
+      "訳ではないという題名だ。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 29,
+    "kind": "construction",
+    "semantic_features": [
+      "partial_negation"
+    ]
+  },
+  {
+    "id": "ja.tokoro",
+    "label": "〜ところ",
+    "pattern": "ところ(?:だ|です|だった)?",
+    "anchor": "predicate",
+    "explanation_zh": "按动词形式表示正要做、正在做或刚做完；也可能是正在做时发生了别的事。",
+    "positive": [
+      "今から出るところだ。"
+    ],
+    "negative": [
+      "ところどころ光る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 30,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ta_bakari",
+    "label": "〜たばかり",
+    "pattern": "ばかり",
+    "anchor": "predicate",
+    "explanation_zh": "动词用た形时通常是刚做完；其他形式可能表示只做这件事。",
+    "positive": [
+      "さっき起きたばかりだ。"
+    ],
+    "negative": [
+      "ばかりという語を調べる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 31,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.sou_appearance",
+    "label": "〜そう（样态）",
+    "pattern": "そう(?:だ|です)",
+    "anchor": "predicate",
+    "explanation_zh": "看起来要发生，或看上去是这样。例如降りそう：看起来要下雨。",
+    "positive": [
+      "雨が降りそうだ。"
+    ],
+    "negative": [
+      "彼は行くそうだ。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 32,
+    "kind": "construction",
+    "preceding_form": [
+      "連用形",
+      "語幹"
+    ],
+    "semantic_features": [
+      "appearance"
+    ]
+  },
+  {
+    "id": "ja.sou_hearsay",
+    "label": "〜そう（传闻）",
+    "pattern": "そう(?:だ|です)",
+    "anchor": "predicate",
+    "explanation_zh": "听说是这样。例如降るそうだ：听说会下雨。不是自己观察到的。",
+    "positive": [
+      "彼は行くそうだ。"
+    ],
+    "negative": [
+      "雨が降りそうだ。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 33,
+    "kind": "construction",
+    "preceding_form": [
+      "終止形",
+      "連体形"
+    ],
+    "semantic_features": [
+      "hearsay"
+    ]
+  },
+  {
+    "id": "ja.rashii",
+    "label": "〜らしい",
+    "pattern": "らしい",
+    "anchor": "predicate",
+    "explanation_zh": "听说或根据线索觉得是这样；接在名词后也可能是很有这种特点。",
+    "positive": [
+      "電車は遅れるらしい。"
+    ],
+    "negative": [
+      "新しい本を読む。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 34,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.you_da",
+    "label": "〜ようだ",
+    "pattern": "よう(?:だ|です)",
+    "anchor": "predicate",
+    "explanation_zh": "根据看到、听到的情况推测；也可表示像什么一样。",
+    "positive": [
+      "彼は疲れたようだ。"
+    ],
+    "negative": [
+      "模様だと答える。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 35,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.mitai_da",
+    "label": "〜みたいだ",
+    "pattern": "みたい(?:だ|です)",
+    "anchor": "predicate",
+    "explanation_zh": "口语中的好像、像什么一样。見たい则是想看，两者不同。",
+    "positive": [
+      "雨が降るみたいだ。"
+    ],
+    "negative": [
+      "映画を見たい。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 36,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.darou",
+    "label": "〜だろう／でしょう",
+    "pattern": "(?:だろう|でしょう)",
+    "anchor": "predicate",
+    "explanation_zh": "大概会这样，或询问对方是不是这样。不是确定的事实。",
+    "positive": [
+      "明日は晴れるでしょう。"
+    ],
+    "negative": [
+      "でしょうという音を聞いた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 37,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.kamoshirenai",
+    "label": "〜かもしれない",
+    "pattern": "かもしれない",
+    "anchor": "predicate",
+    "explanation_zh": "也许、可能这样，还不能确定。",
+    "positive": [
+      "彼は来ないかもしれない。"
+    ],
+    "negative": [
+      "鴨を知らない。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 38,
+    "kind": "construction",
+    "semantic_features": [
+      "possibility"
+    ]
+  },
+  {
+    "id": "ja.tame_ni",
+    "label": "〜ために",
+    "pattern": "ために",
+    "anchor": "predicate",
+    "explanation_zh": "为了做某事，或因为某件事。要看前后句才能确定是哪种。",
+    "positive": [
+      "覚えるために何度も読む。"
+    ],
+    "negative": [
+      "ためにという札がある。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 39,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.noni",
+    "label": "〜のに",
+    "pattern": "のに",
+    "anchor": "predicate",
+    "explanation_zh": "可能是明明……却……，也可能是用于做某事，或把前面的事接到后面的动作上。例如いるのに気づく：注意到有人在。",
+    "positive": [
+      "知っているのに黙っている。"
+    ],
+    "negative": [
+      "野に花が咲く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 40,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.node",
+    "label": "〜ので",
+    "pattern": "ので",
+    "anchor": "predicate",
+    "explanation_zh": "因为……，用来说明原因。",
+    "positive": [
+      "雨が降るので休む。"
+    ],
+    "negative": [
+      "角の出口へ向かう。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 41,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.kara_reason",
+    "label": "〜から（原因）",
+    "pattern": "から",
+    "anchor": "predicate",
+    "explanation_zh": "动作或判断之后表示因为……。地点后的から常是从那里开始。",
+    "positive": [
+      "寒いから窓を閉める。"
+    ],
+    "negative": [
+      "東京から来た。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 42,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.nagara",
+    "label": "〜ながら",
+    "pattern": "ながら",
+    "anchor": "predicate",
+    "explanation_zh": "通常是一边做一边做；有时是虽然如此却……，要看后面的内容。",
+    "positive": [
+      "歌いながら歩く。"
+    ],
+    "negative": [
+      "長良川へ行く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 43,
+    "kind": "construction",
+    "preceding_form": [
+      "連用形"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.tara",
+    "label": "〜たら",
+    "pattern": "(?:たら|だら)",
+    "anchor": "predicate",
+    "explanation_zh": "如果做了，或做了以后。接下来发生什么决定具体意思。",
+    "positive": [
+      "着いたら電話する。"
+    ],
+    "negative": [
+      "たらという魚を買う。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 44,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ba",
+    "label": "〜ば",
+    "pattern": "ば",
+    "anchor": "predicate",
+    "explanation_zh": "如果……就……，表示一个条件。",
+    "positive": [
+      "読めば分かる。"
+    ],
+    "negative": [
+      "そばを食べる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 45,
+    "kind": "construction",
+    "preceding_form": [
+      "仮定形"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.to_condition",
+    "label": "〜と（条件）",
+    "pattern": "と",
+    "anchor": "predicate",
+    "explanation_zh": "一……就……或如果……就……；と也能引用说的话，需要看后面的动词。",
+    "positive": [
+      "押すと扉が開く。"
+    ],
+    "negative": [
+      "猫と犬がいる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 46,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_mo",
+    "label": "〜ても",
+    "pattern": "[てで]も",
+    "anchor": "te_predicate",
+    "explanation_zh": "即使做了，后面的情况也一样。例如降っても行く：即使下雨也去。",
+    "positive": [
+      "雨が降っても行く。"
+    ],
+    "negative": [
+      "とても明るい。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 47,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": [
+      "concessive"
+    ]
+  },
+  {
+    "id": "ja.nara",
+    "label": "〜なら",
+    "pattern": "なら",
+    "anchor": "any",
+    "explanation_zh": "如果是这样、说到这件事，就……。常用来回应前面提到的话题。",
+    "positive": [
+      "行くなら連絡して。"
+    ],
+    "negative": [
+      "奈良へ行く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 48,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.mae_ni",
+    "label": "〜前に",
+    "pattern": "(?:前|まえ)に",
+    "anchor": "predicate",
+    "explanation_zh": "在做前面的事之前，先做后面的事。",
+    "positive": [
+      "寝る前に水を飲む。"
+    ],
+    "negative": [
+      "駅前に立つ。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 49,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ato_de",
+    "label": "〜後で",
+    "pattern": "(?:後|あと)で",
+    "anchor": "predicate",
+    "explanation_zh": "做完前面的事以后，再做后面的事。",
+    "positive": [
+      "読んだ後で返す。"
+    ],
+    "negative": [
+      "後で連絡する。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 50,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.aida",
+    "label": "〜間",
+    "pattern": "(?:間|あいだ)",
+    "anchor": "predicate",
+    "explanation_zh": "在这段时间里，后面的动作或状态一直持续。",
+    "positive": [
+      "待っている間、本を読む。"
+    ],
+    "negative": [
+      "間違いを直す。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 51,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.aida_ni",
+    "label": "〜間に",
+    "pattern": "(?:間|あいだ)に",
+    "anchor": "predicate",
+    "explanation_zh": "在这段时间内，发生了后面的事。",
+    "positive": [
+      "寝ている間に雨が止んだ。"
+    ],
+    "negative": [
+      "仲間に話す。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 52,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.uchi_ni",
+    "label": "〜うちに",
+    "pattern": "うちに",
+    "anchor": "predicate",
+    "explanation_zh": "趁着还是这样时做某事；也可能是在不知不觉中发生变化。",
+    "positive": [
+      "明るいうちに帰ろう。"
+    ],
+    "negative": [
+      "うちには猫がいる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 53,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.tabi_ni",
+    "label": "〜たびに",
+    "pattern": "(?:たび|度)に",
+    "anchor": "predicate",
+    "explanation_zh": "每次做前面的事，都会发生后面的事。",
+    "positive": [
+      "会うたびに話す。"
+    ],
+    "negative": [
+      "旅に出る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 54,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.toki",
+    "label": "〜とき",
+    "pattern": "(?:とき|時)",
+    "anchor": "predicate",
+    "explanation_zh": "在……的时候。动作是否已经完成，要看前面的动词形式。",
+    "positive": [
+      "困ったときに相談する。"
+    ],
+    "negative": [
+      "時計を見る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 55,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ni_tsuite",
+    "label": "〜について",
+    "pattern": "について",
+    "anchor": "nominal",
+    "explanation_zh": "关于……，说明正在讨论的内容。",
+    "positive": [
+      "本について話す。"
+    ],
+    "negative": [
+      "机に付いている傷を見る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 56,
+    "kind": "construction",
+    "semantic_features": [],
+    "following_lemma_excludes": [
+      "いる",
+      "おる"
+    ]
+  },
+  {
+    "id": "ja.ni_taishite",
+    "label": "〜に対して",
+    "pattern": "に(?:対して|たいして)",
+    "anchor": "nominal",
+    "explanation_zh": "对某人或某事；也可能用来对比两件事。并不一定有敌对的意思。",
+    "positive": [
+      "質問に対して答える。"
+    ],
+    "negative": [
+      "対してという字を書いた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 57,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ni_yotte",
+    "label": "〜によって",
+    "pattern": "によって",
+    "anchor": "nominal",
+    "explanation_zh": "根据不同情况，可以是因为、通过、由谁做，或因人而异。",
+    "positive": [
+      "人によって好みが違う。"
+    ],
+    "negative": [
+      "船に寄って帰る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 58,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.to_shite",
+    "label": "〜として",
+    "pattern": "として",
+    "anchor": "nominal",
+    "explanation_zh": "作为某种身份或从某个角度。例如先生として：作为老师。",
+    "positive": [
+      "代表として話す。"
+    ],
+    "negative": [
+      "財布を落として困った。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 59,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ni_totte",
+    "label": "〜にとって",
+    "pattern": "にとって",
+    "anchor": "nominal",
+    "explanation_zh": "对某人来说，从那个人的角度评价。",
+    "positive": [
+      "私にとって大切だ。"
+    ],
+    "negative": [
+      "机に取っておくという文字を書く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 60,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ni_yoruto",
+    "label": "〜によると",
+    "pattern": "によると",
+    "anchor": "nominal",
+    "explanation_zh": "根据某人或某处的消息。只说明消息来自哪里。",
+    "positive": [
+      "予報によると晴れるそうだ。"
+    ],
+    "negative": [
+      "店に寄ると休みだった。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 61,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ni_chigainai",
+    "label": "〜に違いない",
+    "pattern": "に(?:違いない|ちがいない)",
+    "anchor": "predicate",
+    "explanation_zh": "一定是这样，表示说话者很有把握的推测。",
+    "positive": [
+      "彼は知っているに違いない。"
+    ],
+    "negative": [
+      "二つの違いを調べる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 62,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.beki",
+    "label": "〜べき",
+    "pattern": "べき",
+    "anchor": "predicate",
+    "explanation_zh": "应该做某事，表达建议或责任。具体语气要看场合。",
+    "positive": [
+      "ここで待つべきだ。"
+    ],
+    "negative": [
+      "べきという文字を書く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 63,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.hou_ga_ii",
+    "label": "〜ほうがいい",
+    "pattern": "(?:ほう|方)が(?:いい|良い)",
+    "anchor": "predicate",
+    "explanation_zh": "最好这样做，或这样更好。动词用た形也能表示建议，不一定是过去。",
+    "positive": [
+      "早く寝たほうがいい。"
+    ],
+    "negative": [
+      "方角がいい。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 64,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ni_wa",
+    "label": "〜には（目的）",
+    "pattern": "には",
+    "anchor": "predicate",
+    "explanation_zh": "要做到前面的事，就需要后面的条件。名词后也可能只是提出话题。",
+    "positive": [
+      "読むには明かりが必要だ。"
+    ],
+    "negative": [
+      "庭には木がある。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 65,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.zu_ni",
+    "label": "〜ずに",
+    "pattern": "ずに",
+    "anchor": "predicate",
+    "explanation_zh": "没做前面的事，就做后面的事。相当于ないで。",
+    "positive": [
+      "何も言わずに帰る。"
+    ],
+    "negative": [
+      "図に線を引く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 66,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.nagara_mo",
+    "label": "〜ながらも",
+    "pattern": "ながらも",
+    "anchor": "predicate",
+    "explanation_zh": "虽然如此，还是……。后面的结果和预期不同。",
+    "positive": [
+      "知りながらも黙っている。"
+    ],
+    "negative": [
+      "ながらもという文字列を書く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 67,
+    "kind": "construction",
+    "preceding_form": [
+      "連用形"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.dake_de",
+    "label": "〜だけで",
+    "pattern": "だけで",
+    "anchor": "any",
+    "explanation_zh": "只做这一件事就够了，或仅靠这一点。看后面说的结果。",
+    "positive": [
+      "見るだけで分かる。"
+    ],
+    "negative": [
+      "竹で作る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 68,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.shika_negative",
+    "label": "〜しか〜ない",
+    "pattern": "しか(?:[ぁ-ゖァ-ヺ一-龯]{1,12})?ない",
+    "anchor": "nominal",
+    "explanation_zh": "和否定词一起表示只有……。例如一つしかない：只有一个。",
+    "positive": [
+      "水しかない。"
+    ],
+    "negative": [
+      "鹿が歩いている。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 69,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.n_desu",
+    "label": "〜んです／のです",
+    "pattern": "(?:ん|の)(?:だ|です|だった)",
+    "anchor": "predicate",
+    "explanation_zh": "解释情况、补充原因，或询问事情的背景。",
+    "positive": [
+      "雨が降るんです。"
+    ],
+    "negative": [
+      "のですという文字を書く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 70,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.nominal_copula",
+    "label": "名词＋だ／です",
+    "pattern": "(?:だ|です)",
+    "anchor": "nominal",
+    "explanation_zh": "表示是什么、是怎样的。だ较直接，です较礼貌。",
+    "positive": [
+      "私は学生です。"
+    ],
+    "negative": [
+      "だという音を聞く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 71,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.de_aru",
+    "label": "〜である",
+    "pattern": "である",
+    "anchor": "nominal",
+    "explanation_zh": "表示是……，常见于书面说明。意思接近だ。",
+    "positive": [
+      "これは本である。"
+    ],
+    "negative": [
+      "それで歩く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 72,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.ni_mo_kakawarazu",
+    "label": "〜にもかかわらず",
+    "pattern": "にも(?:かかわらず|関わらず)",
+    "anchor": "nominal",
+    "explanation_zh": "尽管如此，却发生了不符合预期的事。",
+    "positive": [
+      "雨にもかかわらず歩く。"
+    ],
+    "negative": [
+      "関わらずという語を調べる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 73,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.to_iu",
+    "label": "〜という",
+    "pattern": "と(?:いう|言う)",
+    "anchor": "any",
+    "explanation_zh": "叫作……或所谓……；也可能是在引用说过的话。",
+    "positive": [
+      "青という色が好きだ。"
+    ],
+    "negative": [
+      "問う人がいる。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 74,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.volitional_to_suru",
+    "label": "〜ようとする",
+    "pattern": "と(?:する|した|します)",
+    "anchor": "predicate",
+    "explanation_zh": "正要做，或试图做某事。例如出ようとする：正要出去。",
+    "positive": [
+      "扉を開けようとした。"
+    ],
+    "negative": [
+      "本と筆を取る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 75,
+    "kind": "construction",
+    "preceding_form": [
+      "意志推量形"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.koto_wa_nai",
+    "label": "〜ことはない",
+    "pattern": "ことはない",
+    "anchor": "predicate",
+    "explanation_zh": "不必做，或从来没有这种情况。看前面的动作和后面的内容。",
+    "positive": [
+      "そんなに急ぐことはない。"
+    ],
+    "negative": [
+      "ことはないという題名を書く。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 80,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.correlative_ba_hodo",
+    "label": "〜ば〜ほど",
+    "pattern": "ば[ぁ-ゖァ-ヺ一-龯]{1,24}ほど",
+    "anchor": "predicate",
+    "explanation_zh": "越……越……。同一个动作或性质前后重复，表示程度一起变化。",
+    "positive": [
+      "読めば読むほど分かる。"
+    ],
+    "negative": [
+      "読めば買うほど困る。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 81,
+    "kind": "construction",
+    "preceding_form": [
+      "仮定形"
+    ],
+    "repeated_predicate": true,
+    "semantic_features": [
+      "correlative"
+    ]
+  },
+  {
+    "id": "ja.purpose_you_ni",
+    "label": "〜ように",
+    "pattern": "ように",
+    "anchor": "predicate",
+    "explanation_zh": "为了让某种情况实现，也能表示照着要求做、提醒或转述请求。",
+    "positive": [
+      "遅れないように早く出た。"
+    ],
+    "negative": [
+      "模様に色を付けた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 82,
+    "kind": "construction",
+    "semantic_features": []
+  },
+  {
+    "id": "ja.tochuu_de",
+    "label": "〜途中で",
+    "pattern": "途中で",
+    "anchor": "predicate",
+    "explanation_zh": "正在做某事的半途中，发生了别的事。",
+    "positive": [
+      "帰る途中で店に寄った。"
+    ],
+    "negative": [
+      "途中で連絡する。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 83,
+    "kind": "construction",
+    "semantic_features": [
+      "in_progress"
+    ]
+  },
+  {
+    "id": "ja.mama",
+    "label": "〜まま",
+    "pattern": "まま",
+    "anchor": "predicate",
+    "explanation_zh": "保持原来的样子，没有改变。例如開けたまま：仍然开着。",
+    "positive": [
+      "暗いままで待った。"
+    ],
+    "negative": [
+      "ままごとで遊ぶ。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 84,
+    "kind": "construction",
+    "semantic_features": [
+      "unchanged_state"
+    ]
+  },
+  {
+    "id": "ja.te_itadaku",
+    "label": "〜ていただく",
+    "pattern": "[てで](?:いただ|頂)(?:く|いた|き(?:ます|ました)|ける)",
+    "anchor": "te_predicate",
+    "explanation_zh": "请别人帮忙的谦逊说法，相当于てもらう。例如教えていただく：承蒙您教我。",
+    "positive": [
+      "先生に教えていただいた。"
+    ],
+    "negative": [
+      "先生から本をいただいた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 86,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_kudasaru",
+    "label": "〜てくださる",
+    "pattern": "[てで](?:くださ|下さ)(?:る|った|い(?:ます|ました))",
+    "anchor": "te_predicate",
+    "explanation_zh": "别人为我这一方做某事的尊敬说法，相当于てくれる。",
+    "positive": [
+      "先生が教えてくださった。"
+    ],
+    "negative": [
+      "先生が本をくださった。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 87,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  },
+  {
+    "id": "ja.te_sashiageru",
+    "label": "〜て差し上げる",
+    "pattern": "[てで](?:さしあげ|差し上げ)(?:る|た|ます|ました)",
+    "anchor": "te_predicate",
+    "explanation_zh": "为别人做某事的谦逊说法，相当于てあげる。",
+    "positive": [
+      "先生に送って差し上げた。"
+    ],
+    "negative": [
+      "先生に花を差し上げた。"
+    ],
+    "status": "enabled",
+    "review": "original examples and structural negative tests; real-prose precision unmeasured",
+    "order": 88,
+    "kind": "construction",
+    "required_pos": [
+      "助詞"
+    ],
+    "semantic_features": []
+  }
+]

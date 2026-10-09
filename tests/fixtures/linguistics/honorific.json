@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "license": "AGPL-3.0-or-later",
+  "source": "IceReader contributors: original synthetic Japanese examples; no imported corpus",
+  "annotation_status": "initial_authored_seed_not_human_adjudicated",
+  "cases": [
+    {
+      "id": "honorific-01",
+      "category": "honorific",
+      "text": "森さんはもう着いた。",
+      "preceding": [
+        "会議は九時に始まる。",
+        "一人だけ先に来る予定だ。"
+      ],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-02",
+      "category": "honorific",
+      "text": "優さんは駅で待っている。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-03",
+      "category": "honorific",
+      "text": "田中さんに電話した。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-04",
+      "category": "honorific",
+      "text": "アキさんも来ます。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-05",
+      "category": "honorific",
+      "text": "先生は笑った。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_sensei"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-06",
+      "category": "honorific",
+      "text": "佐藤さんは私の姉です。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [],
+        "translation_policy": {
+          "gender_evidence": "female",
+          "evidence_quote": "姉",
+          "evidence_source": "target"
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-07",
+      "category": "honorific",
+      "text": "高橋さんが帰った。",
+      "preceding": [
+        "高橋さんは私の兄だ。",
+        "今日は一緒に歩いた。"
+      ],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [],
+        "translation_policy": {
+          "gender_evidence": "male",
+          "evidence_quote": "兄",
+          "evidence_source": "preceding:0"
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-08",
+      "category": "honorific",
+      "text": "川田さんに礼を言った。",
+      "preceding": [
+        "川田さんは私の母の友達だ。",
+        "お茶を持ってきてくれた。"
+      ],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "母の友達から友達の性別は分からない。"
+    },
+    {
+      "id": "honorific-09",
+      "category": "honorific",
+      "text": "ミナさんは本を閉じた。",
+      "preceding": [
+        "ミナさんは妹の同級生だ。",
+        "同じ学校に通っている。"
+      ],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-10",
+      "category": "honorific",
+      "text": "「山本さんはまだですか」と店員が聞いた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender",
+          "speaker_gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-11",
+      "category": "honorific",
+      "text": "「私は行きます」と春さんが言った。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "honorific-12",
+      "category": "honorific",
+      "text": "「僕が案内します」と葵さんが言った。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "一人称『僕』は性別の確定根拠にしない。"
+    },
+    {
+      "id": "honorific-13",
+      "category": "honorific",
+      "text": "「俺も見たい」と真琴さんが答えた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "一人称『俺』は性別の確定根拠にしない。"
+    },
+    {
+      "id": "honorific-14",
+      "category": "honorific",
+      "text": "「会長さんが来た」と彼女は言った。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "honorific_referent_gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "彼女は発話者を指し、会長の性別を示さない。"
+    },
+    {
+      "id": "honorific-15",
+      "category": "honorific",
+      "text": "青木さんもそう思った。",
+      "preceding": [
+        "名前だけでは何も分からなかった。",
+        "青木さんは黙っていた。"
+      ],
+      "preceding_translations": [
+        "光从名字看不出什么。",
+        "青木小姐没有说话。"
+      ],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true,
+          "unverified_translation_is_not_gender_evidence": true
+        }
+      },
+      "annotation_note": "前文机器译文中的『小姐』不能循环变成性别事实。"
+    }
+  ]
+}

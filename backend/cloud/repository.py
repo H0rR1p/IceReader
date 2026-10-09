@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Iterator
 
 from .config import CloudConfig
+from ..modules.sync.protocol import (ALLOWED_TYPES, APPEND_ONLY_TYPES, FORK_ON_CONFLICT_TYPES,
+                                    capabilities, revision_conflict, validate_exchange, generation_conflict, history_flag_advance)
 
 
 ACCESS_TTL = 15 * 60
@@ -22,12 +24,6 @@ EMAIL_VERIFY_TTL = 24 * 60 * 60
 PASSWORD_RESET_TTL = 60 * 60
 HANDOFF_TTL = 5 * 60
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-APPEND_ONLY_TYPES = {"learning_event", "review_log"}
-FORK_ON_CONFLICT_TYPES = {"note"}
-ALLOWED_TYPES = {
-    "knowledge_item", "learning_event", "note", "card", "review_log",
-    "bookmark", "reading_progress", "preference", "lexeme",
-}
 
 
 class CloudAuthError(ValueError):
@@ -539,7 +535,8 @@ class CloudRepository:
              updated_at, deleted_at, conflict_group),
         )
 
-    def push_changes(self, user_id: str, device_id: str, mutations: list[dict]) -> dict:
+    def push_changes(self, user_id: str, device_id: str, mutations: list[dict], *, schema_version: int=3, peer_capabilities=None) -> dict:
+        validate_exchange(mutations, schema_version, peer_capabilities)
         accepted, skipped, conflicts = [], [], []
         with self.connect() as connection:
             for mutation in mutations:
@@ -559,7 +556,16 @@ class CloudRepository:
                 ).fetchone()
                 incoming = mutation.get("payload") or {}
                 current_payload = json.loads(current["payload_json"]) if current else None
-                if current and entity_type in APPEND_ONLY_TYPES:
+                reason = revision_conflict(entity_type, incoming, current_payload) or generation_conflict(connection, user_id, mutation)
+                if reason:
+                    group = (current["conflict_group"] if current else None) or str(uuid.uuid4())
+                    fork_id = f"{entity_id}@{device_id}@{mutation['change_id']}"
+                    if current:
+                        connection.execute("UPDATE sync_entities SET conflict_group=? WHERE user_id=? AND entity_type=? AND entity_id=?", (group, user_id, entity_type, entity_id))
+                    self._append_change(connection, user_id, device_id, mutation, fork_id, 1, group)
+                    conflicts.append({"change_id": mutation["change_id"], "entity_type": entity_type, "entity_id": entity_id, "fork_id": fork_id, "conflict_group": group, "reason": reason})
+                    continue
+                if current and entity_type in APPEND_ONLY_TYPES and not history_flag_advance(entity_type, incoming, current_payload):
                     if current_payload == incoming:
                         skipped.append({"change_id": mutation["change_id"], "reason": "same_append_only_entity"})
                         continue
@@ -592,7 +598,7 @@ class CloudRepository:
             cursor = int(connection.execute("SELECT COALESCE(MAX(cursor),0) FROM sync_changes WHERE user_id=?", (user_id,)).fetchone()[0])
         return {"accepted": accepted, "skipped": skipped, "conflicts": conflicts, "cursor": cursor}
 
-    def pull_changes(self, user_id: str, device_id: str, after: int, limit: int) -> dict:
+    def pull_changes(self, user_id: str, device_id: str, after: int, limit: int, *, schema_version: int=3, peer_capabilities=None) -> dict:
         safe_limit = min(1000, max(1, limit))
         with self.connect() as connection:
             rows = connection.execute(
@@ -601,6 +607,7 @@ class CloudRepository:
             ).fetchall()
             has_more = len(rows) > safe_limit
             rows = rows[:safe_limit]
+            validate_exchange([{**dict(row), "payload": json.loads(row["payload_json"])} for row in rows], schema_version, peer_capabilities)
             cursor = int(rows[-1]["cursor"]) if rows else max(0, after)
             connection.execute(
                 """INSERT INTO sync_device_cursors(user_id,device_id,pull_cursor,updated_at) VALUES(?,?,?,?)
@@ -673,6 +680,6 @@ class CloudRepository:
         return {
             "cursor": cursor, "entities": int(row["entities"] or 0),
             "tombstones": int(row["tombstones"] or 0), "conflicts": int(row["conflicts"] or 0),
-            "devices": devices, "content_scope": "learning-only",
+            "devices": devices, **capabilities(),
         }
 

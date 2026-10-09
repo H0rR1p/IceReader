@@ -49,31 +49,73 @@ legally obtained YMM4 installation/SDK, then run (with your actual path):
 Copy the resulting BingduYmmBridge.dll and its deps file to assets/ymm4-bridge
 before rebuilding the client. YMM4 and voice-pack terms remain separate.
 
-Cloud API
-----------
-Windows Online web + account services:
-Use the Online source snapshot and the supplied requirements-release.txt,
-create .venv64, run npm ci, then:
+Desktop native libraries (matching upstream sources)
+----------------------------------------------------
+This release uses official Electron 42.4.0 Windows x64, with Chromium
+148.0.7778.254 and the Chromium FFmpeg fork at
+b5e18fb9da84e26ceef30d4e4886696bf59337c0. The supplied native manifest pins
+archive bytes, source revisions and hashes of the official runtime libraries.
+The application EXE has only its Windows branding/icon resources changed.
+The FFmpeg DLL itself is byte-identical to the official release. CONFIG_GPL
+and CONFIG_NONFREE are disabled in its Chrome/win/x64 config; it is used under
+LGPL-2.1-or-later. Read COPYING.LGPLv2.1 and CREDITS.chromium in the archive.
 
-  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_online.ps1 -FetchSources
+The following original archives are in dependency-sources/:
+- electron-v42.4.0.tar.gz: full application runtime source, GN args, DEPS,
+  patches/{chromium,ffmpeg,...}, patch application tools and build instructions.
+- chromium-148.0.7778.254.tar.gz: full pinned Chromium repository, including
+  Blink, the locally modified libusb, Hunspell, ISimpleDOM, hyphenation data,
+  licenses, GN targets and platform integration code.
+- ffmpeg-b5e18fb9.tar.gz: the exact Chromium fork, generated Windows x64 codec
+  config, build files and upstream copyright notices.
+- hunspell-dictionaries-cccf64a8.tar.gz and readability-d7949dc4.tar.gz:
+  externally pinned dictionary data and Mozilla Readability source.
 
-The build sets VITE_BINGDU_DEPLOYMENT=online and produces both services under
-build/online-release. Use private startup environment files to set data paths,
-public origin, ports and cloud secrets. Set BINGDU_LEGAL_DIR to the legal/
-directory beside each service EXE; both services ship the same source snapshot.
-Do not embed private environment files or existing user data in the release.
+To modify/relink native components, follow the pinned Electron source's
+/docs/development/build-instructions-gn.md and Windows prerequisites. A full
+native build needs a supported Visual Studio C++ toolchain, Windows SDK,
+depot_tools, the compiler/sysroots specified by DEPS, Node/Python and ample
+disk space. These are not installed in the IceReader workspace. Initialize
+Electron at v42.4.0 with gclient according to those instructions; use its
+DEPS to obtain the exact additional upstream dependencies and apply its
+patches with the supplied patch scripts. The original archives may replace
+those checkouts at the matching paths/revisions; for example the FFmpeg fork
+belongs in src/third_party/ffmpeg. Do not combine a generic FFmpeg release
+with Electron's generated Chromium config or omit Electron's upstream patches.
 
-The Dockerfile installs the cloud dependency set and regenerates a source
-archive for the actual container dependencies:
+In that native checkout, use the supplied release args as the starting point:
 
-  docker compose -f compose.cloud.yml --env-file cloud.env up -d --build
+  gn gen out/Release --args='import("//electron/build/args/release.gn") target_cpu="x64" use_remoteexec=false'
+  autoninja -C out/Release ffmpeg
+  autoninja -C out/Release electron
 
-Configure cloud.env privately, based on cloud.env.example. Do not put the
-actual secret/environment file or user databases into source archives.
-The service homepage, /api/legal, /api/legal/license, /api/legal/notices, and
-/api/legal/source are public. Keep these routes accessible through proxies.
-For modified deployments, regenerate and serve the matching source before
-making the modified program available to network users.
+The imported release.gn sets is_component_ffmpeg=true. all.gn specifies
+Chrome FFmpeg branding; preserve the codec configuration and ABI if replacing
+only ffmpeg.dll. Upstream release args can download pinned PGO profiles;
+follow the PGO documentation in the supplied Electron source. A non-PGO
+local debug/relink build may use the upstream testing.gn args instead; it
+is not claimed to reproduce the official binary bit for bit.
+
+For the shared FFmpeg library, quit IceReader, save the installed DLL as a
+backup, then replace ffmpeg.dll beside the application EXE with the compatible
+rebuilt Windows x64 library. Restart the app to test your library; restore the
+backup if its ABI does not match. No signature or project license gate prevents
+this replacement. Keep all applicable notices with your modified distribution.
+For statically integrated libraries such as Blink/libusb, rebuild/relink the
+full Electron runtime with your changes. Use its rebuilt dist as electronDist
+in electron-builder.yml, include the new matching sources and update the
+native manifest/hashes after review. The normal release gate intentionally
+rejects unaudited runtime upgrades; it does not forbid users' modifications.
+It is permitted to reverse engineer for debugging modifications to the LGPL
+libraries; there is no IceReader EULA restricting that right.
+
+Verification here binds supplied upstream sources/config/patches to the
+exact official runtime hashes and checks the packaged libraries again.
+The project did not compile Chromium from scratch or claim a bit-identical
+native rebuild. See the pinned build instructions for toolchain requirements.
+Ordinary IceReader releases rebuild the application around the official
+runtime. All current desktop corresponding sources are supplied directly,
+without depending on a future written source offer or a moving branch.
 
 License scope and historical versions
 --------------------------------------
@@ -93,12 +135,6 @@ The inventory also records build-only and platform/test-superset dependencies;
 this is not a count of modules actually shipped or executed by the app.
 Some non-runtime upstreams only publish SPDX license declarations; these are
 explicitly marked instead of inventing copyright holders or original texts.
-
-Remaining desktop-native source work: the archive retains Electron/Chromium
-license notices but does not yet include matching FFmpeg and other LGPL native
-runtime source/build materials. Their source-distribution obligations still
-need completion. This bundle is not a certificate of full third-party legal
-clearance. The Online Web services do not ship the Electron desktop runtime.
 
 These materials accompany THIS source snapshot. To continue distributing
 historical binaries, also provide their corresponding source/build materials

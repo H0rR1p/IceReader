@@ -6,6 +6,7 @@ import {
   saveCloudSettings, startCloudOidc, syncCloud, verifyCloudEmail,
 } from '../../api'
 import type { CloudAccountStatus, CloudConflict, CloudProvider, CloudSession } from '../../api'
+import { isOnlineDeployment } from '../../deployment'
 
 export default function CloudAccountPage({ onNotice }: { onNotice: (value: string) => void }) {
   const [status, setStatus] = useState<CloudAccountStatus | null>(null)
@@ -28,7 +29,7 @@ export default function CloudAccountPage({ onNotice }: { onNotice: (value: strin
     }
   }
   useEffect(() => { void refresh().catch((reason) => setError(reason instanceof Error ? reason.message : String(reason))) }, [])
-  async function run(work: () => Promise<unknown>, success: string) {
+  async function run(work: () => Promise<unknown>, success: string, reloadAccount = false) {
     setBusy(true); setError('')
     try {
       const result = await work()
@@ -38,6 +39,7 @@ export default function CloudAccountPage({ onNotice }: { onNotice: (value: strin
       if (result && typeof result === 'object' && 'development_token' in result) {
         setToken(String((result as { development_token?: string }).development_token || ''))
       }
+      if (reloadAccount) { window.location.reload(); return }
       await refresh(); onNotice(success)
     }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
@@ -49,7 +51,7 @@ export default function CloudAccountPage({ onNotice }: { onNotice: (value: strin
       setError(`云端账号密码至少需要 10 个字符，当前为 ${password.length} 个字符。`)
       return
     }
-    void run(() => registering ? registerCloudAccount(email, password, displayName) : loginCloudAccount(email, password), registering ? '云端账号已创建' : '云端账号已绑定')
+    void run(() => registering ? registerCloudAccount(email, password, displayName) : loginCloudAccount(email, password), registering ? '云端账号已创建' : '云端账号已绑定', isOnlineDeployment)
   }
 
   return <main className="app-page cloud-page">

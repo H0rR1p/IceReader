@@ -19,6 +19,7 @@ from ...models import (
 from ...settings_store import resolve_settings
 from ...nlp import lexeme_key
 from . import service
+from .context import build_contexts
 
 
 router = APIRouter(prefix="/api", tags=["analysis"])
@@ -31,22 +32,29 @@ async def correct_word_sense(request: CorrectWordRequest, x_api_key: str | None 
     start, end = token.start, token.end
     if token.sentence_id != sentence.id or start < 0 or end > len(sentence.original) or end <= start or sentence.original[start:end] != token.surface:
         raise HTTPException(422, "词语位置与原句不一致，请重新打开章节")
+    contexts = await asyncio.to_thread(build_contexts, context.user_id, [sentence], request.context_policy)
     api_key, base_url, model = resolve_settings(context.user_id, x_api_key, str(request.settings.base_url), request.settings.model)
     if not api_key:
         raise HTTPException(401, "请在设置中输入 API Key")
     try:
-        result = await correct_word(context.user_id, sentence.model_dump(), token.model_dump(),
+        sentence_data = {**sentence.model_dump(), "analysis_context": contexts[sentence.id].prompt_data()}
+        result = await correct_word(context.user_id, sentence_data, token.model_dump(),
                                     request.current_senses, request.hint, api_key, base_url, model)
         gloss = result.get("gloss")
         senses = result.get("senses")
         if not isinstance(gloss, str) or not gloss.strip() or not isinstance(senses, list) or not senses or any(not isinstance(value, str) or not value.strip() for value in senses):
             raise ValueError("AI 未返回完整的语境义和词典义")
-        return CorrectWordResponse(context_sense=ContextSenseOut(token_id=token.id, gloss_zh=gloss.strip()),
+        fresh=await asyncio.to_thread(build_contexts,context.user_id,[sentence],request.context_policy)
+        if fresh[sentence.id].context_hash!=contexts[sentence.id].context_hash:
+            raise HTTPException(409,'请求期间原文或前文证据已变化，请重新打开章节后修正')
+        return CorrectWordResponse(context_sense=ContextSenseOut(token_id=token.id, gloss_zh=gloss.strip(), analysis_revision=sentence.analysis_revision),
             lexeme=LexemeOut(key=lexeme_key(token.lemma, token.reading, token.part_of_speech),
                 lemma=token.lemma, reading=token.reading, part_of_speech=token.part_of_speech,
-                senses_zh=list(dict.fromkeys(value.strip() for value in senses))[:3], source="AI 修正（用户确认）"))
+                senses_zh=list(dict.fromkeys(value.strip() for value in senses))[:3], source="AI 修正候选（待确认）"))
     except AiRateLimitError as exc:
         raise HTTPException(429, str(exc), headers={"Retry-After": str(max(1, round(exc.retry_after or 1)))}) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(502, f"AI 修正释义失败：{exc}") from exc
 
@@ -63,6 +71,7 @@ async def preprocess(request: AnalyzeRequest) -> AnalyzeResponse:
         context_senses=[],
         lexemes=[],
         warnings=[],
+        analysis_source="local",
     )
 
 
@@ -104,6 +113,7 @@ async def segment_chapter(
         context_senses=[],
         lexemes=[],
         warnings=[warning] if warning else [],
+        analysis_source="ai" if chapter.segmentation_source == "ai-reviewed" else "local",
     )
 
 
@@ -131,6 +141,7 @@ async def explain_sentence(
         annotation_mode=request.annotation_mode,
         detail_mode=request.detail_mode,
         context_before=request.context_before,
+        context_policy=request.context_policy,
         settings=request.settings,
     )
     try:

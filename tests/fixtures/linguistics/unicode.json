@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "license": "AGPL-3.0-or-later",
+  "source": "IceReader contributors: original synthetic Japanese examples; no imported corpus",
+  "annotation_status": "initial_authored_seed_not_human_adjudicated",
+  "cases": [
+    {
+      "id": "unicode-01",
+      "category": "unicode",
+      "text": "🙂私は本を読ませました。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読ませました",
+            "start": 5,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "causative",
+              "polite",
+              "past"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "unicode-02",
+      "category": "unicode",
+      "text": "Aさんはｶﾌｪで読んでいる。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読んでいる",
+            "start": 8,
+            "end": 13,
+            "kind": "morphology",
+            "required_features": [
+              "progressive"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "unicode-03",
+      "category": "unicode",
+      "text": "𠮷田さんが来ました。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "来ました",
+            "start": 5,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "polite",
+              "past"
+            ],
+            "lemma": "来る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": [
+          "gender"
+        ],
+        "translation_policy": {
+          "honorific_gender": "unknown",
+          "forbidden_inferences": [
+            "male_from_san",
+            "female_from_san"
+          ],
+          "neutral_address_allowed": true
+        }
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。",
+      "ruby": [
+        {
+          "start": 0,
+          "end": 2,
+          "reading": "よしだ"
+        }
+      ]
+    },
+    {
+      "id": "unicode-04",
+      "category": "unicode",
+      "text": "花はきれい。\n\n本を読み\nました。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読み\nました",
+            "start": 10,
+            "end": 16,
+            "kind": "morphology",
+            "required_features": [
+              "polite",
+              "past"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": [],
+        "sentence_texts": [
+          "花はきれい。",
+          "本を読み\nました。"
+        ]
+      },
+      "annotation_note": "抽出器の単一改行はソフト境界。跨度保留原文改行，不拼接改写原文。"
+    },
+    {
+      "id": "unicode-05",
+      "category": "unicode",
+      "text": "Caféで本を読んだ。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読んだ",
+            "start": 8,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "past"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "e + combining acute 保留原文 codepoint；不以 NFC 文本替代锚点文本。"
+    }
+  ]
+}

@@ -137,7 +137,7 @@ export function useLibraryController(onNotice: (message: string) => void) {
     }
   }
 
-  async function openBook(book: Book) {
+  async function openBook(book: Book, targetChapterId?: string, targetStart?: number) {
     if (loadingBookId) return
     navigationAbortRef.current?.abort()
     const controller = new AbortController()
@@ -146,8 +146,10 @@ export function useLibraryController(onNotice: (message: string) => void) {
     try {
       book = (await db.books.get(book.id)) ?? book
       const chapters = await db.chapters.where('bookId').equals(book.id).sortBy('order')
-      const preferred = chapters.find((chapter) => chapter.id === book.currentChapterId) ?? chapters[0]
-      const openedBook = { ...book, lastOpenedAt: Date.now() }
+      const preferred = chapters.find((chapter) => chapter.id === (targetChapterId || book.currentChapterId)) ?? chapters[0]
+      const snapshot = preferred ? await loadChapterData(preferred.id, controller.signal) : null
+      const target = targetStart !== undefined && snapshot ? snapshot.sentences.find((row) => row.start <= targetStart && targetStart < row.end) ?? snapshot.sentences.find((row) => row.start >= targetStart) : null
+      const openedBook = { ...book, lastOpenedAt: Date.now(), ...(targetChapterId && preferred ? { currentChapterId: preferred.id, currentSentenceId: target?.id } : {}) }
       await db.books.put(openedBook)
       await syncRecords({ books: [openedBook] }, {}, controller.signal)
       setBooks((current) => current.map((item) => item.id === book.id ? openedBook : item))
@@ -156,8 +158,7 @@ export function useLibraryController(onNotice: (message: string) => void) {
       onNotice('')
       if (!preferred) return
       setLoadingChapterId(preferred.id)
-      const snapshot = await loadChapterData(preferred.id, controller.signal)
-      if (!controller.signal.aborted) setActiveChapter(snapshot.chapter)
+      if (!controller.signal.aborted && snapshot) setActiveChapter(snapshot.chapter)
     } catch (error) {
       if (!controller.signal.aborted) onNotice(error instanceof Error ? error.message : String(error))
     } finally {

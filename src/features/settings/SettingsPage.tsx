@@ -1,11 +1,25 @@
 import { useEffect, useState } from 'react'
-import { downloadBookTransfer, downloadFullBackup, importBookTransfer, loadAiUsage, restoreFullBackup } from '../../api'
-import type { AiUsageSummary, ApiSettings, Book, VoiceSettings } from '../../types'
+import { downloadBookTransfer, downloadFullBackup, importBookTransfer, loadAiUsage, loadAnalysisCapabilities, loadAnalysisPreferences, parseResponse, saveAnalysisPreferences, restoreFullBackup } from '../../api'
+import type { AiUsageSummary, AnalysisCapabilities, AnalysisPreferences, ApiSettings, Book, ContextPolicy, VoiceSettings } from '../../types'
 import type { TranslationMode } from '../translation/pipeline'
 import LegalLinks from '../../app/LegalLinks'
 
 function SettingsSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return <section className="settings-section"><header><h2>{title}</h2><p>{description}</p></header><div className="settings-section-body">{children}</div></section>
+}
+
+interface DataCapabilities { schema_version: number; accepted_schema_versions: number[]; legacy_export_omissions: string[] }
+const omissionLabels: Record<string, string> = {
+  'linguistics.preferences': '上下文与语法偏好', 'linguistics.span_overrides': '语法结构人工选择',
+  'linguistics.span_override_history': '语法结构修订历史', 'linguistics.span_senses': '完整结构词义',
+  'book_memory.objects': '阅读上下文数据', 'book_memory.revisions': '上下文修订记录', 'book_memory.summaries': '阅读分析摘要',
+  'library.segmentation_generations': '历史切分结果', 'library.segmentation_anchor_maps': '历史原文锚点映射',
+  'learning.knowledge_aliases': '学习项目别名', 'learning.canonical_aliases': '规范学习键别名',
+  'learning.notes.source_json': '学习卡原始语法来源', 'learning.card_candidates.source_json': '候选卡原始语法来源',
+  'learning.transfer_daily_credits': '迁移后的每日学习计数', 'library.portability_book_origins': '书籍迁移来源标识',
+}
+function CompatibilityOmissions({ capabilities, migration = false }: { capabilities: DataCapabilities; migration?: boolean }) {
+  return <div className="analysis-unknown" role="note"><p>兼容包不包含新语法修订、内部上下文分析、历史切分结果和语法卡来源快照。需要完整保留这些数据时，请选择完整 v3。</p><details><summary>查看此服务声明的省略内容</summary><ul>{capabilities.legacy_export_omissions.map((item) => <li key={item}>{omissionLabels[item] ?? item}</li>)}{migration && <li>卡片撤销记录</li>}</ul></details></div>
 }
 
 export default function SettingsPage({ apiSettings, voiceSettings, books, translationMode, translationConcurrency, onSaveApi, onSaveVoice, onBookImageVisibility, onTranslationModeChange, onTranslationConcurrencyChange, onNotice }: {
@@ -29,11 +43,44 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
   const [error, setError] = useState('')
   const [backupBusy, setBackupBusy] = useState<'export' | 'restore' | 'transfer-export' | 'transfer-import' | null>(null)
   const [pendingRestore, setPendingRestore] = useState<File | null>(null)
+  const [backupSchema, setBackupSchema] = useState<1 | 3>(3)
+  const [transferSchema, setTransferSchema] = useState<1 | 2 | 3>(3)
+  const [dataCapabilities, setDataCapabilities] = useState<DataCapabilities | null>(null)
+  const [dataCapabilitiesError, setDataCapabilitiesError] = useState('')
   const [desktopInfo, setDesktopInfo] = useState<{ version: string; dataDirectory: string } | null>(null)
+  const [analysisPreferences, setAnalysisPreferences] = useState<AnalysisPreferences | null>(null)
+  const [analysisCapabilities, setAnalysisCapabilities] = useState<AnalysisCapabilities | null>(null)
+  const [analysisSaving, setAnalysisSaving] = useState(false)
   useEffect(() => { void window.bingduDesktop?.info().then(setDesktopInfo).catch(() => undefined) }, [])
   useEffect(() => setApiDraft(apiSettings), [apiSettings])
   useEffect(() => setVoiceDraft(voiceSettings), [voiceSettings])
   useEffect(() => { void loadAiUsage().then(setUsage).catch(() => undefined) }, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetch('/api/data/capabilities', { signal: controller.signal }).then(parseResponse<DataCapabilities>)
+      .then((value) => { if (!controller.signal.aborted) setDataCapabilities(value) })
+      .catch((reason) => { if (!controller.signal.aborted) setDataCapabilitiesError(`无法读取兼容导出说明：${reason instanceof Error ? reason.message : String(reason)}`) })
+    return () => controller.abort()
+  }, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    void Promise.all([loadAnalysisPreferences(controller.signal), loadAnalysisCapabilities(controller.signal)])
+      .then(([preferences, capabilities]) => { if (!controller.signal.aborted) { setAnalysisPreferences(preferences); setAnalysisCapabilities(capabilities) } })
+      .catch((reason) => { if (!controller.signal.aborted) setError(`无法读取语言分析偏好：${reason instanceof Error ? reason.message : String(reason)}`) })
+    return () => controller.abort()
+  }, [])
+
+  function updateContext(changes: Partial<ContextPolicy>) {
+    setAnalysisPreferences((current) => current ? { ...current, context_policy: { ...current.context_policy, ...changes } } : current)
+  }
+
+  async function saveAnalysis() {
+    if (!analysisPreferences) return
+    setAnalysisSaving(true); setError('')
+    try { setAnalysisPreferences(await saveAnalysisPreferences(analysisPreferences)); onNotice('上下文与语言分析偏好已保存；下次释义使用新设置。') }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
+    finally { setAnalysisSaving(false) }
+  }
 
   async function chooseTemplate(file: File | null) {
     setTemplate(file)
@@ -64,7 +111,7 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
 
   async function exportBackup() {
     setBackupBusy('export'); setError('')
-    try { await downloadFullBackup(); onNotice('完整备份已导出。') }
+    try { await downloadFullBackup(backupSchema); onNotice(backupSchema === 3 ? '完整 v3 备份已导出。' : '兼容 v1 备份已导出；省略内容见格式说明。') }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { setBackupBusy(null) }
   }
@@ -82,7 +129,7 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
 
   async function exportBookMigration() {
     setBackupBusy('transfer-export'); setError('')
-    try { await downloadBookTransfer(); onNotice('数据迁移包已导出。') }
+    try { await downloadBookTransfer(undefined, transferSchema); onNotice(transferSchema === 3 ? '完整 v3 数据迁移包已导出。' : `兼容 v${transferSchema} 数据迁移包已导出；省略内容见格式说明。`) }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
     finally { setBackupBusy(null) }
   }
@@ -107,11 +154,24 @@ export default function SettingsPage({ apiSettings, voiceSettings, books, transl
       <div className="setting-row"><div><strong>后台翻译模式</strong><span>快速句意只生成译文；完整释义还会补充词典未命中的词义。</span></div><select value={translationMode} onChange={(event) => onTranslationModeChange(event.target.value as TranslationMode)}><option value="meaning">快速句意</option><option value="full">完整释义</option></select></div>
       <div className="setting-row"><div><strong>并发任务数</strong><span>网络不稳定或触发限流时建议调低。</span></div><select value={translationConcurrency} onChange={(event) => onTranslationConcurrencyChange(Number(event.target.value))}>{Array.from({ length: 8 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></div>
     </SettingsSection>
+    <SettingsSection title="上下文与语法学习" description="手动释义、语法分析、AI 修正和后台翻译统一采用账号偏好。完整词形与常用定式由本地规则处理。">
+      {analysisPreferences ? <>
+        <div className="setting-row"><div><strong>前文句数</strong><span>从完整原文顺序取前文，避免因已翻译句被跳过而丢失语境。</span></div><select value={analysisPreferences.context_policy.preceding_sentences} onChange={(event) => updateContext({ preceding_sentences: Number(event.target.value) as ContextPolicy['preceding_sentences'] })}>{[0, 2, 4, 8].map((count) => <option key={count} value={count}>{count} 句</option>)}</select></div>
+        <div className="setting-row"><div><strong>前文输入预算</strong><span>模型输入的前文预算，不能代表实际 token 消耗；实际 usage 在 AI 统计中记录。</span></div><input type="number" min="0" max="16000" step="100" value={analysisPreferences.context_policy.token_budget} onChange={(event) => updateContext({ token_budget: Math.max(0, Math.min(16000, Number(event.target.value) || 0)) })} /></div>
+        <div className="setting-row"><div><strong>采用已确认前文译文</strong><span>只使用可信状态的前文译文；启用后后台按原文顺序处理，可能降低速度。</span></div><input type="checkbox" aria-label="采用已确认前文译文" checked={analysisPreferences.context_policy.include_previous_translation} onChange={(event) => updateContext({ include_previous_translation: event.target.checked })} /></div>
+        <div className="setting-row"><div><strong>允许跨章前文</strong><span>未启用时从当前章节起点重新建立窗口。</span></div><input type="checkbox" aria-label="允许跨章前文" checked={analysisPreferences.context_policy.cross_chapter} onChange={(event) => updateContext({ cross_chapter: event.target.checked })} /></div>
+        <div className="setting-row"><div><strong>依存分析增强</strong><span>{analysisCapabilities?.dependency_enhancement.available ? '可选本地解析器；本地基础规则始终可用。' : '当前未安装可用的增强解析器，继续使用轻量规则。'}</span></div><input type="checkbox" aria-label="依存分析增强" disabled={!analysisCapabilities?.dependency_enhancement.available} checked={analysisPreferences.dependency_enhancement} onChange={(event) => setAnalysisPreferences({ ...analysisPreferences, dependency_enhancement: event.target.checked })} /></div>
+        <div className="settings-actions"><button className="button primary" disabled={analysisSaving} onClick={() => void saveAnalysis()}>{analysisSaving ? '正在保存…' : '保存语言分析偏好'}</button></div>
+      </> : <p className="settings-empty">正在读取语言分析偏好…</p>}
+    </SettingsSection>
     <SettingsSection title="书籍插图" description="统一管理每本书的插图显示状态，换章后会继续沿用。">
       {books.length ? <div className="book-image-settings-list">{books.map((book) => <div className="setting-row" key={book.id}><div><strong>{book.title}</strong><span>{book.author || '作者未知'}</span></div><select value={book.showImages === false ? 'hidden' : 'visible'} onChange={(event) => void onBookImageVisibility(book, event.target.value === 'visible').catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)))}><option value="visible">显示插图</option><option value="hidden">隐藏插图</option></select></div>)}</div> : <p className="settings-empty">导入书籍后可以在这里统一管理插图。</p>}
     </SettingsSection>
     <SettingsSection title="数据备份与恢复" description="导出当前账号的书籍资源、阅读进度、词库、卡片、复习记录和本机设置。备份包含 API Key，请妥善保存。">
+      {dataCapabilitiesError && <p className="settings-empty" role="alert">{dataCapabilitiesError}，仍可导出完整 v3。</p>}
+      <div className="settings-form-grid"><label className="field"><span>迁移包格式</span><select aria-label="迁移包格式" value={transferSchema} disabled={backupBusy !== null || !dataCapabilities} onChange={(event) => setTransferSchema(Number(event.target.value) as typeof transferSchema)}><option value="3">完整 v3（推荐）</option>{[2, 1].filter((version) => dataCapabilities?.accepted_schema_versions.includes(version)).map((version) => <option key={version} value={version}>兼容 v{version}（旧版）</option>)}</select></label>{transferSchema < 3 && dataCapabilities && <div className="wide"><CompatibilityOmissions capabilities={dataCapabilities} migration /></div>}</div>
       <div className="setting-row"><div><strong>跨账号数据迁移包</strong><span>将书籍、插图、阅读进度、书签、词库、卡片、复习与学习记录合并到其他账号，包括云端账号。不包含密码、会话和 API 密钥，保留目标账号原有数据。</span></div><div className="settings-inline-actions"><button className="button" disabled={backupBusy !== null} onClick={() => void exportBookMigration()}>{backupBusy === 'transfer-export' ? '正在打包…' : '下载迁移包'}</button><label className={`button primary ${backupBusy ? 'disabled' : ''}`}>{backupBusy === 'transfer-import' ? '正在载入…' : '载入迁移包'}<input hidden type="file" accept=".zip,application/zip" disabled={backupBusy !== null} onChange={(event) => { void importBookMigration(event.target.files?.[0] ?? null); event.currentTarget.value = '' }} /></label></div></div>
+      <div className="settings-form-grid"><label className="field"><span>备份格式</span><select aria-label="备份格式" value={backupSchema} disabled={backupBusy !== null || !dataCapabilities} onChange={(event) => setBackupSchema(Number(event.target.value) as typeof backupSchema)}><option value="3">完整 v3（推荐）</option>{dataCapabilities?.accepted_schema_versions.includes(1) && <option value="1">兼容 v1（旧版）</option>}</select></label>{backupSchema === 1 && dataCapabilities && <div className="wide"><CompatibilityOmissions capabilities={dataCapabilities} /></div>}</div>
       <div className="setting-row"><div><strong>完整本地备份</strong><span>备份带版本清单和 SHA-256 校验；恢复前会自动保留当前数据副本。</span></div><div className="settings-inline-actions"><button className="button" disabled={backupBusy !== null} onClick={() => void exportBackup()}>{backupBusy === 'export' ? '正在导出…' : '导出 ZIP'}</button><label className={`button primary ${backupBusy ? 'disabled' : ''}`}>恢复备份<input hidden type="file" accept=".zip,application/zip" disabled={backupBusy !== null} onChange={(event) => { setPendingRestore(event.target.files?.[0] ?? null); event.currentTarget.value = '' }} /></label></div></div>
     </SettingsSection>
     <SettingsSection title="AI 服务" description="API Key 只保存在本机，并仅发送给你配置的兼容接口。">

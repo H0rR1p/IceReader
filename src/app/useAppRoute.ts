@@ -25,11 +25,15 @@ export function useAppRoute() {
   const [page, setPageState] = useState<AppPage>(pageFromHash)
 
   useEffect(() => {
-    const sync = () => setPageState(pageFromHash())
-    window.addEventListener('hashchange', sync)
-    if (!window.location.hash || !PATH_PAGES.has(window.location.hash.slice(1).split('?')[0].replace(/\/$/, ''))) {
-      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${PAGE_PATHS.library}`)
+    const sync = () => {
+      const path = window.location.hash.slice(1).split('?')[0].replace(/\/$/, '')
+      if (!PATH_PAGES.has(path)) {
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${PAGE_PATHS.library}`)
+      }
+      setPageState(pageFromHash())
     }
+    window.addEventListener('hashchange', sync)
+    sync()
     return () => window.removeEventListener('hashchange', sync)
   }, [])
 

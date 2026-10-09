@@ -4,15 +4,23 @@ import asyncio
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from . import repository, service
+from ..identity.router import _set_identity_cookies
 
 
 router = APIRouter(prefix="/api/cloud", tags=["cloud-account"])
+
+
+def _finish_authentication(result: dict, response: Response) -> dict:
+    identity = result.pop('_identity', None)
+    if identity is not None:
+        _set_identity_cookies(response, identity.token, identity.device_id)
+    return result
 
 
 class CloudSettingsInput(BaseModel):
@@ -72,6 +80,8 @@ async def admin_users(
 ) -> dict:
     try:
         return await service.admin_users(context.user_id, query, limit, offset)
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(403, str(exc)) from None
 
@@ -84,6 +94,8 @@ async def admin_update_user(
 ) -> dict:
     try:
         return await service.admin_set_user_disabled(context.user_id, user_id, payload.disabled)
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(403, str(exc)) from None
 
@@ -107,9 +119,10 @@ async def cloud_health() -> dict:
 
 
 @router.post("/register")
-async def register(payload: CloudRegisterInput, context: RequestContext = Depends(current_request_context)) -> dict:
+async def register(payload: CloudRegisterInput, response: Response, context: RequestContext = Depends(current_request_context)) -> dict:
     try:
-        return await service.register(context.user_id, context.device_id, payload.email, payload.password, payload.display_name)
+        result = await service.register(context.user_id, context.device_id, payload.email, payload.password, payload.display_name)
+        return _finish_authentication(result, response)
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"无法连接云端服务：{exc}") from None
     except Exception as exc:
@@ -117,9 +130,10 @@ async def register(payload: CloudRegisterInput, context: RequestContext = Depend
 
 
 @router.post("/login")
-async def login(payload: CloudLoginInput, context: RequestContext = Depends(current_request_context)) -> dict:
+async def login(payload: CloudLoginInput, response: Response, context: RequestContext = Depends(current_request_context)) -> dict:
     try:
-        return await service.login(context.user_id, context.device_id, payload.email, payload.password)
+        result = await service.login(context.user_id, context.device_id, payload.email, payload.password)
+        return _finish_authentication(result, response)
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"无法连接云端服务：{exc}") from None
     except Exception as exc:
@@ -136,6 +150,8 @@ async def logout(context: RequestContext = Depends(current_request_context)) -> 
 async def update_profile(payload: DisplayNameInput, context: RequestContext = Depends(current_request_context)) -> dict:
     try:
         return await service.update_profile(context.user_id, payload.display_name)
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(422, str(exc)) from None
 
@@ -159,8 +175,10 @@ async def oidc_start(provider_id: str, payload: OidcStartInput, context: Request
 @router.get("/oidc/complete")
 async def oidc_complete(code: str, context: RequestContext = Depends(current_request_context)) -> RedirectResponse:
     try:
-        await service.exchange_handoff(context.user_id, code)
-        return RedirectResponse("/#/profile?cloud=connected", status_code=302)
+        result = await service.exchange_handoff(context.user_id, code, context.device_id)
+        response = RedirectResponse("/#/profile?cloud=connected", status_code=302)
+        _finish_authentication(result, response)
+        return response
     except Exception as exc:
         return RedirectResponse(f"/#/profile?cloud_error={quote(str(exc))}", status_code=302)
 
@@ -201,6 +219,8 @@ async def reset_password(payload: ResetInput) -> dict:
 async def sessions(context: RequestContext = Depends(current_request_context)) -> list[dict]:
     try:
         return await service.cloud_sessions(context.user_id)
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(502, f"无法读取云端设备：{exc}") from None
 
@@ -209,6 +229,8 @@ async def sessions(context: RequestContext = Depends(current_request_context)) -
 async def revoke_session(session_id: str, context: RequestContext = Depends(current_request_context)) -> dict:
     try:
         await service.revoke_cloud_session(context.user_id, session_id)
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(502, f"无法撤销云端设备：{exc}") from None
     return {"revoked": True}
@@ -218,6 +240,8 @@ async def revoke_session(session_id: str, context: RequestContext = Depends(curr
 async def sync_now(context: RequestContext = Depends(current_request_context)) -> dict:
     try:
         return await service.sync(context.user_id, context.device_id)
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(502, f"云端同步失败：{exc}") from None
 
@@ -226,6 +250,8 @@ async def sync_now(context: RequestContext = Depends(current_request_context)) -
 async def pull_now(context: RequestContext = Depends(current_request_context)) -> dict:
     try:
         return await service.sync(context.user_id, context.device_id, pull_only=True)
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(502, f"云端拉取失败：{exc}") from None
 
@@ -234,6 +260,8 @@ async def pull_now(context: RequestContext = Depends(current_request_context)) -
 async def conflicts(context: RequestContext = Depends(current_request_context)) -> list[dict]:
     try:
         return await service.conflicts(context.user_id)
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(502, f"无法读取云端冲突：{exc}") from None
 
@@ -244,6 +272,8 @@ async def resolve_conflict(group_id: str, payload: ResolveInput, context: Reques
         result = await service.resolve_conflict(context.user_id, group_id, payload.winner_entity_id)
         await service.sync(context.user_id, context.device_id, pull_only=True)
         return result
+    except service.CloudAuthenticationError as exc:
+        raise HTTPException(401, str(exc)) from None
     except Exception as exc:
         raise HTTPException(502, f"冲突处理失败：{exc}") from None
 

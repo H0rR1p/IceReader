@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "dataset_id": "icereader-linguistics-seed-v1",
+  "expected_case_count": 80,
+  "category_counts": {
+    "basic": 15,
+    "chain": 20,
+    "construction": 15,
+    "honorific": 15,
+    "ellipsis": 10,
+    "unicode": 5
+  },
+  "source": "Original examples authored for this project; no user content",
+  "license": "AGPL-3.0-or-later",
+  "annotation_status": "initial_authored_seed_not_human_adjudicated",
+  "coordinates": "Python Unicode codepoint half-open [start,end); UTF-16 separately tested",
+  "files": [
+    "basic.json",
+    "chain.json",
+    "construction.json",
+    "honorific.json",
+    "ellipsis.json",
+    "unicode.json"
+  ]
+}

@@ -33,7 +33,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="冰读云端服务", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="冰读云端服务", version="0.4.1", lifespan=lifespan)
 app.include_router(legal_router)
 app.add_api_route("/", source_page, methods=["GET"], include_in_schema=False)
 if config.allowed_origins:
@@ -141,6 +141,8 @@ class Mutation(BaseModel):
 
 class PushBatch(BaseModel):
     changes: list[Mutation] = Field(max_length=1000)
+    schema_version: int = 1
+    capabilities: list[str] = Field(default_factory=list)
 
 
 class ResolveInput(BaseModel):
@@ -357,14 +359,24 @@ async def sync_push(payload: PushBatch, identity: tuple[dict, str, str] = Depend
         return await asyncio.to_thread(
             repository.push_changes, identity[0]["id"], identity[1],
             [item.model_dump(exclude_none=True) for item in payload.changes],
+            schema_version=payload.schema_version, peer_capabilities=payload.capabilities,
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
 
 @app.get("/v1/sync/pull")
-async def sync_pull(after: int = 0, limit: int = 500, identity: tuple[dict, str, str] = Depends(verified_identity)) -> dict:
-    return await asyncio.to_thread(repository.pull_changes, identity[0]["id"], identity[1], after, limit)
+async def sync_pull(after: int = 0, limit: int = 500, schema_version: int = 1, capabilities: str = "", identity: tuple[dict, str, str] = Depends(verified_identity)) -> dict:
+    try:
+        return await asyncio.to_thread(repository.pull_changes, identity[0]["id"], identity[1], after, limit, schema_version=schema_version, peer_capabilities=capabilities.split(",") if capabilities else [])
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+
+
+@app.get("/v1/sync/capabilities")
+async def sync_capabilities(identity: tuple[dict, str, str] = Depends(verified_identity)) -> dict:
+    from .modules.sync.protocol import capabilities
+    return capabilities()
 
 
 @app.get("/v1/sync/status")

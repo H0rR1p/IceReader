@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from .service import create_backup, create_book_transfer, import_book_transfer, restore_backup, save_upload
+from .protocol import capabilities
 
 
 router = APIRouter(prefix="/api/data", tags=["data-portability"])
@@ -18,12 +19,13 @@ router = APIRouter(prefix="/api/data", tags=["data-portability"])
 
 class BookShareRequest(BaseModel):
     book_ids: list[str] = Field(min_length=1, max_length=1000)
+    schema_version: int = 3
 
 
 @router.post("/book-share")
 async def download_book_share(request: BookShareRequest, context: RequestContext = Depends(current_request_context)) -> FileResponse:
     try:
-        path = await asyncio.to_thread(create_book_transfer, context.user_id, None, request.book_ids)
+        path = await asyncio.to_thread(create_book_transfer, context.user_id, None, request.book_ids, request.schema_version)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return FileResponse(path, media_type="application/zip",
@@ -32,8 +34,11 @@ async def download_book_share(request: BookShareRequest, context: RequestContext
 
 
 @router.get("/backup")
-async def download_backup(context: RequestContext = Depends(current_request_context)) -> FileResponse:
-    path = await asyncio.to_thread(create_backup, context.user_id)
+async def download_backup(schema_version: int = 3, context: RequestContext = Depends(current_request_context)) -> FileResponse:
+    try:
+        path = await asyncio.to_thread(create_backup, context.user_id, None, schema_version)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return FileResponse(
         path, media_type="application/zip", filename=f"冰读备份-{time.strftime('%Y%m%d-%H%M%S')}.zip",
         background=BackgroundTask(path.unlink, missing_ok=True),
@@ -59,12 +64,20 @@ async def upload_backup(
 
 
 @router.get("/book-transfer")
-async def download_book_transfer(context: RequestContext = Depends(current_request_context)) -> FileResponse:
-    path = await asyncio.to_thread(create_book_transfer, context.user_id)
+async def download_book_transfer(schema_version: int = 3, context: RequestContext = Depends(current_request_context)) -> FileResponse:
+    try:
+        path = await asyncio.to_thread(create_book_transfer, context.user_id, None, None, schema_version)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return FileResponse(
         path, media_type="application/zip", filename=f"冰读数据迁移包-{time.strftime('%Y%m%d-%H%M%S')}.zip",
         background=BackgroundTask(path.unlink, missing_ok=True),
     )
+
+
+@router.get("/capabilities")
+async def data_capabilities(context: RequestContext = Depends(current_request_context)) -> dict:
+    return capabilities()
 
 
 @router.post("/book-transfer/import")

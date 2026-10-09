@@ -1,0 +1,515 @@
+{
+  "schema_version": 1,
+  "license": "AGPL-3.0-or-later",
+  "source": "IceReader contributors: original synthetic Japanese examples; no imported corpus",
+  "annotation_status": "initial_authored_seed_not_human_adjudicated",
+  "cases": [
+    {
+      "id": "chain-01",
+      "category": "chain",
+      "text": "先生が生徒に本を読ませました。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読ませました",
+            "start": 8,
+            "end": 14,
+            "kind": "morphology",
+            "required_features": [
+              "causative",
+              "polite",
+              "past"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-02",
+      "category": "chain",
+      "text": "私は嫌いな野菜を食べさせられなかった。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "食べさせられなかった",
+            "start": 8,
+            "end": 18,
+            "kind": "morphology",
+            "required_features": [
+              "causative_passive",
+              "negative",
+              "past"
+            ],
+            "lemma": "食べる"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-03",
+      "category": "chain",
+      "text": "私は係の人に長く待たされた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "待たされた",
+            "start": 8,
+            "end": 13,
+            "kind": "morphology",
+            "required_features": [
+              "causative_passive",
+              "past"
+            ],
+            "lemma": "待つ"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-04",
+      "category": "chain",
+      "text": "急いで宿題を終わらせた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "終わらせた",
+            "start": 6,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "causative",
+              "past"
+            ],
+            "lemma": "終わる"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-05",
+      "category": "chain",
+      "text": "母が弟を外で遊ばせている。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "遊ばせている",
+            "start": 6,
+            "end": 12,
+            "kind": "morphology",
+            "required_features": [
+              "causative",
+              "progressive"
+            ],
+            "lemma": "遊ぶ"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-06",
+      "category": "chain",
+      "text": "その話はまだ知られていない。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "知られていない",
+            "start": 6,
+            "end": 13,
+            "kind": "morphology",
+            "required_features": [
+              "passive",
+              "progressive",
+              "negative"
+            ],
+            "lemma": "知る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-07",
+      "category": "chain",
+      "text": "小さい子に名前を呼ばれた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "呼ばれた",
+            "start": 8,
+            "end": 12,
+            "kind": "morphology",
+            "required_features": [
+              "passive",
+              "past"
+            ],
+            "lemma": "呼ぶ"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-08",
+      "category": "chain",
+      "text": "この本は読めます。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読めます",
+            "start": 4,
+            "end": 8,
+            "kind": "morphology",
+            "required_features": [
+              "potential",
+              "polite"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-09",
+      "category": "chain",
+      "text": "私は朝食を食べられなかった。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "食べられなかった",
+            "start": 5,
+            "end": 13,
+            "kind": "morphology",
+            "required_features": [
+              "negative",
+              "past"
+            ],
+            "lemma": "食べる"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": [
+          "passive_or_potential"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-10",
+      "category": "chain",
+      "text": "先生は早く来られました。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "来られました",
+            "start": 5,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "polite",
+              "past"
+            ],
+            "lemma": "来る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": [
+          "passive_or_potential_or_honorific"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-11",
+      "category": "chain",
+      "text": "もう帰らなければならない。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "帰らなければならない",
+            "start": 2,
+            "end": 12,
+            "kind": "morphology",
+            "required_features": [
+              "obligation"
+            ],
+            "lemma": "帰る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-12",
+      "category": "chain",
+      "text": "今日は行かなくてもいい。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "行かなくてもいい",
+            "start": 3,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "negative",
+              "permission"
+            ],
+            "lemma": "行く"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-13",
+      "category": "chain",
+      "text": "明日は休みたいです。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "休みたいです",
+            "start": 3,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "desiderative",
+              "polite"
+            ],
+            "lemma": "休む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-14",
+      "category": "chain",
+      "text": "彼は帰りたがっている。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "帰りたがっている",
+            "start": 2,
+            "end": 10,
+            "kind": "morphology",
+            "required_features": [
+              "third_person_desire",
+              "progressive"
+            ],
+            "lemma": "帰る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-15",
+      "category": "chain",
+      "text": "もう少し読んでみた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読んでみた",
+            "start": 4,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "try",
+              "past"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-16",
+      "category": "chain",
+      "text": "明日の分も買っておく。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "買っておく",
+            "start": 5,
+            "end": 10,
+            "kind": "morphology",
+            "required_features": [
+              "preparatory"
+            ],
+            "lemma": "買う"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-17",
+      "category": "chain",
+      "text": "鍵を忘れてしまった。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "忘れてしまった",
+            "start": 2,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "completion",
+              "past"
+            ],
+            "lemma": "忘れる"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-18",
+      "category": "chain",
+      "text": "宿題をやっちゃった。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "やっちゃった",
+            "start": 3,
+            "end": 9,
+            "kind": "morphology",
+            "required_features": [
+              "completion",
+              "past",
+              "contraction"
+            ],
+            "lemma": "やる"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-19",
+      "category": "chain",
+      "text": "まだ本を読んでる。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "読んでる",
+            "start": 4,
+            "end": 8,
+            "kind": "morphology",
+            "required_features": [
+              "progressive",
+              "contraction"
+            ],
+            "lemma": "読む"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "chain-20",
+      "category": "chain",
+      "text": "そのときは行けなかったんです。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "行けなかった",
+            "start": 5,
+            "end": 11,
+            "kind": "morphology",
+            "required_features": [
+              "potential",
+              "negative",
+              "past"
+            ],
+            "lemma": "行く"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": []
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    }
+  ]
+}

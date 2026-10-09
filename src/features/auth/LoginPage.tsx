@@ -14,7 +14,7 @@ export default function LoginPage({ currentUser, serverReady, onEnter }: {
 }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [displayName, setDisplayName] = useState('')
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(currentUser?.cloud_email || '')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')

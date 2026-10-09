@@ -6,6 +6,7 @@ import {
   explainSentence,
   explainSentences,
   loadTranslationQueue,
+  loadAnalysisPreferences,
   segmentChapter,
 } from '../../api'
 import { db, loadChapterData, syncRecords } from '../../db'
@@ -59,11 +60,12 @@ export function useAnalysisController({
     const tokens: Token[] = result.tokens.map((token) => ({ ...token, lexemeKey: makeLexemeKey(token) }))
     const storedLexemes: Lexeme[] = []
     const nextChapter = { ...chapter, status, error: result.warnings.join('\n') || undefined }
-    await db.transaction('rw', [db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.lexemes], async () => {
+    await db.transaction('rw', [db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.lexemes, db.sentenceStructures], async () => {
       await db.contextSenses.bulkDelete(oldTokens.map((token) => token.id))
       await db.annotations.where('sentence_id').anyOf(oldSentenceIds).delete()
       await db.tokens.where('sentence_id').anyOf(oldSentenceIds).delete()
       await db.sentences.where('chapter_id').equals(chapter.id).delete()
+      await db.sentenceStructures.where('chapter_id').equals(chapter.id).delete()
       await db.sentences.bulkPut(result.sentences)
       await db.tokens.bulkPut(tokens)
       await db.annotations.bulkPut(result.annotations)
@@ -106,7 +108,7 @@ export function useAnalysisController({
       if (!options.quiet) {
         setNotice(segmented.warnings.length
           ? `《${chapter.title}》已使用本地备用边界完成切分：${segmented.warnings.join('；')}`
-          : `《${chapter.title}》已完成 AI 句界审校和分词。请选择句子后在右栏按需释义。`)
+          : `《${chapter.title}》已完成本地切分与分词。请选择句子后在右栏按需释义。`)
       }
       return true
     } catch (error) {
@@ -143,18 +145,24 @@ export function useAnalysisController({
     replaceLexical = true,
     onDeferred?: (delta: SaveDelta) => void,
   ) {
+    signal?.throwIfAborted()
+    for (const sentence of result.sentences) {
+      const current = await db.chapters.get(sentence.chapter_id)
+      if (current && (current.analysis_revision ?? 1) !== (sentence.analysis_revision ?? 1)) throw new Error('切分版本已变化，旧释义未写入本地缓存，请刷新章节。')
+    }
     const sentenceIds = result.sentences.map((sentence) => sentence.id)
     const tokenIds = replaceLexical ? sourceTokens.map((token) => token.id) : []
     const oldAnnotations = replaceAnnotations && sentenceIds.length
       ? await db.annotations.where('sentence_id').anyOf(sentenceIds).toArray()
       : []
     const storedLexemes: Lexeme[] = []
-    await db.transaction('rw', [db.sentences, db.annotations, db.contextSenses, db.lexemes], async () => {
+    await db.transaction('rw', [db.sentences, db.annotations, db.contextSenses, db.lexemes, db.spanSenses], async () => {
       if (result.sentences.length) await db.sentences.bulkPut(result.sentences)
       if (replaceAnnotations && sentenceIds.length) await db.annotations.where('sentence_id').anyOf(sentenceIds).delete()
       if (tokenIds.length) await db.contextSenses.bulkDelete(tokenIds)
       if (result.annotations.length) await db.annotations.bulkPut(result.annotations)
       if (replaceLexical && result.context_senses.length) await db.contextSenses.bulkPut(result.context_senses)
+      if (replaceLexical && result.learning_span_senses?.length) await db.spanSenses.bulkPut(result.learning_span_senses)
       for (const incoming of (replaceLexical ? result.lexemes : [])) {
         const existing = await db.lexemes.get(incoming.key)
         if (!existing?.correctedByUser) {
@@ -291,7 +299,8 @@ export function useAnalysisController({
         }
       } else {
         const queue = new AsyncQueue<TranslationBatch>()
-        const configuredConcurrency = translationConcurrency
+        const preferences = await loadAnalysisPreferences(controller.signal)
+        const configuredConcurrency = preferences.context_policy.include_previous_translation ? 1 : translationConcurrency
         let effectiveConcurrency = configuredConcurrency
         let successfulSinceAdjustment = 0
         let pauseUntil = 0
@@ -361,7 +370,7 @@ export function useAnalysisController({
 
         const updateProgress = (chapterTitle: string) => setBackgroundJob((current) => current && ({
           ...current,
-          label: `后台翻译：${chapterTitle} · 并发 ${effectiveConcurrency}`,
+          label: `后台翻译：${chapterTitle} · ${preferences.context_policy.include_previous_translation ? '前文译文依赖，顺序处理' : `并发 ${effectiveConcurrency}`}`,
           completed,
           total: discovered,
           failed,

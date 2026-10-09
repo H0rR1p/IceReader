@@ -2,6 +2,7 @@ import hashlib
 import re
 import threading
 import unicodedata
+from functools import lru_cache
 from dataclasses import dataclass
 
 from sudachipy import dictionary, tokenizer
@@ -134,6 +135,17 @@ def lexeme_key(lemma: str, reading: str, part_of_speech: str) -> str:
     return "|".join((unicodedata.normalize("NFKC", lemma), kata(reading), part_of_speech))
 
 
+@lru_cache(maxsize=8192)
+def _lemma_reading(lemma: str, pos: str) -> str | None:
+    # Called under _tokenize_lock: a bounded cache avoids repeated lemma scans.
+    candidates = list(_get_tokenizer().tokenize(lemma, _mode))
+    if (len(candidates) == 1 and candidates[0].dictionary_form() == lemma
+            and candidates[0].part_of_speech()[0] == pos
+            and candidates[0].reading_form() not in {"", "*"}):
+        return kata(candidates[0].reading_form())
+    return None
+
+
 def tokenize_sentence(sentence_id: str, sentence_text: str) -> list[dict]:
     output: list[dict] = []
     cursor = 0
@@ -149,6 +161,20 @@ def tokenize_sentence(sentence_id: str, sentence_text: str) -> list[dict]:
             pos_label = "-".join(x for x in pos[:2] if x and x != "*")
             lemma = morpheme.dictionary_form() or surface
             reading = kata(morpheme.reading_form() or surface)
+            normalized = (morpheme.normalized_form() if hasattr(morpheme, "normalized_form") else lemma) or lemma
+            lemma_reading = None
+            if pos[0] not in {"補助記号", "空白", "記号"}:
+                if lemma == surface and reading not in {"", "*"}:
+                    # The reading resolved in the sentence wins for homographs.
+                    lemma_reading = reading
+                else:
+                    candidate_reading = _lemma_reading(lemma, pos[0])
+                    # A standalone lookup can select another homographic lemma
+                    # (e.g. 辛い: カライ/ツライ). Keep uncertainty visible.
+                    if candidate_reading and reading and candidate_reading[0] == reading[0]:
+                        lemma_reading = candidate_reading
+            role = ("punctuation" if pos[0] in {"補助記号", "空白", "記号"}
+                    else "grammatical" if pos[0] in {"助詞", "助動詞"} else "lexical")
             is_content = pos[0] not in {"補助記号", "空白", "記号"} and bool(re.search(r"[\w一-龯ぁ-ゖァ-ヺ]", surface))
             output.append({
                 "id": stable_id("tok", f"{sentence_id}:{index}:{start}:{surface}"),
@@ -160,6 +186,13 @@ def tokenize_sentence(sentence_id: str, sentence_text: str) -> list[dict]:
                 "reading": reading,
                 "part_of_speech": pos_label or pos[0],
                 "is_content": is_content,
+                "pos_full": list(pos),
+                "conjugation_type": pos[4] if len(pos) > 4 and pos[4] != "*" else "",
+                "conjugation_form": pos[5] if len(pos) > 5 and pos[5] != "*" else "",
+                "normalized_form": normalized,
+                "surface_reading": reading,
+                "lemma_reading": lemma_reading,
+                "role": role,
                 "lexeme_key": lexeme_key(lemma, reading, pos_label or pos[0]),
             })
     return output

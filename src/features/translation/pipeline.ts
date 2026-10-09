@@ -1,4 +1,5 @@
 import type { TranslationQueueItem } from '../../types'
+import { isVocabularyToken } from '../reader/learningSpans'
 
 
 export type BackgroundJob = {
@@ -49,7 +50,7 @@ export class AsyncQueue<T> {
 function estimateTranslationTokens(item: TranslationQueueItem, mode: TranslationMode) {
   const source = Math.ceil(item.sentence.original.length * 1.15)
   if (mode === 'meaning') return source + Math.max(36, Math.ceil(item.sentence.original.length * .65))
-  const contentTokens = item.tokens.reduce((count, token) => count + (token.is_content ? 1 : 0), 0)
+  const contentTokens = item.tokens.reduce((count, token) => count + (isVocabularyToken(token) ? 1 : 0), 0)
   return source + Math.max(80, Math.ceil(item.sentence.original.length * .8)) + contentTokens * 14
 }
 

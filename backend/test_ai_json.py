@@ -263,3 +263,23 @@ def test_chat_json_removes_unsupported_optional_fields_and_caches_capability(mon
 
     assert asyncio.run(ai._chat_json(*args, operation="test")) == {"results": []}
     assert not ({"response_format", "thinking", "reasoning_effort"} & payloads[4].keys())
+
+
+@pytest.mark.parametrize('status,text',[(503,'unavailable'),(400,'Unsupported parameter: response_format')])
+def test_explicit_job_budget_does_not_multiply_http_attempts(monkeypatch,status,text):
+    calls=[]
+    class Response(_FakeResponse):
+        status_code=status
+        @property
+        def text(self): return text
+    class Client:
+        is_closed=False
+        async def post(self,*args,**kwargs):
+            calls.append(kwargs); return Response({})
+    monkeypatch.setattr(ai,'_shared_http_client',Client())
+    monkeypatch.setattr(ai,'_unsupported_request_fields',{})
+    monkeypatch.setattr(ai,'record_usage',lambda *args,**kwargs:None)
+    with pytest.raises(RuntimeError):
+        asyncio.run(ai._chat_json('user','key','https://example.test','fixture','system','prompt',
+            operation='job',json_attempts=1,max_http_attempts=1))
+    assert len(calls)==1

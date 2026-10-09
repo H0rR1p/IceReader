@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { loadCurrentUser } from './app/session'
-import type { Annotation, Book, Chapter, ContextSense, Lexeme, Sentence, SentenceBookmark, Token } from './types'
+import { requestSentenceStructures } from './api'
+import type { Annotation, Book, Chapter, ContextSense, Lexeme, LearningSpanSense, Sentence, SentenceBookmark, StructureSnapshot, Token } from './types'
 
 class ReaderDatabase extends Dexie {
   books!: EntityTable<Book, 'id'>
@@ -11,6 +12,8 @@ class ReaderDatabase extends Dexie {
   contextSenses!: EntityTable<ContextSense, 'token_id'>
   lexemes!: EntityTable<Lexeme, 'key'>
   bookmarks!: EntityTable<SentenceBookmark, 'id'>
+  sentenceStructures!: EntityTable<StructureSnapshot, 'sentence_id'>
+  spanSenses!: EntityTable<LearningSpanSense, 'span_id'>
 
   constructor(databaseName: string) {
     super(databaseName)
@@ -60,7 +63,57 @@ class ReaderDatabase extends Dexie {
       cards: null,
       bookmarks: 'id, bookId, chapterId, sentenceId, [bookId+chapterOrder+sentenceStart], createdAt',
     })
+    this.version(5).stores({ sentenceStructures: 'sentence_id, chapter_id, cached_at' })
+    this.version(6).stores({ spanSenses: 'span_id, sentence_id' })
   }
+}
+
+export async function sourceTextHash(text: string): Promise<string> {
+  const value = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return Array.from(new Uint8Array(value), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/** Structured snapshots are a disposable cache; the server owns confirmed analysis. */
+export async function loadSentenceStructures(sentences: Sentence[], signal?: AbortSignal, requiredVersion?: string): Promise<StructureSnapshot[]> {
+  if (!sentences.length) return []
+  const hashes = await Promise.all(sentences.map((sentence) => sourceTextHash(sentence.original)))
+  const cached = await db.sentenceStructures.bulkGet(sentences.map((sentence) => sentence.id))
+  const valid = (value: StructureSnapshot | undefined, index: number) => !!value
+    && value.analysis_manifest.text_hash === hashes[index]
+    && value.analysis_manifest.revision === (sentences[index].analysis_revision ?? sentences[index].segmentation_revision ?? 1)
+    && !!requiredVersion && value.analysis_manifest.version === requiredVersion
+  const missing = sentences.filter((_sentence, index) => !valid(cached[index], index))
+  const resolved = new Map(cached.filter((value, index) => valid(value, index)).map((value) => [value!.sentence_id, value!]))
+  for (let offset = 0; offset < missing.length; offset += 80) {
+    signal?.throwIfAborted()
+    const requested = missing.slice(offset, offset + 80)
+    const response = await requestSentenceStructures(requested.map((sentence) => sentence.id), signal, requiredVersion)
+    if (!Array.isArray(response.results) || response.results.length !== requested.length
+      || new Set(response.results.map((result) => result.sentence_id)).size !== requested.length
+      || requiredVersion && response.version !== requiredVersion) throw new Error('结构分析返回的句子范围或版本不一致')
+    const incoming: StructureSnapshot[] = []
+    for (const result of response.results) {
+      const index = sentences.findIndex((sentence) => sentence.id === result.sentence_id)
+      if (index < 0 || !requested.some((sentence) => sentence.id === result.sentence_id)
+        || result.analysis_manifest.text_hash !== hashes[index]
+        || result.analysis_manifest.version !== response.version
+        || !Number.isInteger(result.analysis_manifest.revision) || result.analysis_manifest.revision < 1) throw new Error('句子正文或分析版本已变化，请刷新章节后重试结构分析')
+      const characters = Array.from(sentences[index].original)
+      if (result.learning_spans.some((span) => span.sentence_id !== result.sentence_id
+        || !Number.isInteger(span.start) || !Number.isInteger(span.end)
+        || span.start < 0 || span.end <= span.start || span.end > characters.length
+        || characters.slice(span.start, span.end).join('') !== span.surface)) throw new Error('语法分析锚点无效，请重新分析')
+      const snapshot = { ...result, chapter_id: sentences[index].chapter_id, cached_at: Date.now() }
+      incoming.push(snapshot); resolved.set(result.sentence_id, snapshot)
+    }
+    signal?.throwIfAborted()
+    if (incoming.length) await db.transaction('rw', [db.sentenceStructures, db.spanSenses], async () => {
+      await db.sentenceStructures.bulkPut(incoming)
+      const senses = incoming.flatMap((snapshot) => (snapshot.learning_span_senses ?? []).map((sense) => ({ ...sense, sentence_id: snapshot.sentence_id })))
+      if (senses.length) await db.spanSenses.bulkPut(senses)
+    })
+  }
+  return sentences.flatMap((sentence) => { const snapshot = resolved.get(sentence.id); return snapshot ? [snapshot] : [] })
 }
 
 export let db = new ReaderDatabase('bingdu-reader-bootstrap')
@@ -86,10 +139,13 @@ async function expectOk(response: Response, message: string) {
 }
 
 export async function syncRecords(upserts: RecordChanges = {}, deletes: RecordDeletes = {}, signal?: AbortSignal) {
+  const expected_revisions: Record<string, number> = {}
+  for (const row of (upserts.sentences ?? []) as Sentence[]) expected_revisions[row.chapter_id] = row.analysis_revision ?? 1
+  for (const row of (upserts.chapters ?? []) as Chapter[]) expected_revisions[row.id] = row.analysis_revision ?? 1
   const response = await fetch('/api/library', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ upserts, deletes }),
+    body: JSON.stringify({ upserts, deletes, expected_revisions }),
     signal,
   })
   await expectOk(response, '无法保存项目数据')
@@ -129,7 +185,21 @@ export async function loadChapterData(chapterId: string, signal?: AbortSignal) {
   }
   const chapter = snapshot.chapter
   if (!chapter) throw new Error('章节不存在或已被删除')
-  await db.transaction('rw', [db.chapters, db.sentences], async () => {
+  const previous = await db.sentences.where('chapter_id').equals(chapterId).toArray()
+  const changed = previous.some((row) => (row.analysis_revision ?? 1) !== (chapter.analysis_revision ?? 1)
+    || !snapshot.sentences.some((incoming) => incoming.id === row.id))
+  await db.transaction('rw', [db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.sentenceStructures, db.spanSenses], async () => {
+    if (changed) {
+      const ids = previous.map((row) => row.id)
+      const oldTokens = await db.tokens.where('sentence_id').anyOf(ids).toArray()
+      await db.tokens.where('sentence_id').anyOf(ids).delete()
+      await db.annotations.where('sentence_id').anyOf(ids).delete()
+      await db.contextSenses.bulkDelete(oldTokens.map((row) => row.id))
+      const spans = await db.sentenceStructures.where('chapter_id').equals(chapterId).toArray()
+      await db.spanSenses.bulkDelete(spans.flatMap((row) => row.learning_spans.map((span) => span.id)))
+      await db.sentenceStructures.where('chapter_id').equals(chapterId).delete()
+      await db.sentences.where('chapter_id').equals(chapterId).delete()
+    }
     await db.chapters.put(chapter)
     if (snapshot.sentences.length) await db.sentences.bulkPut(snapshot.sentences)
   })
@@ -197,11 +267,12 @@ export async function removeBook(bookId: string) {
   const sentences = await db.sentences.where('chapter_id').anyOf(chapterIds).toArray()
   const sentenceIds = sentences.map((sentence) => sentence.id)
   const tokens = await db.tokens.where('sentence_id').anyOf(sentenceIds).toArray()
-  await db.transaction('rw', [db.books, db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.bookmarks], async () => {
+  await db.transaction('rw', [db.books, db.chapters, db.sentences, db.tokens, db.annotations, db.contextSenses, db.bookmarks, db.sentenceStructures], async () => {
     await db.contextSenses.bulkDelete(tokens.map((token) => token.id))
     await db.annotations.where('sentence_id').anyOf(sentenceIds).delete()
     await db.tokens.where('sentence_id').anyOf(sentenceIds).delete()
     await db.sentences.where('chapter_id').anyOf(chapterIds).delete()
+    await db.sentenceStructures.where('chapter_id').anyOf(chapterIds).delete()
     await db.bookmarks.where('bookId').equals(bookId).delete()
     await db.chapters.where('bookId').equals(bookId).delete()
     await db.books.delete(bookId)

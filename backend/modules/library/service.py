@@ -1,6 +1,7 @@
 """Public library-domain operations used by other modules."""
 
 from .repository import find_personal_lexeme
+from .sources import get_sentence_source
 
 
 def resolve_personal_lexeme(

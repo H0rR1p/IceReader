@@ -12,7 +12,7 @@ Logo 是项目作者 **H0rR1p** 自行绘制的 Q 版琪露诺（Cirno）头像�
 
 点击音频由项目作者确认自行制作，保持独立于代码许可证的版权安排；本声明不将音频认定为东方 Project 二次创作，也不授予音频的单独使用或再分发许可。
 
-官方指引：[東方Projectの二次創作ガイドライン](https://touhou-project.news/guideline/)。本次核对日期：2026 年 10 月 4 日，官方页面标注更新日期为 2024 年 5 月 31 日。指引可能变更，使用素材时请查阅现行规则；企业营利活动及未覆盖的用途按官方要求另行联系权利方。本声明不是原作方的个别授权。
+官方指引：[東方Projectの二次創作ガイドライン](https://touhou-project.news/guideline/)。本次核对日期：2026 年 10 月 10 日，官方页面标注更新日期为 2024 年 5 月 31 日。指引可能变更，使用素材时请查阅现行规则；企业营利活动及未覆盖的用途按官方要求另行联系权利方。本声明不是原作方的个别授权。
 
 ## Touhou Project fan artwork notice
 
@@ -28,4 +28,4 @@ The application code, build scripts and documentation are licensed under **AGPL-
 
 Separate reuse or redistribution of the author's artwork requires the author's permission and compliance with the applicable original-rightsholder guidelines. Downstream projects may replace these assets when using the code. The click audio has separate rights and is not identified by this notice as Touhou-derived artwork.
 
-Official guidelines: <https://touhou-project.news/guideline/>. Checked on 2026-10-04; the page states an update date of 2024-05-31. This notice does not constitute individual authorization from the original rightsholder.
+Official guidelines: <https://touhou-project.news/guideline/>. Checked on 2026-10-10; the page states an update date of 2024-05-31. This notice does not constitute individual authorization from the original rightsholder.

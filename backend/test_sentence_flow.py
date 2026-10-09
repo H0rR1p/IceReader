@@ -208,7 +208,7 @@ def test_sentence_boundary_review_has_strict_output_budget(monkeypatch):
 def test_explain_sentence_uses_dictionary_then_ai_fallback(monkeypatch):
     sentences, tokens = analysis_service._local_analysis("chapter-1", "図書館へ行く。")
     sentence = sentences[0]
-    content = [token for token in tokens if token.is_content]
+    content = [token for token in tokens if token.is_content and token.role == "lexical"]
     monkeypatch.setattr(analysis_service, "resolve_settings", lambda *_: ("key", "https://example.invalid", "model"))
     monkeypatch.setattr(analysis_service, "_entry_for_token", lambda _user_id, token: {
         "senses_zh": ["图书馆"], "source": "测试词典",
@@ -303,12 +303,14 @@ def test_truncated_batch_is_split_and_missing_rows_are_retried(monkeypatch):
     calls = []
 
     async def fake_explain(_user_id, items, *_args, **_kwargs):
-        ids = [item["sentence"]["id"] for item in items]
+        ids = [item["sentence"]["id"] for item in items if item.get("generate", True)]
         calls.append(ids)
         if ids == ["s1", "s2", "s3"]:
             raise RuntimeError("AI 输出达到 token 上限，JSON 未完成")
         if ids == ["s2", "s3"]:
             return [{"id": "s2", "meaning": "二"}]
+        if ids == ["s3"]:
+            assert items[0]["sentence"]["id"] == "s2" and items[0]["generate"] is False
         return [{"id": item_id, "meaning": item_id} for item_id in ids]
 
     monkeypatch.setattr(analysis_service, "explain_sentences_with_ai", fake_explain)

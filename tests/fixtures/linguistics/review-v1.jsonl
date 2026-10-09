@@ -1,0 +1,812 @@
+{"id": "review-0001", "category": "honorific", "text": "先生がお読みになる。", "surface": "お読みになる", "lemma": "読む", "required_features": ["honorific"]}
+{"id": "review-0002", "category": "honorific", "text": "先生がお読みになりました。", "surface": "お読みになりました", "lemma": "読む", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0003", "category": "honorific", "text": "先生がお読みにならなかった。", "surface": "お読みにならなかった", "lemma": "読む", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0004", "category": "honorific", "text": "先生がお読みになっていた。", "surface": "お読みになっていた", "lemma": "読む", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0005", "category": "humble", "text": "私がお読みする。", "surface": "お読みする", "lemma": "読む", "required_features": ["humble"]}
+{"id": "review-0006", "category": "humble", "text": "私がお読みいたしました。", "surface": "お読みいたしました", "lemma": "読む", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0007", "category": "benefactive", "text": "先生がお読みくださった。", "surface": "お読みくださった", "lemma": "読む", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0008", "category": "benefactive", "text": "先生にお読みいただきました。", "surface": "お読みいただきました", "lemma": "読む", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0009", "category": "auxiliary", "text": "私が読んでいる。", "surface": "読んでいる", "lemma": "読む", "required_features": ["progressive_resultative"]}
+{"id": "review-0010", "category": "auxiliary", "text": "私が読んでいた。", "surface": "読んでいた", "lemma": "読む", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0011", "category": "auxiliary", "text": "私が読んでいません。", "surface": "読んでいません", "lemma": "読む", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0012", "category": "benefactive", "text": "先生が読んでくださる。", "surface": "読んでくださる", "lemma": "読む", "required_features": ["respectful_benefactive"]}
+{"id": "review-0013", "category": "benefactive", "text": "先生が読んでくださった。", "surface": "読んでくださった", "lemma": "読む", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0014", "category": "benefactive", "text": "先生が読んでくださらなかった。", "surface": "読んでくださらなかった", "lemma": "読む", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0015", "category": "benefactive", "text": "先生に読んでいただく。", "surface": "読んでいただく", "lemma": "読む", "required_features": ["humble_benefactive"]}
+{"id": "review-0016", "category": "benefactive", "text": "先生に読んでいただいた。", "surface": "読んでいただいた", "lemma": "読む", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0017", "category": "benefactive", "text": "先生に読んでいただきませんでした。", "surface": "読んでいただきませんでした", "lemma": "読む", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0018", "category": "benefactive", "text": "友達に読んでもらう。", "surface": "読んでもらう", "lemma": "読む", "required_features": ["benefactive"]}
+{"id": "review-0019", "category": "benefactive", "text": "友達が読んでくれる。", "surface": "読んでくれる", "lemma": "読む", "required_features": ["benefactive"]}
+{"id": "review-0020", "category": "benefactive", "text": "私が読んであげる。", "surface": "読んであげる", "lemma": "読む", "required_features": ["benefactive"]}
+{"id": "review-0021", "category": "auxiliary", "text": "私が読んでしまった。", "surface": "読んでしまった", "lemma": "読む", "required_features": ["completion", "past"]}
+{"id": "review-0022", "category": "auxiliary", "text": "私が読んでみた。", "surface": "読んでみた", "lemma": "読む", "required_features": ["trial", "past"]}
+{"id": "review-0023", "category": "causative", "text": "先生に読ませていただく。", "surface": "読ませていただく", "lemma": "読む", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0024", "category": "causative", "text": "私は読ませられなかった。", "surface": "読ませられなかった", "lemma": "読む", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0025", "category": "inflection", "text": "私が読まない。", "surface": "読まない", "lemma": "読む", "required_features": ["negative"]}
+{"id": "review-0026", "category": "inflection", "text": "私が読まなかった。", "surface": "読まなかった", "lemma": "読む", "required_features": ["negative", "past"]}
+{"id": "review-0027", "category": "inflection", "text": "私が読みます。", "surface": "読みます", "lemma": "読む", "required_features": ["polite"]}
+{"id": "review-0028", "category": "inflection", "text": "私が読みました。", "surface": "読みました", "lemma": "読む", "required_features": ["polite", "past"]}
+{"id": "review-0029", "category": "inflection", "text": "私が読んで。", "surface": "読んで", "lemma": "読む", "required_features": ["te_form"]}
+{"id": "review-0030", "category": "inflection", "text": "私が読んだ。", "surface": "読んだ", "lemma": "読む", "required_features": ["past"]}
+{"id": "review-0031", "category": "inflection", "text": "私が読めば。", "surface": "読めば", "lemma": "読む", "required_features": ["conditional"]}
+{"id": "review-0032", "category": "inflection", "text": "私が読もう。", "surface": "読もう", "lemma": "読む", "required_features": ["volitional"]}
+{"id": "review-0033", "category": "honorific", "text": "先生がお書きになる。", "surface": "お書きになる", "lemma": "書く", "required_features": ["honorific"]}
+{"id": "review-0034", "category": "honorific", "text": "先生がお書きになりました。", "surface": "お書きになりました", "lemma": "書く", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0035", "category": "honorific", "text": "先生がお書きにならなかった。", "surface": "お書きにならなかった", "lemma": "書く", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0036", "category": "honorific", "text": "先生がお書きになっていた。", "surface": "お書きになっていた", "lemma": "書く", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0037", "category": "humble", "text": "私がお書きする。", "surface": "お書きする", "lemma": "書く", "required_features": ["humble"]}
+{"id": "review-0038", "category": "humble", "text": "私がお書きいたしました。", "surface": "お書きいたしました", "lemma": "書く", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0039", "category": "benefactive", "text": "先生がお書きくださった。", "surface": "お書きくださった", "lemma": "書く", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0040", "category": "benefactive", "text": "先生にお書きいただきました。", "surface": "お書きいただきました", "lemma": "書く", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0041", "category": "auxiliary", "text": "私が書いている。", "surface": "書いている", "lemma": "書く", "required_features": ["progressive_resultative"]}
+{"id": "review-0042", "category": "auxiliary", "text": "私が書いていた。", "surface": "書いていた", "lemma": "書く", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0043", "category": "auxiliary", "text": "私が書いていません。", "surface": "書いていません", "lemma": "書く", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0044", "category": "benefactive", "text": "先生が書いてくださる。", "surface": "書いてくださる", "lemma": "書く", "required_features": ["respectful_benefactive"]}
+{"id": "review-0045", "category": "benefactive", "text": "先生が書いてくださった。", "surface": "書いてくださった", "lemma": "書く", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0046", "category": "benefactive", "text": "先生が書いてくださらなかった。", "surface": "書いてくださらなかった", "lemma": "書く", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0047", "category": "benefactive", "text": "先生に書いていただく。", "surface": "書いていただく", "lemma": "書く", "required_features": ["humble_benefactive"]}
+{"id": "review-0048", "category": "benefactive", "text": "先生に書いていただいた。", "surface": "書いていただいた", "lemma": "書く", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0049", "category": "benefactive", "text": "先生に書いていただきませんでした。", "surface": "書いていただきませんでした", "lemma": "書く", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0050", "category": "benefactive", "text": "友達に書いてもらう。", "surface": "書いてもらう", "lemma": "書く", "required_features": ["benefactive"]}
+{"id": "review-0051", "category": "benefactive", "text": "友達が書いてくれる。", "surface": "書いてくれる", "lemma": "書く", "required_features": ["benefactive"]}
+{"id": "review-0052", "category": "benefactive", "text": "私が書いてあげる。", "surface": "書いてあげる", "lemma": "書く", "required_features": ["benefactive"]}
+{"id": "review-0053", "category": "auxiliary", "text": "私が書いてしまった。", "surface": "書いてしまった", "lemma": "書く", "required_features": ["completion", "past"]}
+{"id": "review-0054", "category": "auxiliary", "text": "私が書いてみた。", "surface": "書いてみた", "lemma": "書く", "required_features": ["trial", "past"]}
+{"id": "review-0055", "category": "causative", "text": "先生に書かせていただく。", "surface": "書かせていただく", "lemma": "書く", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0056", "category": "causative", "text": "私は書かせられなかった。", "surface": "書かせられなかった", "lemma": "書く", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0057", "category": "inflection", "text": "私が書かない。", "surface": "書かない", "lemma": "書く", "required_features": ["negative"]}
+{"id": "review-0058", "category": "inflection", "text": "私が書かなかった。", "surface": "書かなかった", "lemma": "書く", "required_features": ["negative", "past"]}
+{"id": "review-0059", "category": "inflection", "text": "私が書きます。", "surface": "書きます", "lemma": "書く", "required_features": ["polite"]}
+{"id": "review-0060", "category": "inflection", "text": "私が書きました。", "surface": "書きました", "lemma": "書く", "required_features": ["polite", "past"]}
+{"id": "review-0061", "category": "inflection", "text": "私が書いて。", "surface": "書いて", "lemma": "書く", "required_features": ["te_form"]}
+{"id": "review-0062", "category": "inflection", "text": "私が書いた。", "surface": "書いた", "lemma": "書く", "required_features": ["past"]}
+{"id": "review-0063", "category": "inflection", "text": "私が書けば。", "surface": "書けば", "lemma": "書く", "required_features": ["conditional"]}
+{"id": "review-0064", "category": "inflection", "text": "私が書こう。", "surface": "書こう", "lemma": "書く", "required_features": ["volitional"]}
+{"id": "review-0065", "category": "honorific", "text": "先生がお歩きになる。", "surface": "お歩きになる", "lemma": "歩く", "required_features": ["honorific"]}
+{"id": "review-0066", "category": "honorific", "text": "先生がお歩きになりました。", "surface": "お歩きになりました", "lemma": "歩く", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0067", "category": "honorific", "text": "先生がお歩きにならなかった。", "surface": "お歩きにならなかった", "lemma": "歩く", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0068", "category": "honorific", "text": "先生がお歩きになっていた。", "surface": "お歩きになっていた", "lemma": "歩く", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0069", "category": "humble", "text": "私がお歩きする。", "surface": "お歩きする", "lemma": "歩く", "required_features": ["humble"]}
+{"id": "review-0070", "category": "humble", "text": "私がお歩きいたしました。", "surface": "お歩きいたしました", "lemma": "歩く", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0071", "category": "benefactive", "text": "先生がお歩きくださった。", "surface": "お歩きくださった", "lemma": "歩く", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0072", "category": "benefactive", "text": "先生にお歩きいただきました。", "surface": "お歩きいただきました", "lemma": "歩く", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0073", "category": "auxiliary", "text": "私が歩いている。", "surface": "歩いている", "lemma": "歩く", "required_features": ["progressive_resultative"]}
+{"id": "review-0074", "category": "auxiliary", "text": "私が歩いていた。", "surface": "歩いていた", "lemma": "歩く", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0075", "category": "auxiliary", "text": "私が歩いていません。", "surface": "歩いていません", "lemma": "歩く", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0076", "category": "benefactive", "text": "先生が歩いてくださる。", "surface": "歩いてくださる", "lemma": "歩く", "required_features": ["respectful_benefactive"]}
+{"id": "review-0077", "category": "benefactive", "text": "先生が歩いてくださった。", "surface": "歩いてくださった", "lemma": "歩く", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0078", "category": "benefactive", "text": "先生が歩いてくださらなかった。", "surface": "歩いてくださらなかった", "lemma": "歩く", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0079", "category": "benefactive", "text": "先生に歩いていただく。", "surface": "歩いていただく", "lemma": "歩く", "required_features": ["humble_benefactive"]}
+{"id": "review-0080", "category": "benefactive", "text": "先生に歩いていただいた。", "surface": "歩いていただいた", "lemma": "歩く", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0081", "category": "benefactive", "text": "先生に歩いていただきませんでした。", "surface": "歩いていただきませんでした", "lemma": "歩く", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0082", "category": "benefactive", "text": "友達に歩いてもらう。", "surface": "歩いてもらう", "lemma": "歩く", "required_features": ["benefactive"]}
+{"id": "review-0083", "category": "benefactive", "text": "友達が歩いてくれる。", "surface": "歩いてくれる", "lemma": "歩く", "required_features": ["benefactive"]}
+{"id": "review-0084", "category": "benefactive", "text": "私が歩いてあげる。", "surface": "歩いてあげる", "lemma": "歩く", "required_features": ["benefactive"]}
+{"id": "review-0085", "category": "auxiliary", "text": "私が歩いてしまった。", "surface": "歩いてしまった", "lemma": "歩く", "required_features": ["completion", "past"]}
+{"id": "review-0086", "category": "auxiliary", "text": "私が歩いてみた。", "surface": "歩いてみた", "lemma": "歩く", "required_features": ["trial", "past"]}
+{"id": "review-0087", "category": "causative", "text": "先生に歩かせていただく。", "surface": "歩かせていただく", "lemma": "歩く", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0088", "category": "causative", "text": "私は歩かせられなかった。", "surface": "歩かせられなかった", "lemma": "歩く", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0089", "category": "inflection", "text": "私が歩かない。", "surface": "歩かない", "lemma": "歩く", "required_features": ["negative"]}
+{"id": "review-0090", "category": "inflection", "text": "私が歩かなかった。", "surface": "歩かなかった", "lemma": "歩く", "required_features": ["negative", "past"]}
+{"id": "review-0091", "category": "inflection", "text": "私が歩きます。", "surface": "歩きます", "lemma": "歩く", "required_features": ["polite"]}
+{"id": "review-0092", "category": "inflection", "text": "私が歩きました。", "surface": "歩きました", "lemma": "歩く", "required_features": ["polite", "past"]}
+{"id": "review-0093", "category": "inflection", "text": "私が歩いて。", "surface": "歩いて", "lemma": "歩く", "required_features": ["te_form"]}
+{"id": "review-0094", "category": "inflection", "text": "私が歩いた。", "surface": "歩いた", "lemma": "歩く", "required_features": ["past"]}
+{"id": "review-0095", "category": "inflection", "text": "私が歩けば。", "surface": "歩けば", "lemma": "歩く", "required_features": ["conditional"]}
+{"id": "review-0096", "category": "inflection", "text": "私が歩こう。", "surface": "歩こう", "lemma": "歩く", "required_features": ["volitional"]}
+{"id": "review-0097", "category": "honorific", "text": "先生がお話しになる。", "surface": "お話しになる", "lemma": "話す", "required_features": ["honorific"]}
+{"id": "review-0098", "category": "honorific", "text": "先生がお話しになりました。", "surface": "お話しになりました", "lemma": "話す", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0099", "category": "honorific", "text": "先生がお話しにならなかった。", "surface": "お話しにならなかった", "lemma": "話す", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0100", "category": "honorific", "text": "先生がお話しになっていた。", "surface": "お話しになっていた", "lemma": "話す", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0101", "category": "humble", "text": "私がお話しする。", "surface": "お話しする", "lemma": "話す", "required_features": ["humble"]}
+{"id": "review-0102", "category": "humble", "text": "私がお話しいたしました。", "surface": "お話しいたしました", "lemma": "話す", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0103", "category": "benefactive", "text": "先生がお話しくださった。", "surface": "お話しくださった", "lemma": "話す", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0104", "category": "benefactive", "text": "先生にお話しいただきました。", "surface": "お話しいただきました", "lemma": "話す", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0105", "category": "auxiliary", "text": "私が話している。", "surface": "話している", "lemma": "話す", "required_features": ["progressive_resultative"]}
+{"id": "review-0106", "category": "auxiliary", "text": "私が話していた。", "surface": "話していた", "lemma": "話す", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0107", "category": "auxiliary", "text": "私が話していません。", "surface": "話していません", "lemma": "話す", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0108", "category": "benefactive", "text": "先生が話してくださる。", "surface": "話してくださる", "lemma": "話す", "required_features": ["respectful_benefactive"]}
+{"id": "review-0109", "category": "benefactive", "text": "先生が話してくださった。", "surface": "話してくださった", "lemma": "話す", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0110", "category": "benefactive", "text": "先生が話してくださらなかった。", "surface": "話してくださらなかった", "lemma": "話す", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0111", "category": "benefactive", "text": "先生に話していただく。", "surface": "話していただく", "lemma": "話す", "required_features": ["humble_benefactive"]}
+{"id": "review-0112", "category": "benefactive", "text": "先生に話していただいた。", "surface": "話していただいた", "lemma": "話す", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0113", "category": "benefactive", "text": "先生に話していただきませんでした。", "surface": "話していただきませんでした", "lemma": "話す", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0114", "category": "benefactive", "text": "友達に話してもらう。", "surface": "話してもらう", "lemma": "話す", "required_features": ["benefactive"]}
+{"id": "review-0115", "category": "benefactive", "text": "友達が話してくれる。", "surface": "話してくれる", "lemma": "話す", "required_features": ["benefactive"]}
+{"id": "review-0116", "category": "benefactive", "text": "私が話してあげる。", "surface": "話してあげる", "lemma": "話す", "required_features": ["benefactive"]}
+{"id": "review-0117", "category": "auxiliary", "text": "私が話してしまった。", "surface": "話してしまった", "lemma": "話す", "required_features": ["completion", "past"]}
+{"id": "review-0118", "category": "auxiliary", "text": "私が話してみた。", "surface": "話してみた", "lemma": "話す", "required_features": ["trial", "past"]}
+{"id": "review-0119", "category": "causative", "text": "先生に話させていただく。", "surface": "話させていただく", "lemma": "話す", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0120", "category": "causative", "text": "私は話させられなかった。", "surface": "話させられなかった", "lemma": "話す", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0121", "category": "inflection", "text": "私が話さない。", "surface": "話さない", "lemma": "話す", "required_features": ["negative"]}
+{"id": "review-0122", "category": "inflection", "text": "私が話さなかった。", "surface": "話さなかった", "lemma": "話す", "required_features": ["negative", "past"]}
+{"id": "review-0123", "category": "inflection", "text": "私が話します。", "surface": "話します", "lemma": "話す", "required_features": ["polite"]}
+{"id": "review-0124", "category": "inflection", "text": "私が話しました。", "surface": "話しました", "lemma": "話す", "required_features": ["polite", "past"]}
+{"id": "review-0125", "category": "inflection", "text": "私が話して。", "surface": "話して", "lemma": "話す", "required_features": ["te_form"]}
+{"id": "review-0126", "category": "inflection", "text": "私が話した。", "surface": "話した", "lemma": "話す", "required_features": ["past"]}
+{"id": "review-0127", "category": "inflection", "text": "私が話せば。", "surface": "話せば", "lemma": "話す", "required_features": ["conditional"]}
+{"id": "review-0128", "category": "inflection", "text": "私が話そう。", "surface": "話そう", "lemma": "話す", "required_features": ["volitional"]}
+{"id": "review-0129", "category": "honorific", "text": "先生がお聞きになる。", "surface": "お聞きになる", "lemma": "聞く", "required_features": ["honorific"]}
+{"id": "review-0130", "category": "honorific", "text": "先生がお聞きになりました。", "surface": "お聞きになりました", "lemma": "聞く", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0131", "category": "honorific", "text": "先生がお聞きにならなかった。", "surface": "お聞きにならなかった", "lemma": "聞く", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0132", "category": "honorific", "text": "先生がお聞きになっていた。", "surface": "お聞きになっていた", "lemma": "聞く", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0133", "category": "humble", "text": "私がお聞きする。", "surface": "お聞きする", "lemma": "聞く", "required_features": ["humble"]}
+{"id": "review-0134", "category": "humble", "text": "私がお聞きいたしました。", "surface": "お聞きいたしました", "lemma": "聞く", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0135", "category": "benefactive", "text": "先生がお聞きくださった。", "surface": "お聞きくださった", "lemma": "聞く", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0136", "category": "benefactive", "text": "先生にお聞きいただきました。", "surface": "お聞きいただきました", "lemma": "聞く", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0137", "category": "auxiliary", "text": "私が聞いている。", "surface": "聞いている", "lemma": "聞く", "required_features": ["progressive_resultative"]}
+{"id": "review-0138", "category": "auxiliary", "text": "私が聞いていた。", "surface": "聞いていた", "lemma": "聞く", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0139", "category": "auxiliary", "text": "私が聞いていません。", "surface": "聞いていません", "lemma": "聞く", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0140", "category": "benefactive", "text": "先生が聞いてくださる。", "surface": "聞いてくださる", "lemma": "聞く", "required_features": ["respectful_benefactive"]}
+{"id": "review-0141", "category": "benefactive", "text": "先生が聞いてくださった。", "surface": "聞いてくださった", "lemma": "聞く", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0142", "category": "benefactive", "text": "先生が聞いてくださらなかった。", "surface": "聞いてくださらなかった", "lemma": "聞く", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0143", "category": "benefactive", "text": "先生に聞いていただく。", "surface": "聞いていただく", "lemma": "聞く", "required_features": ["humble_benefactive"]}
+{"id": "review-0144", "category": "benefactive", "text": "先生に聞いていただいた。", "surface": "聞いていただいた", "lemma": "聞く", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0145", "category": "benefactive", "text": "先生に聞いていただきませんでした。", "surface": "聞いていただきませんでした", "lemma": "聞く", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0146", "category": "benefactive", "text": "友達に聞いてもらう。", "surface": "聞いてもらう", "lemma": "聞く", "required_features": ["benefactive"]}
+{"id": "review-0147", "category": "benefactive", "text": "友達が聞いてくれる。", "surface": "聞いてくれる", "lemma": "聞く", "required_features": ["benefactive"]}
+{"id": "review-0148", "category": "benefactive", "text": "私が聞いてあげる。", "surface": "聞いてあげる", "lemma": "聞く", "required_features": ["benefactive"]}
+{"id": "review-0149", "category": "auxiliary", "text": "私が聞いてしまった。", "surface": "聞いてしまった", "lemma": "聞く", "required_features": ["completion", "past"]}
+{"id": "review-0150", "category": "auxiliary", "text": "私が聞いてみた。", "surface": "聞いてみた", "lemma": "聞く", "required_features": ["trial", "past"]}
+{"id": "review-0151", "category": "causative", "text": "先生に聞かせていただく。", "surface": "聞かせていただく", "lemma": "聞く", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0152", "category": "causative", "text": "私は聞かせられなかった。", "surface": "聞かせられなかった", "lemma": "聞く", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0153", "category": "inflection", "text": "私が聞かない。", "surface": "聞かない", "lemma": "聞く", "required_features": ["negative"]}
+{"id": "review-0154", "category": "inflection", "text": "私が聞かなかった。", "surface": "聞かなかった", "lemma": "聞く", "required_features": ["negative", "past"]}
+{"id": "review-0155", "category": "inflection", "text": "私が聞きます。", "surface": "聞きます", "lemma": "聞く", "required_features": ["polite"]}
+{"id": "review-0156", "category": "inflection", "text": "私が聞きました。", "surface": "聞きました", "lemma": "聞く", "required_features": ["polite", "past"]}
+{"id": "review-0157", "category": "inflection", "text": "私が聞いて。", "surface": "聞いて", "lemma": "聞く", "required_features": ["te_form"]}
+{"id": "review-0158", "category": "inflection", "text": "私が聞いた。", "surface": "聞いた", "lemma": "聞く", "required_features": ["past"]}
+{"id": "review-0159", "category": "inflection", "text": "私が聞けば。", "surface": "聞けば", "lemma": "聞く", "required_features": ["conditional"]}
+{"id": "review-0160", "category": "inflection", "text": "私が聞こう。", "surface": "聞こう", "lemma": "聞く", "required_features": ["volitional"]}
+{"id": "review-0161", "category": "honorific", "text": "先生がお待ちになる。", "surface": "お待ちになる", "lemma": "待つ", "required_features": ["honorific"]}
+{"id": "review-0162", "category": "honorific", "text": "先生がお待ちになりました。", "surface": "お待ちになりました", "lemma": "待つ", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0163", "category": "honorific", "text": "先生がお待ちにならなかった。", "surface": "お待ちにならなかった", "lemma": "待つ", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0164", "category": "honorific", "text": "先生がお待ちになっていた。", "surface": "お待ちになっていた", "lemma": "待つ", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0165", "category": "humble", "text": "私がお待ちする。", "surface": "お待ちする", "lemma": "待つ", "required_features": ["humble"]}
+{"id": "review-0166", "category": "humble", "text": "私がお待ちいたしました。", "surface": "お待ちいたしました", "lemma": "待つ", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0167", "category": "benefactive", "text": "先生がお待ちくださった。", "surface": "お待ちくださった", "lemma": "待つ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0168", "category": "benefactive", "text": "先生にお待ちいただきました。", "surface": "お待ちいただきました", "lemma": "待つ", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0169", "category": "auxiliary", "text": "私が待っている。", "surface": "待っている", "lemma": "待つ", "required_features": ["progressive_resultative"]}
+{"id": "review-0170", "category": "auxiliary", "text": "私が待っていた。", "surface": "待っていた", "lemma": "待つ", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0171", "category": "auxiliary", "text": "私が待っていません。", "surface": "待っていません", "lemma": "待つ", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0172", "category": "benefactive", "text": "先生が待ってくださる。", "surface": "待ってくださる", "lemma": "待つ", "required_features": ["respectful_benefactive"]}
+{"id": "review-0173", "category": "benefactive", "text": "先生が待ってくださった。", "surface": "待ってくださった", "lemma": "待つ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0174", "category": "benefactive", "text": "先生が待ってくださらなかった。", "surface": "待ってくださらなかった", "lemma": "待つ", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0175", "category": "benefactive", "text": "先生に待っていただく。", "surface": "待っていただく", "lemma": "待つ", "required_features": ["humble_benefactive"]}
+{"id": "review-0176", "category": "benefactive", "text": "先生に待っていただいた。", "surface": "待っていただいた", "lemma": "待つ", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0177", "category": "benefactive", "text": "先生に待っていただきませんでした。", "surface": "待っていただきませんでした", "lemma": "待つ", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0178", "category": "benefactive", "text": "友達に待ってもらう。", "surface": "待ってもらう", "lemma": "待つ", "required_features": ["benefactive"]}
+{"id": "review-0179", "category": "benefactive", "text": "友達が待ってくれる。", "surface": "待ってくれる", "lemma": "待つ", "required_features": ["benefactive"]}
+{"id": "review-0180", "category": "benefactive", "text": "私が待ってあげる。", "surface": "待ってあげる", "lemma": "待つ", "required_features": ["benefactive"]}
+{"id": "review-0181", "category": "auxiliary", "text": "私が待ってしまった。", "surface": "待ってしまった", "lemma": "待つ", "required_features": ["completion", "past"]}
+{"id": "review-0182", "category": "auxiliary", "text": "私が待ってみた。", "surface": "待ってみた", "lemma": "待つ", "required_features": ["trial", "past"]}
+{"id": "review-0183", "category": "causative", "text": "先生に待たせていただく。", "surface": "待たせていただく", "lemma": "待つ", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0184", "category": "causative", "text": "私は待たせられなかった。", "surface": "待たせられなかった", "lemma": "待つ", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0185", "category": "inflection", "text": "私が待たない。", "surface": "待たない", "lemma": "待つ", "required_features": ["negative"]}
+{"id": "review-0186", "category": "inflection", "text": "私が待たなかった。", "surface": "待たなかった", "lemma": "待つ", "required_features": ["negative", "past"]}
+{"id": "review-0187", "category": "inflection", "text": "私が待ちます。", "surface": "待ちます", "lemma": "待つ", "required_features": ["polite"]}
+{"id": "review-0188", "category": "inflection", "text": "私が待ちました。", "surface": "待ちました", "lemma": "待つ", "required_features": ["polite", "past"]}
+{"id": "review-0189", "category": "inflection", "text": "私が待って。", "surface": "待って", "lemma": "待つ", "required_features": ["te_form"]}
+{"id": "review-0190", "category": "inflection", "text": "私が待った。", "surface": "待った", "lemma": "待つ", "required_features": ["past"]}
+{"id": "review-0191", "category": "inflection", "text": "私が待てば。", "surface": "待てば", "lemma": "待つ", "required_features": ["conditional"]}
+{"id": "review-0192", "category": "inflection", "text": "私が待とう。", "surface": "待とう", "lemma": "待つ", "required_features": ["volitional"]}
+{"id": "review-0193", "category": "honorific", "text": "先生がお買いになる。", "surface": "お買いになる", "lemma": "買う", "required_features": ["honorific"]}
+{"id": "review-0194", "category": "honorific", "text": "先生がお買いになりました。", "surface": "お買いになりました", "lemma": "買う", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0195", "category": "honorific", "text": "先生がお買いにならなかった。", "surface": "お買いにならなかった", "lemma": "買う", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0196", "category": "honorific", "text": "先生がお買いになっていた。", "surface": "お買いになっていた", "lemma": "買う", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0197", "category": "humble", "text": "私がお買いする。", "surface": "お買いする", "lemma": "買う", "required_features": ["humble"]}
+{"id": "review-0198", "category": "humble", "text": "私がお買いいたしました。", "surface": "お買いいたしました", "lemma": "買う", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0199", "category": "benefactive", "text": "先生がお買いくださった。", "surface": "お買いくださった", "lemma": "買う", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0200", "category": "benefactive", "text": "先生にお買いいただきました。", "surface": "お買いいただきました", "lemma": "買う", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0201", "category": "auxiliary", "text": "私が買っている。", "surface": "買っている", "lemma": "買う", "required_features": ["progressive_resultative"]}
+{"id": "review-0202", "category": "auxiliary", "text": "私が買っていた。", "surface": "買っていた", "lemma": "買う", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0203", "category": "auxiliary", "text": "私が買っていません。", "surface": "買っていません", "lemma": "買う", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0204", "category": "benefactive", "text": "先生が買ってくださる。", "surface": "買ってくださる", "lemma": "買う", "required_features": ["respectful_benefactive"]}
+{"id": "review-0205", "category": "benefactive", "text": "先生が買ってくださった。", "surface": "買ってくださった", "lemma": "買う", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0206", "category": "benefactive", "text": "先生が買ってくださらなかった。", "surface": "買ってくださらなかった", "lemma": "買う", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0207", "category": "benefactive", "text": "先生に買っていただく。", "surface": "買っていただく", "lemma": "買う", "required_features": ["humble_benefactive"]}
+{"id": "review-0208", "category": "benefactive", "text": "先生に買っていただいた。", "surface": "買っていただいた", "lemma": "買う", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0209", "category": "benefactive", "text": "先生に買っていただきませんでした。", "surface": "買っていただきませんでした", "lemma": "買う", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0210", "category": "benefactive", "text": "友達に買ってもらう。", "surface": "買ってもらう", "lemma": "買う", "required_features": ["benefactive"]}
+{"id": "review-0211", "category": "benefactive", "text": "友達が買ってくれる。", "surface": "買ってくれる", "lemma": "買う", "required_features": ["benefactive"]}
+{"id": "review-0212", "category": "benefactive", "text": "私が買ってあげる。", "surface": "買ってあげる", "lemma": "買う", "required_features": ["benefactive"]}
+{"id": "review-0213", "category": "auxiliary", "text": "私が買ってしまった。", "surface": "買ってしまった", "lemma": "買う", "required_features": ["completion", "past"]}
+{"id": "review-0214", "category": "auxiliary", "text": "私が買ってみた。", "surface": "買ってみた", "lemma": "買う", "required_features": ["trial", "past"]}
+{"id": "review-0215", "category": "causative", "text": "先生に買わせていただく。", "surface": "買わせていただく", "lemma": "買う", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0216", "category": "causative", "text": "私は買わせられなかった。", "surface": "買わせられなかった", "lemma": "買う", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0217", "category": "inflection", "text": "私が買わない。", "surface": "買わない", "lemma": "買う", "required_features": ["negative"]}
+{"id": "review-0218", "category": "inflection", "text": "私が買わなかった。", "surface": "買わなかった", "lemma": "買う", "required_features": ["negative", "past"]}
+{"id": "review-0219", "category": "inflection", "text": "私が買います。", "surface": "買います", "lemma": "買う", "required_features": ["polite"]}
+{"id": "review-0220", "category": "inflection", "text": "私が買いました。", "surface": "買いました", "lemma": "買う", "required_features": ["polite", "past"]}
+{"id": "review-0221", "category": "inflection", "text": "私が買って。", "surface": "買って", "lemma": "買う", "required_features": ["te_form"]}
+{"id": "review-0222", "category": "inflection", "text": "私が買った。", "surface": "買った", "lemma": "買う", "required_features": ["past"]}
+{"id": "review-0223", "category": "inflection", "text": "私が買えば。", "surface": "買えば", "lemma": "買う", "required_features": ["conditional"]}
+{"id": "review-0224", "category": "inflection", "text": "私が買おう。", "surface": "買おう", "lemma": "買う", "required_features": ["volitional"]}
+{"id": "review-0225", "category": "honorific", "text": "先生がお飲みになる。", "surface": "お飲みになる", "lemma": "飲む", "required_features": ["honorific"]}
+{"id": "review-0226", "category": "honorific", "text": "先生がお飲みになりました。", "surface": "お飲みになりました", "lemma": "飲む", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0227", "category": "honorific", "text": "先生がお飲みにならなかった。", "surface": "お飲みにならなかった", "lemma": "飲む", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0228", "category": "honorific", "text": "先生がお飲みになっていた。", "surface": "お飲みになっていた", "lemma": "飲む", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0229", "category": "humble", "text": "私がお飲みする。", "surface": "お飲みする", "lemma": "飲む", "required_features": ["humble"]}
+{"id": "review-0230", "category": "humble", "text": "私がお飲みいたしました。", "surface": "お飲みいたしました", "lemma": "飲む", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0231", "category": "benefactive", "text": "先生がお飲みくださった。", "surface": "お飲みくださった", "lemma": "飲む", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0232", "category": "benefactive", "text": "先生にお飲みいただきました。", "surface": "お飲みいただきました", "lemma": "飲む", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0233", "category": "auxiliary", "text": "私が飲んでいる。", "surface": "飲んでいる", "lemma": "飲む", "required_features": ["progressive_resultative"]}
+{"id": "review-0234", "category": "auxiliary", "text": "私が飲んでいた。", "surface": "飲んでいた", "lemma": "飲む", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0235", "category": "auxiliary", "text": "私が飲んでいません。", "surface": "飲んでいません", "lemma": "飲む", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0236", "category": "benefactive", "text": "先生が飲んでくださる。", "surface": "飲んでくださる", "lemma": "飲む", "required_features": ["respectful_benefactive"]}
+{"id": "review-0237", "category": "benefactive", "text": "先生が飲んでくださった。", "surface": "飲んでくださった", "lemma": "飲む", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0238", "category": "benefactive", "text": "先生が飲んでくださらなかった。", "surface": "飲んでくださらなかった", "lemma": "飲む", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0239", "category": "benefactive", "text": "先生に飲んでいただく。", "surface": "飲んでいただく", "lemma": "飲む", "required_features": ["humble_benefactive"]}
+{"id": "review-0240", "category": "benefactive", "text": "先生に飲んでいただいた。", "surface": "飲んでいただいた", "lemma": "飲む", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0241", "category": "benefactive", "text": "先生に飲んでいただきませんでした。", "surface": "飲んでいただきませんでした", "lemma": "飲む", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0242", "category": "benefactive", "text": "友達に飲んでもらう。", "surface": "飲んでもらう", "lemma": "飲む", "required_features": ["benefactive"]}
+{"id": "review-0243", "category": "benefactive", "text": "友達が飲んでくれる。", "surface": "飲んでくれる", "lemma": "飲む", "required_features": ["benefactive"]}
+{"id": "review-0244", "category": "benefactive", "text": "私が飲んであげる。", "surface": "飲んであげる", "lemma": "飲む", "required_features": ["benefactive"]}
+{"id": "review-0245", "category": "auxiliary", "text": "私が飲んでしまった。", "surface": "飲んでしまった", "lemma": "飲む", "required_features": ["completion", "past"]}
+{"id": "review-0246", "category": "auxiliary", "text": "私が飲んでみた。", "surface": "飲んでみた", "lemma": "飲む", "required_features": ["trial", "past"]}
+{"id": "review-0247", "category": "causative", "text": "先生に飲ませていただく。", "surface": "飲ませていただく", "lemma": "飲む", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0248", "category": "causative", "text": "私は飲ませられなかった。", "surface": "飲ませられなかった", "lemma": "飲む", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0249", "category": "inflection", "text": "私が飲まない。", "surface": "飲まない", "lemma": "飲む", "required_features": ["negative"]}
+{"id": "review-0250", "category": "inflection", "text": "私が飲まなかった。", "surface": "飲まなかった", "lemma": "飲む", "required_features": ["negative", "past"]}
+{"id": "review-0251", "category": "inflection", "text": "私が飲みます。", "surface": "飲みます", "lemma": "飲む", "required_features": ["polite"]}
+{"id": "review-0252", "category": "inflection", "text": "私が飲みました。", "surface": "飲みました", "lemma": "飲む", "required_features": ["polite", "past"]}
+{"id": "review-0253", "category": "inflection", "text": "私が飲んで。", "surface": "飲んで", "lemma": "飲む", "required_features": ["te_form"]}
+{"id": "review-0254", "category": "inflection", "text": "私が飲んだ。", "surface": "飲んだ", "lemma": "飲む", "required_features": ["past"]}
+{"id": "review-0255", "category": "inflection", "text": "私が飲めば。", "surface": "飲めば", "lemma": "飲む", "required_features": ["conditional"]}
+{"id": "review-0256", "category": "inflection", "text": "私が飲もう。", "surface": "飲もう", "lemma": "飲む", "required_features": ["volitional"]}
+{"id": "review-0257", "category": "honorific", "text": "先生がお遊びになる。", "surface": "お遊びになる", "lemma": "遊ぶ", "required_features": ["honorific"]}
+{"id": "review-0258", "category": "honorific", "text": "先生がお遊びになりました。", "surface": "お遊びになりました", "lemma": "遊ぶ", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0259", "category": "honorific", "text": "先生がお遊びにならなかった。", "surface": "お遊びにならなかった", "lemma": "遊ぶ", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0260", "category": "honorific", "text": "先生がお遊びになっていた。", "surface": "お遊びになっていた", "lemma": "遊ぶ", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0261", "category": "humble", "text": "私がお遊びする。", "surface": "お遊びする", "lemma": "遊ぶ", "required_features": ["humble"]}
+{"id": "review-0262", "category": "humble", "text": "私がお遊びいたしました。", "surface": "お遊びいたしました", "lemma": "遊ぶ", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0263", "category": "benefactive", "text": "先生がお遊びくださった。", "surface": "お遊びくださった", "lemma": "遊ぶ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0264", "category": "benefactive", "text": "先生にお遊びいただきました。", "surface": "お遊びいただきました", "lemma": "遊ぶ", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0265", "category": "auxiliary", "text": "私が遊んでいる。", "surface": "遊んでいる", "lemma": "遊ぶ", "required_features": ["progressive_resultative"]}
+{"id": "review-0266", "category": "auxiliary", "text": "私が遊んでいた。", "surface": "遊んでいた", "lemma": "遊ぶ", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0267", "category": "auxiliary", "text": "私が遊んでいません。", "surface": "遊んでいません", "lemma": "遊ぶ", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0268", "category": "benefactive", "text": "先生が遊んでくださる。", "surface": "遊んでくださる", "lemma": "遊ぶ", "required_features": ["respectful_benefactive"]}
+{"id": "review-0269", "category": "benefactive", "text": "先生が遊んでくださった。", "surface": "遊んでくださった", "lemma": "遊ぶ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0270", "category": "benefactive", "text": "先生が遊んでくださらなかった。", "surface": "遊んでくださらなかった", "lemma": "遊ぶ", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0271", "category": "benefactive", "text": "先生に遊んでいただく。", "surface": "遊んでいただく", "lemma": "遊ぶ", "required_features": ["humble_benefactive"]}
+{"id": "review-0272", "category": "benefactive", "text": "先生に遊んでいただいた。", "surface": "遊んでいただいた", "lemma": "遊ぶ", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0273", "category": "benefactive", "text": "先生に遊んでいただきませんでした。", "surface": "遊んでいただきませんでした", "lemma": "遊ぶ", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0274", "category": "benefactive", "text": "友達に遊んでもらう。", "surface": "遊んでもらう", "lemma": "遊ぶ", "required_features": ["benefactive"]}
+{"id": "review-0275", "category": "benefactive", "text": "友達が遊んでくれる。", "surface": "遊んでくれる", "lemma": "遊ぶ", "required_features": ["benefactive"]}
+{"id": "review-0276", "category": "benefactive", "text": "私が遊んであげる。", "surface": "遊んであげる", "lemma": "遊ぶ", "required_features": ["benefactive"]}
+{"id": "review-0277", "category": "auxiliary", "text": "私が遊んでしまった。", "surface": "遊んでしまった", "lemma": "遊ぶ", "required_features": ["completion", "past"]}
+{"id": "review-0278", "category": "auxiliary", "text": "私が遊んでみた。", "surface": "遊んでみた", "lemma": "遊ぶ", "required_features": ["trial", "past"]}
+{"id": "review-0279", "category": "causative", "text": "先生に遊ばせていただく。", "surface": "遊ばせていただく", "lemma": "遊ぶ", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0280", "category": "causative", "text": "私は遊ばせられなかった。", "surface": "遊ばせられなかった", "lemma": "遊ぶ", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0281", "category": "inflection", "text": "私が遊ばない。", "surface": "遊ばない", "lemma": "遊ぶ", "required_features": ["negative"]}
+{"id": "review-0282", "category": "inflection", "text": "私が遊ばなかった。", "surface": "遊ばなかった", "lemma": "遊ぶ", "required_features": ["negative", "past"]}
+{"id": "review-0283", "category": "inflection", "text": "私が遊びます。", "surface": "遊びます", "lemma": "遊ぶ", "required_features": ["polite"]}
+{"id": "review-0284", "category": "inflection", "text": "私が遊びました。", "surface": "遊びました", "lemma": "遊ぶ", "required_features": ["polite", "past"]}
+{"id": "review-0285", "category": "inflection", "text": "私が遊んで。", "surface": "遊んで", "lemma": "遊ぶ", "required_features": ["te_form"]}
+{"id": "review-0286", "category": "inflection", "text": "私が遊んだ。", "surface": "遊んだ", "lemma": "遊ぶ", "required_features": ["past"]}
+{"id": "review-0287", "category": "inflection", "text": "私が遊べば。", "surface": "遊べば", "lemma": "遊ぶ", "required_features": ["conditional"]}
+{"id": "review-0288", "category": "inflection", "text": "私が遊ぼう。", "surface": "遊ぼう", "lemma": "遊ぶ", "required_features": ["volitional"]}
+{"id": "review-0289", "category": "honorific", "text": "先生がお帰りになる。", "surface": "お帰りになる", "lemma": "帰る", "required_features": ["honorific"]}
+{"id": "review-0290", "category": "honorific", "text": "先生がお帰りになりました。", "surface": "お帰りになりました", "lemma": "帰る", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0291", "category": "honorific", "text": "先生がお帰りにならなかった。", "surface": "お帰りにならなかった", "lemma": "帰る", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0292", "category": "honorific", "text": "先生がお帰りになっていた。", "surface": "お帰りになっていた", "lemma": "帰る", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0293", "category": "humble", "text": "私がお帰りする。", "surface": "お帰りする", "lemma": "帰る", "required_features": ["humble"]}
+{"id": "review-0294", "category": "humble", "text": "私がお帰りいたしました。", "surface": "お帰りいたしました", "lemma": "帰る", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0295", "category": "benefactive", "text": "先生がお帰りくださった。", "surface": "お帰りくださった", "lemma": "帰る", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0296", "category": "benefactive", "text": "先生にお帰りいただきました。", "surface": "お帰りいただきました", "lemma": "帰る", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0297", "category": "auxiliary", "text": "私が帰っている。", "surface": "帰っている", "lemma": "帰る", "required_features": ["progressive_resultative"]}
+{"id": "review-0298", "category": "auxiliary", "text": "私が帰っていた。", "surface": "帰っていた", "lemma": "帰る", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0299", "category": "auxiliary", "text": "私が帰っていません。", "surface": "帰っていません", "lemma": "帰る", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0300", "category": "benefactive", "text": "先生が帰ってくださる。", "surface": "帰ってくださる", "lemma": "帰る", "required_features": ["respectful_benefactive"]}
+{"id": "review-0301", "category": "benefactive", "text": "先生が帰ってくださった。", "surface": "帰ってくださった", "lemma": "帰る", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0302", "category": "benefactive", "text": "先生が帰ってくださらなかった。", "surface": "帰ってくださらなかった", "lemma": "帰る", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0303", "category": "benefactive", "text": "先生に帰っていただく。", "surface": "帰っていただく", "lemma": "帰る", "required_features": ["humble_benefactive"]}
+{"id": "review-0304", "category": "benefactive", "text": "先生に帰っていただいた。", "surface": "帰っていただいた", "lemma": "帰る", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0305", "category": "benefactive", "text": "先生に帰っていただきませんでした。", "surface": "帰っていただきませんでした", "lemma": "帰る", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0306", "category": "benefactive", "text": "友達に帰ってもらう。", "surface": "帰ってもらう", "lemma": "帰る", "required_features": ["benefactive"]}
+{"id": "review-0307", "category": "benefactive", "text": "友達が帰ってくれる。", "surface": "帰ってくれる", "lemma": "帰る", "required_features": ["benefactive"]}
+{"id": "review-0308", "category": "benefactive", "text": "私が帰ってあげる。", "surface": "帰ってあげる", "lemma": "帰る", "required_features": ["benefactive"]}
+{"id": "review-0309", "category": "auxiliary", "text": "私が帰ってしまった。", "surface": "帰ってしまった", "lemma": "帰る", "required_features": ["completion", "past"]}
+{"id": "review-0310", "category": "auxiliary", "text": "私が帰ってみた。", "surface": "帰ってみた", "lemma": "帰る", "required_features": ["trial", "past"]}
+{"id": "review-0311", "category": "causative", "text": "先生に帰らせていただく。", "surface": "帰らせていただく", "lemma": "帰る", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0312", "category": "causative", "text": "私は帰らせられなかった。", "surface": "帰らせられなかった", "lemma": "帰る", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0313", "category": "inflection", "text": "私が帰らない。", "surface": "帰らない", "lemma": "帰る", "required_features": ["negative"]}
+{"id": "review-0314", "category": "inflection", "text": "私が帰らなかった。", "surface": "帰らなかった", "lemma": "帰る", "required_features": ["negative", "past"]}
+{"id": "review-0315", "category": "inflection", "text": "私が帰ります。", "surface": "帰ります", "lemma": "帰る", "required_features": ["polite"]}
+{"id": "review-0316", "category": "inflection", "text": "私が帰りました。", "surface": "帰りました", "lemma": "帰る", "required_features": ["polite", "past"]}
+{"id": "review-0317", "category": "inflection", "text": "私が帰って。", "surface": "帰って", "lemma": "帰る", "required_features": ["te_form"]}
+{"id": "review-0318", "category": "inflection", "text": "私が帰った。", "surface": "帰った", "lemma": "帰る", "required_features": ["past"]}
+{"id": "review-0319", "category": "inflection", "text": "私が帰れば。", "surface": "帰れば", "lemma": "帰る", "required_features": ["conditional"]}
+{"id": "review-0320", "category": "inflection", "text": "私が帰ろう。", "surface": "帰ろう", "lemma": "帰る", "required_features": ["volitional"]}
+{"id": "review-0321", "category": "honorific", "text": "先生がお泳ぎになる。", "surface": "お泳ぎになる", "lemma": "泳ぐ", "required_features": ["honorific"]}
+{"id": "review-0322", "category": "honorific", "text": "先生がお泳ぎになりました。", "surface": "お泳ぎになりました", "lemma": "泳ぐ", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0323", "category": "honorific", "text": "先生がお泳ぎにならなかった。", "surface": "お泳ぎにならなかった", "lemma": "泳ぐ", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0324", "category": "honorific", "text": "先生がお泳ぎになっていた。", "surface": "お泳ぎになっていた", "lemma": "泳ぐ", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0325", "category": "humble", "text": "私がお泳ぎする。", "surface": "お泳ぎする", "lemma": "泳ぐ", "required_features": ["humble"]}
+{"id": "review-0326", "category": "humble", "text": "私がお泳ぎいたしました。", "surface": "お泳ぎいたしました", "lemma": "泳ぐ", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0327", "category": "benefactive", "text": "先生がお泳ぎくださった。", "surface": "お泳ぎくださった", "lemma": "泳ぐ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0328", "category": "benefactive", "text": "先生にお泳ぎいただきました。", "surface": "お泳ぎいただきました", "lemma": "泳ぐ", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0329", "category": "auxiliary", "text": "私が泳いでいる。", "surface": "泳いでいる", "lemma": "泳ぐ", "required_features": ["progressive_resultative"]}
+{"id": "review-0330", "category": "auxiliary", "text": "私が泳いでいた。", "surface": "泳いでいた", "lemma": "泳ぐ", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0331", "category": "auxiliary", "text": "私が泳いでいません。", "surface": "泳いでいません", "lemma": "泳ぐ", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0332", "category": "benefactive", "text": "先生が泳いでくださる。", "surface": "泳いでくださる", "lemma": "泳ぐ", "required_features": ["respectful_benefactive"]}
+{"id": "review-0333", "category": "benefactive", "text": "先生が泳いでくださった。", "surface": "泳いでくださった", "lemma": "泳ぐ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0334", "category": "benefactive", "text": "先生が泳いでくださらなかった。", "surface": "泳いでくださらなかった", "lemma": "泳ぐ", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0335", "category": "benefactive", "text": "先生に泳いでいただく。", "surface": "泳いでいただく", "lemma": "泳ぐ", "required_features": ["humble_benefactive"]}
+{"id": "review-0336", "category": "benefactive", "text": "先生に泳いでいただいた。", "surface": "泳いでいただいた", "lemma": "泳ぐ", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0337", "category": "benefactive", "text": "先生に泳いでいただきませんでした。", "surface": "泳いでいただきませんでした", "lemma": "泳ぐ", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0338", "category": "benefactive", "text": "友達に泳いでもらう。", "surface": "泳いでもらう", "lemma": "泳ぐ", "required_features": ["benefactive"]}
+{"id": "review-0339", "category": "benefactive", "text": "友達が泳いでくれる。", "surface": "泳いでくれる", "lemma": "泳ぐ", "required_features": ["benefactive"]}
+{"id": "review-0340", "category": "benefactive", "text": "私が泳いであげる。", "surface": "泳いであげる", "lemma": "泳ぐ", "required_features": ["benefactive"]}
+{"id": "review-0341", "category": "auxiliary", "text": "私が泳いでしまった。", "surface": "泳いでしまった", "lemma": "泳ぐ", "required_features": ["completion", "past"]}
+{"id": "review-0342", "category": "auxiliary", "text": "私が泳いでみた。", "surface": "泳いでみた", "lemma": "泳ぐ", "required_features": ["trial", "past"]}
+{"id": "review-0343", "category": "causative", "text": "先生に泳がせていただく。", "surface": "泳がせていただく", "lemma": "泳ぐ", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0344", "category": "causative", "text": "私は泳がせられなかった。", "surface": "泳がせられなかった", "lemma": "泳ぐ", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0345", "category": "inflection", "text": "私が泳がない。", "surface": "泳がない", "lemma": "泳ぐ", "required_features": ["negative"]}
+{"id": "review-0346", "category": "inflection", "text": "私が泳がなかった。", "surface": "泳がなかった", "lemma": "泳ぐ", "required_features": ["negative", "past"]}
+{"id": "review-0347", "category": "inflection", "text": "私が泳ぎます。", "surface": "泳ぎます", "lemma": "泳ぐ", "required_features": ["polite"]}
+{"id": "review-0348", "category": "inflection", "text": "私が泳ぎました。", "surface": "泳ぎました", "lemma": "泳ぐ", "required_features": ["polite", "past"]}
+{"id": "review-0349", "category": "inflection", "text": "私が泳いで。", "surface": "泳いで", "lemma": "泳ぐ", "required_features": ["te_form"]}
+{"id": "review-0350", "category": "inflection", "text": "私が泳いだ。", "surface": "泳いだ", "lemma": "泳ぐ", "required_features": ["past"]}
+{"id": "review-0351", "category": "inflection", "text": "私が泳げば。", "surface": "泳げば", "lemma": "泳ぐ", "required_features": ["conditional"]}
+{"id": "review-0352", "category": "inflection", "text": "私が泳ごう。", "surface": "泳ごう", "lemma": "泳ぐ", "required_features": ["volitional"]}
+{"id": "review-0353", "category": "honorific", "text": "先生がお急ぎになる。", "surface": "お急ぎになる", "lemma": "急ぐ", "required_features": ["honorific"]}
+{"id": "review-0354", "category": "honorific", "text": "先生がお急ぎになりました。", "surface": "お急ぎになりました", "lemma": "急ぐ", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0355", "category": "honorific", "text": "先生がお急ぎにならなかった。", "surface": "お急ぎにならなかった", "lemma": "急ぐ", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0356", "category": "honorific", "text": "先生がお急ぎになっていた。", "surface": "お急ぎになっていた", "lemma": "急ぐ", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0357", "category": "humble", "text": "私がお急ぎする。", "surface": "お急ぎする", "lemma": "急ぐ", "required_features": ["humble"]}
+{"id": "review-0358", "category": "humble", "text": "私がお急ぎいたしました。", "surface": "お急ぎいたしました", "lemma": "急ぐ", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0359", "category": "benefactive", "text": "先生がお急ぎくださった。", "surface": "お急ぎくださった", "lemma": "急ぐ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0360", "category": "benefactive", "text": "先生にお急ぎいただきました。", "surface": "お急ぎいただきました", "lemma": "急ぐ", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0361", "category": "auxiliary", "text": "私が急いでいる。", "surface": "急いでいる", "lemma": "急ぐ", "required_features": ["progressive_resultative"]}
+{"id": "review-0362", "category": "auxiliary", "text": "私が急いでいた。", "surface": "急いでいた", "lemma": "急ぐ", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0363", "category": "auxiliary", "text": "私が急いでいません。", "surface": "急いでいません", "lemma": "急ぐ", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0364", "category": "benefactive", "text": "先生が急いでくださる。", "surface": "急いでくださる", "lemma": "急ぐ", "required_features": ["respectful_benefactive"]}
+{"id": "review-0365", "category": "benefactive", "text": "先生が急いでくださった。", "surface": "急いでくださった", "lemma": "急ぐ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0366", "category": "benefactive", "text": "先生が急いでくださらなかった。", "surface": "急いでくださらなかった", "lemma": "急ぐ", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0367", "category": "benefactive", "text": "先生に急いでいただく。", "surface": "急いでいただく", "lemma": "急ぐ", "required_features": ["humble_benefactive"]}
+{"id": "review-0368", "category": "benefactive", "text": "先生に急いでいただいた。", "surface": "急いでいただいた", "lemma": "急ぐ", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0369", "category": "benefactive", "text": "先生に急いでいただきませんでした。", "surface": "急いでいただきませんでした", "lemma": "急ぐ", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0370", "category": "benefactive", "text": "友達に急いでもらう。", "surface": "急いでもらう", "lemma": "急ぐ", "required_features": ["benefactive"]}
+{"id": "review-0371", "category": "benefactive", "text": "友達が急いでくれる。", "surface": "急いでくれる", "lemma": "急ぐ", "required_features": ["benefactive"]}
+{"id": "review-0372", "category": "benefactive", "text": "私が急いであげる。", "surface": "急いであげる", "lemma": "急ぐ", "required_features": ["benefactive"]}
+{"id": "review-0373", "category": "auxiliary", "text": "私が急いでしまった。", "surface": "急いでしまった", "lemma": "急ぐ", "required_features": ["completion", "past"]}
+{"id": "review-0374", "category": "auxiliary", "text": "私が急いでみた。", "surface": "急いでみた", "lemma": "急ぐ", "required_features": ["trial", "past"]}
+{"id": "review-0375", "category": "causative", "text": "先生に急がせていただく。", "surface": "急がせていただく", "lemma": "急ぐ", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0376", "category": "causative", "text": "私は急がせられなかった。", "surface": "急がせられなかった", "lemma": "急ぐ", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0377", "category": "inflection", "text": "私が急がない。", "surface": "急がない", "lemma": "急ぐ", "required_features": ["negative"]}
+{"id": "review-0378", "category": "inflection", "text": "私が急がなかった。", "surface": "急がなかった", "lemma": "急ぐ", "required_features": ["negative", "past"]}
+{"id": "review-0379", "category": "inflection", "text": "私が急ぎます。", "surface": "急ぎます", "lemma": "急ぐ", "required_features": ["polite"]}
+{"id": "review-0380", "category": "inflection", "text": "私が急ぎました。", "surface": "急ぎました", "lemma": "急ぐ", "required_features": ["polite", "past"]}
+{"id": "review-0381", "category": "inflection", "text": "私が急いで。", "surface": "急いで", "lemma": "急ぐ", "required_features": ["te_form"]}
+{"id": "review-0382", "category": "inflection", "text": "私が急いだ。", "surface": "急いだ", "lemma": "急ぐ", "required_features": ["past"]}
+{"id": "review-0383", "category": "inflection", "text": "私が急げば。", "surface": "急げば", "lemma": "急ぐ", "required_features": ["conditional"]}
+{"id": "review-0384", "category": "inflection", "text": "私が急ごう。", "surface": "急ごう", "lemma": "急ぐ", "required_features": ["volitional"]}
+{"id": "review-0385", "category": "honorific", "text": "先生がお使いになる。", "surface": "お使いになる", "lemma": "使う", "required_features": ["honorific"]}
+{"id": "review-0386", "category": "honorific", "text": "先生がお使いになりました。", "surface": "お使いになりました", "lemma": "使う", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0387", "category": "honorific", "text": "先生がお使いにならなかった。", "surface": "お使いにならなかった", "lemma": "使う", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0388", "category": "honorific", "text": "先生がお使いになっていた。", "surface": "お使いになっていた", "lemma": "使う", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0389", "category": "humble", "text": "私がお使いする。", "surface": "お使いする", "lemma": "使う", "required_features": ["humble"]}
+{"id": "review-0390", "category": "humble", "text": "私がお使いいたしました。", "surface": "お使いいたしました", "lemma": "使う", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0391", "category": "benefactive", "text": "先生がお使いくださった。", "surface": "お使いくださった", "lemma": "使う", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0392", "category": "benefactive", "text": "先生にお使いいただきました。", "surface": "お使いいただきました", "lemma": "使う", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0393", "category": "auxiliary", "text": "私が使っている。", "surface": "使っている", "lemma": "使う", "required_features": ["progressive_resultative"]}
+{"id": "review-0394", "category": "auxiliary", "text": "私が使っていた。", "surface": "使っていた", "lemma": "使う", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0395", "category": "auxiliary", "text": "私が使っていません。", "surface": "使っていません", "lemma": "使う", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0396", "category": "benefactive", "text": "先生が使ってくださる。", "surface": "使ってくださる", "lemma": "使う", "required_features": ["respectful_benefactive"]}
+{"id": "review-0397", "category": "benefactive", "text": "先生が使ってくださった。", "surface": "使ってくださった", "lemma": "使う", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0398", "category": "benefactive", "text": "先生が使ってくださらなかった。", "surface": "使ってくださらなかった", "lemma": "使う", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0399", "category": "benefactive", "text": "先生に使っていただく。", "surface": "使っていただく", "lemma": "使う", "required_features": ["humble_benefactive"]}
+{"id": "review-0400", "category": "benefactive", "text": "先生に使っていただいた。", "surface": "使っていただいた", "lemma": "使う", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0401", "category": "benefactive", "text": "先生に使っていただきませんでした。", "surface": "使っていただきませんでした", "lemma": "使う", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0402", "category": "benefactive", "text": "友達に使ってもらう。", "surface": "使ってもらう", "lemma": "使う", "required_features": ["benefactive"]}
+{"id": "review-0403", "category": "benefactive", "text": "友達が使ってくれる。", "surface": "使ってくれる", "lemma": "使う", "required_features": ["benefactive"]}
+{"id": "review-0404", "category": "benefactive", "text": "私が使ってあげる。", "surface": "使ってあげる", "lemma": "使う", "required_features": ["benefactive"]}
+{"id": "review-0405", "category": "auxiliary", "text": "私が使ってしまった。", "surface": "使ってしまった", "lemma": "使う", "required_features": ["completion", "past"]}
+{"id": "review-0406", "category": "auxiliary", "text": "私が使ってみた。", "surface": "使ってみた", "lemma": "使う", "required_features": ["trial", "past"]}
+{"id": "review-0407", "category": "causative", "text": "先生に使わせていただく。", "surface": "使わせていただく", "lemma": "使う", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0408", "category": "causative", "text": "私は使わせられなかった。", "surface": "使わせられなかった", "lemma": "使う", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0409", "category": "inflection", "text": "私が使わない。", "surface": "使わない", "lemma": "使う", "required_features": ["negative"]}
+{"id": "review-0410", "category": "inflection", "text": "私が使わなかった。", "surface": "使わなかった", "lemma": "使う", "required_features": ["negative", "past"]}
+{"id": "review-0411", "category": "inflection", "text": "私が使います。", "surface": "使います", "lemma": "使う", "required_features": ["polite"]}
+{"id": "review-0412", "category": "inflection", "text": "私が使いました。", "surface": "使いました", "lemma": "使う", "required_features": ["polite", "past"]}
+{"id": "review-0413", "category": "inflection", "text": "私が使って。", "surface": "使って", "lemma": "使う", "required_features": ["te_form"]}
+{"id": "review-0414", "category": "inflection", "text": "私が使った。", "surface": "使った", "lemma": "使う", "required_features": ["past"]}
+{"id": "review-0415", "category": "inflection", "text": "私が使えば。", "surface": "使えば", "lemma": "使う", "required_features": ["conditional"]}
+{"id": "review-0416", "category": "inflection", "text": "私が使おう。", "surface": "使おう", "lemma": "使う", "required_features": ["volitional"]}
+{"id": "review-0417", "category": "honorific", "text": "先生がお取りになる。", "surface": "お取りになる", "lemma": "取る", "required_features": ["honorific"]}
+{"id": "review-0418", "category": "honorific", "text": "先生がお取りになりました。", "surface": "お取りになりました", "lemma": "取る", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0419", "category": "honorific", "text": "先生がお取りにならなかった。", "surface": "お取りにならなかった", "lemma": "取る", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0420", "category": "honorific", "text": "先生がお取りになっていた。", "surface": "お取りになっていた", "lemma": "取る", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0421", "category": "humble", "text": "私がお取りする。", "surface": "お取りする", "lemma": "取る", "required_features": ["humble"]}
+{"id": "review-0422", "category": "humble", "text": "私がお取りいたしました。", "surface": "お取りいたしました", "lemma": "取る", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0423", "category": "benefactive", "text": "先生がお取りくださった。", "surface": "お取りくださった", "lemma": "取る", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0424", "category": "benefactive", "text": "先生にお取りいただきました。", "surface": "お取りいただきました", "lemma": "取る", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0425", "category": "auxiliary", "text": "私が取っている。", "surface": "取っている", "lemma": "取る", "required_features": ["progressive_resultative"]}
+{"id": "review-0426", "category": "auxiliary", "text": "私が取っていた。", "surface": "取っていた", "lemma": "取る", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0427", "category": "auxiliary", "text": "私が取っていません。", "surface": "取っていません", "lemma": "取る", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0428", "category": "benefactive", "text": "先生が取ってくださる。", "surface": "取ってくださる", "lemma": "取る", "required_features": ["respectful_benefactive"]}
+{"id": "review-0429", "category": "benefactive", "text": "先生が取ってくださった。", "surface": "取ってくださった", "lemma": "取る", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0430", "category": "benefactive", "text": "先生が取ってくださらなかった。", "surface": "取ってくださらなかった", "lemma": "取る", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0431", "category": "benefactive", "text": "先生に取っていただく。", "surface": "取っていただく", "lemma": "取る", "required_features": ["humble_benefactive"]}
+{"id": "review-0432", "category": "benefactive", "text": "先生に取っていただいた。", "surface": "取っていただいた", "lemma": "取る", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0433", "category": "benefactive", "text": "先生に取っていただきませんでした。", "surface": "取っていただきませんでした", "lemma": "取る", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0434", "category": "benefactive", "text": "友達に取ってもらう。", "surface": "取ってもらう", "lemma": "取る", "required_features": ["benefactive"]}
+{"id": "review-0435", "category": "benefactive", "text": "友達が取ってくれる。", "surface": "取ってくれる", "lemma": "取る", "required_features": ["benefactive"]}
+{"id": "review-0436", "category": "benefactive", "text": "私が取ってあげる。", "surface": "取ってあげる", "lemma": "取る", "required_features": ["benefactive"]}
+{"id": "review-0437", "category": "auxiliary", "text": "私が取ってしまった。", "surface": "取ってしまった", "lemma": "取る", "required_features": ["completion", "past"]}
+{"id": "review-0438", "category": "auxiliary", "text": "私が取ってみた。", "surface": "取ってみた", "lemma": "取る", "required_features": ["trial", "past"]}
+{"id": "review-0439", "category": "causative", "text": "先生に取らせていただく。", "surface": "取らせていただく", "lemma": "取る", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0440", "category": "causative", "text": "私は取らせられなかった。", "surface": "取らせられなかった", "lemma": "取る", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0441", "category": "inflection", "text": "私が取らない。", "surface": "取らない", "lemma": "取る", "required_features": ["negative"]}
+{"id": "review-0442", "category": "inflection", "text": "私が取らなかった。", "surface": "取らなかった", "lemma": "取る", "required_features": ["negative", "past"]}
+{"id": "review-0443", "category": "inflection", "text": "私が取ります。", "surface": "取ります", "lemma": "取る", "required_features": ["polite"]}
+{"id": "review-0444", "category": "inflection", "text": "私が取りました。", "surface": "取りました", "lemma": "取る", "required_features": ["polite", "past"]}
+{"id": "review-0445", "category": "inflection", "text": "私が取って。", "surface": "取って", "lemma": "取る", "required_features": ["te_form"]}
+{"id": "review-0446", "category": "inflection", "text": "私が取った。", "surface": "取った", "lemma": "取る", "required_features": ["past"]}
+{"id": "review-0447", "category": "inflection", "text": "私が取れば。", "surface": "取れば", "lemma": "取る", "required_features": ["conditional"]}
+{"id": "review-0448", "category": "inflection", "text": "私が取ろう。", "surface": "取ろう", "lemma": "取る", "required_features": ["volitional"]}
+{"id": "review-0449", "category": "honorific", "text": "先生がお運びになる。", "surface": "お運びになる", "lemma": "運ぶ", "required_features": ["honorific"]}
+{"id": "review-0450", "category": "honorific", "text": "先生がお運びになりました。", "surface": "お運びになりました", "lemma": "運ぶ", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0451", "category": "honorific", "text": "先生がお運びにならなかった。", "surface": "お運びにならなかった", "lemma": "運ぶ", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0452", "category": "honorific", "text": "先生がお運びになっていた。", "surface": "お運びになっていた", "lemma": "運ぶ", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0453", "category": "humble", "text": "私がお運びする。", "surface": "お運びする", "lemma": "運ぶ", "required_features": ["humble"]}
+{"id": "review-0454", "category": "humble", "text": "私がお運びいたしました。", "surface": "お運びいたしました", "lemma": "運ぶ", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0455", "category": "benefactive", "text": "先生がお運びくださった。", "surface": "お運びくださった", "lemma": "運ぶ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0456", "category": "benefactive", "text": "先生にお運びいただきました。", "surface": "お運びいただきました", "lemma": "運ぶ", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0457", "category": "auxiliary", "text": "私が運んでいる。", "surface": "運んでいる", "lemma": "運ぶ", "required_features": ["progressive_resultative"]}
+{"id": "review-0458", "category": "auxiliary", "text": "私が運んでいた。", "surface": "運んでいた", "lemma": "運ぶ", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0459", "category": "auxiliary", "text": "私が運んでいません。", "surface": "運んでいません", "lemma": "運ぶ", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0460", "category": "benefactive", "text": "先生が運んでくださる。", "surface": "運んでくださる", "lemma": "運ぶ", "required_features": ["respectful_benefactive"]}
+{"id": "review-0461", "category": "benefactive", "text": "先生が運んでくださった。", "surface": "運んでくださった", "lemma": "運ぶ", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0462", "category": "benefactive", "text": "先生が運んでくださらなかった。", "surface": "運んでくださらなかった", "lemma": "運ぶ", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0463", "category": "benefactive", "text": "先生に運んでいただく。", "surface": "運んでいただく", "lemma": "運ぶ", "required_features": ["humble_benefactive"]}
+{"id": "review-0464", "category": "benefactive", "text": "先生に運んでいただいた。", "surface": "運んでいただいた", "lemma": "運ぶ", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0465", "category": "benefactive", "text": "先生に運んでいただきませんでした。", "surface": "運んでいただきませんでした", "lemma": "運ぶ", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0466", "category": "benefactive", "text": "友達に運んでもらう。", "surface": "運んでもらう", "lemma": "運ぶ", "required_features": ["benefactive"]}
+{"id": "review-0467", "category": "benefactive", "text": "友達が運んでくれる。", "surface": "運んでくれる", "lemma": "運ぶ", "required_features": ["benefactive"]}
+{"id": "review-0468", "category": "benefactive", "text": "私が運んであげる。", "surface": "運んであげる", "lemma": "運ぶ", "required_features": ["benefactive"]}
+{"id": "review-0469", "category": "auxiliary", "text": "私が運んでしまった。", "surface": "運んでしまった", "lemma": "運ぶ", "required_features": ["completion", "past"]}
+{"id": "review-0470", "category": "auxiliary", "text": "私が運んでみた。", "surface": "運んでみた", "lemma": "運ぶ", "required_features": ["trial", "past"]}
+{"id": "review-0471", "category": "causative", "text": "先生に運ばせていただく。", "surface": "運ばせていただく", "lemma": "運ぶ", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0472", "category": "causative", "text": "私は運ばせられなかった。", "surface": "運ばせられなかった", "lemma": "運ぶ", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0473", "category": "inflection", "text": "私が運ばない。", "surface": "運ばない", "lemma": "運ぶ", "required_features": ["negative"]}
+{"id": "review-0474", "category": "inflection", "text": "私が運ばなかった。", "surface": "運ばなかった", "lemma": "運ぶ", "required_features": ["negative", "past"]}
+{"id": "review-0475", "category": "inflection", "text": "私が運びます。", "surface": "運びます", "lemma": "運ぶ", "required_features": ["polite"]}
+{"id": "review-0476", "category": "inflection", "text": "私が運びました。", "surface": "運びました", "lemma": "運ぶ", "required_features": ["polite", "past"]}
+{"id": "review-0477", "category": "inflection", "text": "私が運んで。", "surface": "運んで", "lemma": "運ぶ", "required_features": ["te_form"]}
+{"id": "review-0478", "category": "inflection", "text": "私が運んだ。", "surface": "運んだ", "lemma": "運ぶ", "required_features": ["past"]}
+{"id": "review-0479", "category": "inflection", "text": "私が運べば。", "surface": "運べば", "lemma": "運ぶ", "required_features": ["conditional"]}
+{"id": "review-0480", "category": "inflection", "text": "私が運ぼう。", "surface": "運ぼう", "lemma": "運ぶ", "required_features": ["volitional"]}
+{"id": "review-0481", "category": "honorific", "text": "先生がお食べになる。", "surface": "お食べになる", "lemma": "食べる", "required_features": ["honorific"]}
+{"id": "review-0482", "category": "honorific", "text": "先生がお食べになりました。", "surface": "お食べになりました", "lemma": "食べる", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0483", "category": "honorific", "text": "先生がお食べにならなかった。", "surface": "お食べにならなかった", "lemma": "食べる", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0484", "category": "honorific", "text": "先生がお食べになっていた。", "surface": "お食べになっていた", "lemma": "食べる", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0485", "category": "humble", "text": "私がお食べする。", "surface": "お食べする", "lemma": "食べる", "required_features": ["humble"]}
+{"id": "review-0486", "category": "humble", "text": "私がお食べいたしました。", "surface": "お食べいたしました", "lemma": "食べる", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0487", "category": "benefactive", "text": "先生がお食べくださった。", "surface": "お食べくださった", "lemma": "食べる", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0488", "category": "benefactive", "text": "先生にお食べいただきました。", "surface": "お食べいただきました", "lemma": "食べる", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0489", "category": "auxiliary", "text": "私が食べている。", "surface": "食べている", "lemma": "食べる", "required_features": ["progressive_resultative"]}
+{"id": "review-0490", "category": "auxiliary", "text": "私が食べていた。", "surface": "食べていた", "lemma": "食べる", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0491", "category": "auxiliary", "text": "私が食べていません。", "surface": "食べていません", "lemma": "食べる", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0492", "category": "benefactive", "text": "先生が食べてくださる。", "surface": "食べてくださる", "lemma": "食べる", "required_features": ["respectful_benefactive"]}
+{"id": "review-0493", "category": "benefactive", "text": "先生が食べてくださった。", "surface": "食べてくださった", "lemma": "食べる", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0494", "category": "benefactive", "text": "先生が食べてくださらなかった。", "surface": "食べてくださらなかった", "lemma": "食べる", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0495", "category": "benefactive", "text": "先生に食べていただく。", "surface": "食べていただく", "lemma": "食べる", "required_features": ["humble_benefactive"]}
+{"id": "review-0496", "category": "benefactive", "text": "先生に食べていただいた。", "surface": "食べていただいた", "lemma": "食べる", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0497", "category": "benefactive", "text": "先生に食べていただきませんでした。", "surface": "食べていただきませんでした", "lemma": "食べる", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0498", "category": "benefactive", "text": "友達に食べてもらう。", "surface": "食べてもらう", "lemma": "食べる", "required_features": ["benefactive"]}
+{"id": "review-0499", "category": "benefactive", "text": "友達が食べてくれる。", "surface": "食べてくれる", "lemma": "食べる", "required_features": ["benefactive"]}
+{"id": "review-0500", "category": "benefactive", "text": "私が食べてあげる。", "surface": "食べてあげる", "lemma": "食べる", "required_features": ["benefactive"]}
+{"id": "review-0501", "category": "auxiliary", "text": "私が食べてしまった。", "surface": "食べてしまった", "lemma": "食べる", "required_features": ["completion", "past"]}
+{"id": "review-0502", "category": "auxiliary", "text": "私が食べてみた。", "surface": "食べてみた", "lemma": "食べる", "required_features": ["trial", "past"]}
+{"id": "review-0503", "category": "causative", "text": "先生に食べさせていただく。", "surface": "食べさせていただく", "lemma": "食べる", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0504", "category": "causative", "text": "私は食べさせられなかった。", "surface": "食べさせられなかった", "lemma": "食べる", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0505", "category": "inflection", "text": "私が食べない。", "surface": "食べない", "lemma": "食べる", "required_features": ["negative"]}
+{"id": "review-0506", "category": "inflection", "text": "私が食べなかった。", "surface": "食べなかった", "lemma": "食べる", "required_features": ["negative", "past"]}
+{"id": "review-0507", "category": "inflection", "text": "私が食べます。", "surface": "食べます", "lemma": "食べる", "required_features": ["polite"]}
+{"id": "review-0508", "category": "inflection", "text": "私が食べました。", "surface": "食べました", "lemma": "食べる", "required_features": ["polite", "past"]}
+{"id": "review-0509", "category": "inflection", "text": "私が食べて。", "surface": "食べて", "lemma": "食べる", "required_features": ["te_form"]}
+{"id": "review-0510", "category": "inflection", "text": "私が食べた。", "surface": "食べた", "lemma": "食べる", "required_features": ["past"]}
+{"id": "review-0511", "category": "inflection", "text": "私が食べれば。", "surface": "食べれば", "lemma": "食べる", "required_features": ["conditional"]}
+{"id": "review-0512", "category": "inflection", "text": "私が食べよう。", "surface": "食べよう", "lemma": "食べる", "required_features": ["volitional"]}
+{"id": "review-0513", "category": "honorific", "text": "先生がお見になる。", "surface": "お見になる", "lemma": "見る", "required_features": ["honorific"]}
+{"id": "review-0514", "category": "honorific", "text": "先生がお見になりました。", "surface": "お見になりました", "lemma": "見る", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0515", "category": "honorific", "text": "先生がお見にならなかった。", "surface": "お見にならなかった", "lemma": "見る", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0516", "category": "honorific", "text": "先生がお見になっていた。", "surface": "お見になっていた", "lemma": "見る", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0517", "category": "humble", "text": "私がお見する。", "surface": "お見する", "lemma": "見る", "required_features": ["humble"]}
+{"id": "review-0518", "category": "humble", "text": "私がお見いたしました。", "surface": "お見いたしました", "lemma": "見る", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0519", "category": "benefactive", "text": "先生がお見くださった。", "surface": "お見くださった", "lemma": "見る", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0520", "category": "benefactive", "text": "先生にお見いただきました。", "surface": "お見いただきました", "lemma": "見る", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0521", "category": "auxiliary", "text": "私が見ている。", "surface": "見ている", "lemma": "見る", "required_features": ["progressive_resultative"]}
+{"id": "review-0522", "category": "auxiliary", "text": "私が見ていた。", "surface": "見ていた", "lemma": "見る", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0523", "category": "auxiliary", "text": "私が見ていません。", "surface": "見ていません", "lemma": "見る", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0524", "category": "benefactive", "text": "先生が見てくださる。", "surface": "見てくださる", "lemma": "見る", "required_features": ["respectful_benefactive"]}
+{"id": "review-0525", "category": "benefactive", "text": "先生が見てくださった。", "surface": "見てくださった", "lemma": "見る", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0526", "category": "benefactive", "text": "先生が見てくださらなかった。", "surface": "見てくださらなかった", "lemma": "見る", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0527", "category": "benefactive", "text": "先生に見ていただく。", "surface": "見ていただく", "lemma": "見る", "required_features": ["humble_benefactive"]}
+{"id": "review-0528", "category": "benefactive", "text": "先生に見ていただいた。", "surface": "見ていただいた", "lemma": "見る", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0529", "category": "benefactive", "text": "先生に見ていただきませんでした。", "surface": "見ていただきませんでした", "lemma": "見る", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0530", "category": "benefactive", "text": "友達に見てもらう。", "surface": "見てもらう", "lemma": "見る", "required_features": ["benefactive"]}
+{"id": "review-0531", "category": "benefactive", "text": "友達が見てくれる。", "surface": "見てくれる", "lemma": "見る", "required_features": ["benefactive"]}
+{"id": "review-0532", "category": "benefactive", "text": "私が見てあげる。", "surface": "見てあげる", "lemma": "見る", "required_features": ["benefactive"]}
+{"id": "review-0533", "category": "auxiliary", "text": "私が見てしまった。", "surface": "見てしまった", "lemma": "見る", "required_features": ["completion", "past"]}
+{"id": "review-0534", "category": "auxiliary", "text": "私が見てみた。", "surface": "見てみた", "lemma": "見る", "required_features": ["trial", "past"]}
+{"id": "review-0535", "category": "causative", "text": "先生に見させていただく。", "surface": "見させていただく", "lemma": "見る", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0536", "category": "causative", "text": "私は見させられなかった。", "surface": "見させられなかった", "lemma": "見る", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0537", "category": "inflection", "text": "私が見ない。", "surface": "見ない", "lemma": "見る", "required_features": ["negative"]}
+{"id": "review-0538", "category": "inflection", "text": "私が見なかった。", "surface": "見なかった", "lemma": "見る", "required_features": ["negative", "past"]}
+{"id": "review-0539", "category": "inflection", "text": "私が見ます。", "surface": "見ます", "lemma": "見る", "required_features": ["polite"]}
+{"id": "review-0540", "category": "inflection", "text": "私が見ました。", "surface": "見ました", "lemma": "見る", "required_features": ["polite", "past"]}
+{"id": "review-0541", "category": "inflection", "text": "私が見て。", "surface": "見て", "lemma": "見る", "required_features": ["te_form"]}
+{"id": "review-0542", "category": "inflection", "text": "私が見た。", "surface": "見た", "lemma": "見る", "required_features": ["past"]}
+{"id": "review-0543", "category": "inflection", "text": "私が見れば。", "surface": "見れば", "lemma": "見る", "required_features": ["conditional"]}
+{"id": "review-0544", "category": "inflection", "text": "私が見よう。", "surface": "見よう", "lemma": "見る", "required_features": ["volitional"]}
+{"id": "review-0545", "category": "honorific", "text": "先生がお起きになる。", "surface": "お起きになる", "lemma": "起きる", "required_features": ["honorific"]}
+{"id": "review-0546", "category": "honorific", "text": "先生がお起きになりました。", "surface": "お起きになりました", "lemma": "起きる", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0547", "category": "honorific", "text": "先生がお起きにならなかった。", "surface": "お起きにならなかった", "lemma": "起きる", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0548", "category": "honorific", "text": "先生がお起きになっていた。", "surface": "お起きになっていた", "lemma": "起きる", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0549", "category": "humble", "text": "私がお起きする。", "surface": "お起きする", "lemma": "起きる", "required_features": ["humble"]}
+{"id": "review-0550", "category": "humble", "text": "私がお起きいたしました。", "surface": "お起きいたしました", "lemma": "起きる", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0551", "category": "benefactive", "text": "先生がお起きくださった。", "surface": "お起きくださった", "lemma": "起きる", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0552", "category": "benefactive", "text": "先生にお起きいただきました。", "surface": "お起きいただきました", "lemma": "起きる", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0553", "category": "auxiliary", "text": "私が起きている。", "surface": "起きている", "lemma": "起きる", "required_features": ["progressive_resultative"]}
+{"id": "review-0554", "category": "auxiliary", "text": "私が起きていた。", "surface": "起きていた", "lemma": "起きる", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0555", "category": "auxiliary", "text": "私が起きていません。", "surface": "起きていません", "lemma": "起きる", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0556", "category": "benefactive", "text": "先生が起きてくださる。", "surface": "起きてくださる", "lemma": "起きる", "required_features": ["respectful_benefactive"]}
+{"id": "review-0557", "category": "benefactive", "text": "先生が起きてくださった。", "surface": "起きてくださった", "lemma": "起きる", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0558", "category": "benefactive", "text": "先生が起きてくださらなかった。", "surface": "起きてくださらなかった", "lemma": "起きる", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0559", "category": "benefactive", "text": "先生に起きていただく。", "surface": "起きていただく", "lemma": "起きる", "required_features": ["humble_benefactive"]}
+{"id": "review-0560", "category": "benefactive", "text": "先生に起きていただいた。", "surface": "起きていただいた", "lemma": "起きる", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0561", "category": "benefactive", "text": "先生に起きていただきませんでした。", "surface": "起きていただきませんでした", "lemma": "起きる", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0562", "category": "benefactive", "text": "友達に起きてもらう。", "surface": "起きてもらう", "lemma": "起きる", "required_features": ["benefactive"]}
+{"id": "review-0563", "category": "benefactive", "text": "友達が起きてくれる。", "surface": "起きてくれる", "lemma": "起きる", "required_features": ["benefactive"]}
+{"id": "review-0564", "category": "benefactive", "text": "私が起きてあげる。", "surface": "起きてあげる", "lemma": "起きる", "required_features": ["benefactive"]}
+{"id": "review-0565", "category": "auxiliary", "text": "私が起きてしまった。", "surface": "起きてしまった", "lemma": "起きる", "required_features": ["completion", "past"]}
+{"id": "review-0566", "category": "auxiliary", "text": "私が起きてみた。", "surface": "起きてみた", "lemma": "起きる", "required_features": ["trial", "past"]}
+{"id": "review-0567", "category": "causative", "text": "先生に起きさせていただく。", "surface": "起きさせていただく", "lemma": "起きる", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0568", "category": "causative", "text": "私は起きさせられなかった。", "surface": "起きさせられなかった", "lemma": "起きる", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0569", "category": "inflection", "text": "私が起きない。", "surface": "起きない", "lemma": "起きる", "required_features": ["negative"]}
+{"id": "review-0570", "category": "inflection", "text": "私が起きなかった。", "surface": "起きなかった", "lemma": "起きる", "required_features": ["negative", "past"]}
+{"id": "review-0571", "category": "inflection", "text": "私が起きます。", "surface": "起きます", "lemma": "起きる", "required_features": ["polite"]}
+{"id": "review-0572", "category": "inflection", "text": "私が起きました。", "surface": "起きました", "lemma": "起きる", "required_features": ["polite", "past"]}
+{"id": "review-0573", "category": "inflection", "text": "私が起きて。", "surface": "起きて", "lemma": "起きる", "required_features": ["te_form"]}
+{"id": "review-0574", "category": "inflection", "text": "私が起きた。", "surface": "起きた", "lemma": "起きる", "required_features": ["past"]}
+{"id": "review-0575", "category": "inflection", "text": "私が起きれば。", "surface": "起きれば", "lemma": "起きる", "required_features": ["conditional"]}
+{"id": "review-0576", "category": "inflection", "text": "私が起きよう。", "surface": "起きよう", "lemma": "起きる", "required_features": ["volitional"]}
+{"id": "review-0577", "category": "honorific", "text": "先生がお寝になる。", "surface": "お寝になる", "lemma": "寝る", "required_features": ["honorific"]}
+{"id": "review-0578", "category": "honorific", "text": "先生がお寝になりました。", "surface": "お寝になりました", "lemma": "寝る", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0579", "category": "honorific", "text": "先生がお寝にならなかった。", "surface": "お寝にならなかった", "lemma": "寝る", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0580", "category": "honorific", "text": "先生がお寝になっていた。", "surface": "お寝になっていた", "lemma": "寝る", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0581", "category": "humble", "text": "私がお寝する。", "surface": "お寝する", "lemma": "寝る", "required_features": ["humble"]}
+{"id": "review-0582", "category": "humble", "text": "私がお寝いたしました。", "surface": "お寝いたしました", "lemma": "寝る", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0583", "category": "benefactive", "text": "先生がお寝くださった。", "surface": "お寝くださった", "lemma": "寝る", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0584", "category": "benefactive", "text": "先生にお寝いただきました。", "surface": "お寝いただきました", "lemma": "寝る", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0585", "category": "auxiliary", "text": "私が寝ている。", "surface": "寝ている", "lemma": "寝る", "required_features": ["progressive_resultative"]}
+{"id": "review-0586", "category": "auxiliary", "text": "私が寝ていた。", "surface": "寝ていた", "lemma": "寝る", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0587", "category": "auxiliary", "text": "私が寝ていません。", "surface": "寝ていません", "lemma": "寝る", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0588", "category": "benefactive", "text": "先生が寝てくださる。", "surface": "寝てくださる", "lemma": "寝る", "required_features": ["respectful_benefactive"]}
+{"id": "review-0589", "category": "benefactive", "text": "先生が寝てくださった。", "surface": "寝てくださった", "lemma": "寝る", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0590", "category": "benefactive", "text": "先生が寝てくださらなかった。", "surface": "寝てくださらなかった", "lemma": "寝る", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0591", "category": "benefactive", "text": "先生に寝ていただく。", "surface": "寝ていただく", "lemma": "寝る", "required_features": ["humble_benefactive"]}
+{"id": "review-0592", "category": "benefactive", "text": "先生に寝ていただいた。", "surface": "寝ていただいた", "lemma": "寝る", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0593", "category": "benefactive", "text": "先生に寝ていただきませんでした。", "surface": "寝ていただきませんでした", "lemma": "寝る", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0594", "category": "benefactive", "text": "友達に寝てもらう。", "surface": "寝てもらう", "lemma": "寝る", "required_features": ["benefactive"]}
+{"id": "review-0595", "category": "benefactive", "text": "友達が寝てくれる。", "surface": "寝てくれる", "lemma": "寝る", "required_features": ["benefactive"]}
+{"id": "review-0596", "category": "benefactive", "text": "私が寝てあげる。", "surface": "寝てあげる", "lemma": "寝る", "required_features": ["benefactive"]}
+{"id": "review-0597", "category": "auxiliary", "text": "私が寝てしまった。", "surface": "寝てしまった", "lemma": "寝る", "required_features": ["completion", "past"]}
+{"id": "review-0598", "category": "auxiliary", "text": "私が寝てみた。", "surface": "寝てみた", "lemma": "寝る", "required_features": ["trial", "past"]}
+{"id": "review-0599", "category": "causative", "text": "先生に寝させていただく。", "surface": "寝させていただく", "lemma": "寝る", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0600", "category": "causative", "text": "私は寝させられなかった。", "surface": "寝させられなかった", "lemma": "寝る", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0601", "category": "inflection", "text": "私が寝ない。", "surface": "寝ない", "lemma": "寝る", "required_features": ["negative"]}
+{"id": "review-0602", "category": "inflection", "text": "私が寝なかった。", "surface": "寝なかった", "lemma": "寝る", "required_features": ["negative", "past"]}
+{"id": "review-0603", "category": "inflection", "text": "私が寝ます。", "surface": "寝ます", "lemma": "寝る", "required_features": ["polite"]}
+{"id": "review-0604", "category": "inflection", "text": "私が寝ました。", "surface": "寝ました", "lemma": "寝る", "required_features": ["polite", "past"]}
+{"id": "review-0605", "category": "inflection", "text": "私が寝て。", "surface": "寝て", "lemma": "寝る", "required_features": ["te_form"]}
+{"id": "review-0606", "category": "inflection", "text": "私が寝た。", "surface": "寝た", "lemma": "寝る", "required_features": ["past"]}
+{"id": "review-0607", "category": "inflection", "text": "私が寝れば。", "surface": "寝れば", "lemma": "寝る", "required_features": ["conditional"]}
+{"id": "review-0608", "category": "inflection", "text": "私が寝よう。", "surface": "寝よう", "lemma": "寝る", "required_features": ["volitional"]}
+{"id": "review-0609", "category": "honorific", "text": "先生がお借りになる。", "surface": "お借りになる", "lemma": "借りる", "required_features": ["honorific"]}
+{"id": "review-0610", "category": "honorific", "text": "先生がお借りになりました。", "surface": "お借りになりました", "lemma": "借りる", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0611", "category": "honorific", "text": "先生がお借りにならなかった。", "surface": "お借りにならなかった", "lemma": "借りる", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0612", "category": "honorific", "text": "先生がお借りになっていた。", "surface": "お借りになっていた", "lemma": "借りる", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0613", "category": "humble", "text": "私がお借りする。", "surface": "お借りする", "lemma": "借りる", "required_features": ["humble"]}
+{"id": "review-0614", "category": "humble", "text": "私がお借りいたしました。", "surface": "お借りいたしました", "lemma": "借りる", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0615", "category": "benefactive", "text": "先生がお借りくださった。", "surface": "お借りくださった", "lemma": "借りる", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0616", "category": "benefactive", "text": "先生にお借りいただきました。", "surface": "お借りいただきました", "lemma": "借りる", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0617", "category": "auxiliary", "text": "私が借りている。", "surface": "借りている", "lemma": "借りる", "required_features": ["progressive_resultative"]}
+{"id": "review-0618", "category": "auxiliary", "text": "私が借りていた。", "surface": "借りていた", "lemma": "借りる", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0619", "category": "auxiliary", "text": "私が借りていません。", "surface": "借りていません", "lemma": "借りる", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0620", "category": "benefactive", "text": "先生が借りてくださる。", "surface": "借りてくださる", "lemma": "借りる", "required_features": ["respectful_benefactive"]}
+{"id": "review-0621", "category": "benefactive", "text": "先生が借りてくださった。", "surface": "借りてくださった", "lemma": "借りる", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0622", "category": "benefactive", "text": "先生が借りてくださらなかった。", "surface": "借りてくださらなかった", "lemma": "借りる", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0623", "category": "benefactive", "text": "先生に借りていただく。", "surface": "借りていただく", "lemma": "借りる", "required_features": ["humble_benefactive"]}
+{"id": "review-0624", "category": "benefactive", "text": "先生に借りていただいた。", "surface": "借りていただいた", "lemma": "借りる", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0625", "category": "benefactive", "text": "先生に借りていただきませんでした。", "surface": "借りていただきませんでした", "lemma": "借りる", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0626", "category": "benefactive", "text": "友達に借りてもらう。", "surface": "借りてもらう", "lemma": "借りる", "required_features": ["benefactive"]}
+{"id": "review-0627", "category": "benefactive", "text": "友達が借りてくれる。", "surface": "借りてくれる", "lemma": "借りる", "required_features": ["benefactive"]}
+{"id": "review-0628", "category": "benefactive", "text": "私が借りてあげる。", "surface": "借りてあげる", "lemma": "借りる", "required_features": ["benefactive"]}
+{"id": "review-0629", "category": "auxiliary", "text": "私が借りてしまった。", "surface": "借りてしまった", "lemma": "借りる", "required_features": ["completion", "past"]}
+{"id": "review-0630", "category": "auxiliary", "text": "私が借りてみた。", "surface": "借りてみた", "lemma": "借りる", "required_features": ["trial", "past"]}
+{"id": "review-0631", "category": "causative", "text": "先生に借りさせていただく。", "surface": "借りさせていただく", "lemma": "借りる", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0632", "category": "causative", "text": "私は借りさせられなかった。", "surface": "借りさせられなかった", "lemma": "借りる", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0633", "category": "inflection", "text": "私が借りない。", "surface": "借りない", "lemma": "借りる", "required_features": ["negative"]}
+{"id": "review-0634", "category": "inflection", "text": "私が借りなかった。", "surface": "借りなかった", "lemma": "借りる", "required_features": ["negative", "past"]}
+{"id": "review-0635", "category": "inflection", "text": "私が借ります。", "surface": "借ります", "lemma": "借りる", "required_features": ["polite"]}
+{"id": "review-0636", "category": "inflection", "text": "私が借りました。", "surface": "借りました", "lemma": "借りる", "required_features": ["polite", "past"]}
+{"id": "review-0637", "category": "inflection", "text": "私が借りて。", "surface": "借りて", "lemma": "借りる", "required_features": ["te_form"]}
+{"id": "review-0638", "category": "inflection", "text": "私が借りた。", "surface": "借りた", "lemma": "借りる", "required_features": ["past"]}
+{"id": "review-0639", "category": "inflection", "text": "私が借りれば。", "surface": "借りれば", "lemma": "借りる", "required_features": ["conditional"]}
+{"id": "review-0640", "category": "inflection", "text": "私が借りよう。", "surface": "借りよう", "lemma": "借りる", "required_features": ["volitional"]}
+{"id": "review-0641", "category": "honorific", "text": "先生がお教えになる。", "surface": "お教えになる", "lemma": "教える", "required_features": ["honorific"]}
+{"id": "review-0642", "category": "honorific", "text": "先生がお教えになりました。", "surface": "お教えになりました", "lemma": "教える", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0643", "category": "honorific", "text": "先生がお教えにならなかった。", "surface": "お教えにならなかった", "lemma": "教える", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0644", "category": "honorific", "text": "先生がお教えになっていた。", "surface": "お教えになっていた", "lemma": "教える", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0645", "category": "humble", "text": "私がお教えする。", "surface": "お教えする", "lemma": "教える", "required_features": ["humble"]}
+{"id": "review-0646", "category": "humble", "text": "私がお教えいたしました。", "surface": "お教えいたしました", "lemma": "教える", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0647", "category": "benefactive", "text": "先生がお教えくださった。", "surface": "お教えくださった", "lemma": "教える", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0648", "category": "benefactive", "text": "先生にお教えいただきました。", "surface": "お教えいただきました", "lemma": "教える", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0649", "category": "auxiliary", "text": "私が教えている。", "surface": "教えている", "lemma": "教える", "required_features": ["progressive_resultative"]}
+{"id": "review-0650", "category": "auxiliary", "text": "私が教えていた。", "surface": "教えていた", "lemma": "教える", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0651", "category": "auxiliary", "text": "私が教えていません。", "surface": "教えていません", "lemma": "教える", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0652", "category": "benefactive", "text": "先生が教えてくださる。", "surface": "教えてくださる", "lemma": "教える", "required_features": ["respectful_benefactive"]}
+{"id": "review-0653", "category": "benefactive", "text": "先生が教えてくださった。", "surface": "教えてくださった", "lemma": "教える", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0654", "category": "benefactive", "text": "先生が教えてくださらなかった。", "surface": "教えてくださらなかった", "lemma": "教える", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0655", "category": "benefactive", "text": "先生に教えていただく。", "surface": "教えていただく", "lemma": "教える", "required_features": ["humble_benefactive"]}
+{"id": "review-0656", "category": "benefactive", "text": "先生に教えていただいた。", "surface": "教えていただいた", "lemma": "教える", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0657", "category": "benefactive", "text": "先生に教えていただきませんでした。", "surface": "教えていただきませんでした", "lemma": "教える", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0658", "category": "benefactive", "text": "友達に教えてもらう。", "surface": "教えてもらう", "lemma": "教える", "required_features": ["benefactive"]}
+{"id": "review-0659", "category": "benefactive", "text": "友達が教えてくれる。", "surface": "教えてくれる", "lemma": "教える", "required_features": ["benefactive"]}
+{"id": "review-0660", "category": "benefactive", "text": "私が教えてあげる。", "surface": "教えてあげる", "lemma": "教える", "required_features": ["benefactive"]}
+{"id": "review-0661", "category": "auxiliary", "text": "私が教えてしまった。", "surface": "教えてしまった", "lemma": "教える", "required_features": ["completion", "past"]}
+{"id": "review-0662", "category": "auxiliary", "text": "私が教えてみた。", "surface": "教えてみた", "lemma": "教える", "required_features": ["trial", "past"]}
+{"id": "review-0663", "category": "causative", "text": "先生に教えさせていただく。", "surface": "教えさせていただく", "lemma": "教える", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0664", "category": "causative", "text": "私は教えさせられなかった。", "surface": "教えさせられなかった", "lemma": "教える", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0665", "category": "inflection", "text": "私が教えない。", "surface": "教えない", "lemma": "教える", "required_features": ["negative"]}
+{"id": "review-0666", "category": "inflection", "text": "私が教えなかった。", "surface": "教えなかった", "lemma": "教える", "required_features": ["negative", "past"]}
+{"id": "review-0667", "category": "inflection", "text": "私が教えます。", "surface": "教えます", "lemma": "教える", "required_features": ["polite"]}
+{"id": "review-0668", "category": "inflection", "text": "私が教えました。", "surface": "教えました", "lemma": "教える", "required_features": ["polite", "past"]}
+{"id": "review-0669", "category": "inflection", "text": "私が教えて。", "surface": "教えて", "lemma": "教える", "required_features": ["te_form"]}
+{"id": "review-0670", "category": "inflection", "text": "私が教えた。", "surface": "教えた", "lemma": "教える", "required_features": ["past"]}
+{"id": "review-0671", "category": "inflection", "text": "私が教えれば。", "surface": "教えれば", "lemma": "教える", "required_features": ["conditional"]}
+{"id": "review-0672", "category": "inflection", "text": "私が教えよう。", "surface": "教えよう", "lemma": "教える", "required_features": ["volitional"]}
+{"id": "review-0673", "category": "honorific", "text": "先生がお開けになる。", "surface": "お開けになる", "lemma": "開ける", "required_features": ["honorific"]}
+{"id": "review-0674", "category": "honorific", "text": "先生がお開けになりました。", "surface": "お開けになりました", "lemma": "開ける", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0675", "category": "honorific", "text": "先生がお開けにならなかった。", "surface": "お開けにならなかった", "lemma": "開ける", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0676", "category": "honorific", "text": "先生がお開けになっていた。", "surface": "お開けになっていた", "lemma": "開ける", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0677", "category": "humble", "text": "私がお開けする。", "surface": "お開けする", "lemma": "開ける", "required_features": ["humble"]}
+{"id": "review-0678", "category": "humble", "text": "私がお開けいたしました。", "surface": "お開けいたしました", "lemma": "開ける", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0679", "category": "benefactive", "text": "先生がお開けくださった。", "surface": "お開けくださった", "lemma": "開ける", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0680", "category": "benefactive", "text": "先生にお開けいただきました。", "surface": "お開けいただきました", "lemma": "開ける", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0681", "category": "auxiliary", "text": "私が開けている。", "surface": "開けている", "lemma": "開ける", "required_features": ["progressive_resultative"]}
+{"id": "review-0682", "category": "auxiliary", "text": "私が開けていた。", "surface": "開けていた", "lemma": "開ける", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0683", "category": "auxiliary", "text": "私が開けていません。", "surface": "開けていません", "lemma": "開ける", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0684", "category": "benefactive", "text": "先生が開けてくださる。", "surface": "開けてくださる", "lemma": "開ける", "required_features": ["respectful_benefactive"]}
+{"id": "review-0685", "category": "benefactive", "text": "先生が開けてくださった。", "surface": "開けてくださった", "lemma": "開ける", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0686", "category": "benefactive", "text": "先生が開けてくださらなかった。", "surface": "開けてくださらなかった", "lemma": "開ける", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0687", "category": "benefactive", "text": "先生に開けていただく。", "surface": "開けていただく", "lemma": "開ける", "required_features": ["humble_benefactive"]}
+{"id": "review-0688", "category": "benefactive", "text": "先生に開けていただいた。", "surface": "開けていただいた", "lemma": "開ける", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0689", "category": "benefactive", "text": "先生に開けていただきませんでした。", "surface": "開けていただきませんでした", "lemma": "開ける", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0690", "category": "benefactive", "text": "友達に開けてもらう。", "surface": "開けてもらう", "lemma": "開ける", "required_features": ["benefactive"]}
+{"id": "review-0691", "category": "benefactive", "text": "友達が開けてくれる。", "surface": "開けてくれる", "lemma": "開ける", "required_features": ["benefactive"]}
+{"id": "review-0692", "category": "benefactive", "text": "私が開けてあげる。", "surface": "開けてあげる", "lemma": "開ける", "required_features": ["benefactive"]}
+{"id": "review-0693", "category": "auxiliary", "text": "私が開けてしまった。", "surface": "開けてしまった", "lemma": "開ける", "required_features": ["completion", "past"]}
+{"id": "review-0694", "category": "auxiliary", "text": "私が開けてみた。", "surface": "開けてみた", "lemma": "開ける", "required_features": ["trial", "past"]}
+{"id": "review-0695", "category": "causative", "text": "先生に開けさせていただく。", "surface": "開けさせていただく", "lemma": "開ける", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0696", "category": "causative", "text": "私は開けさせられなかった。", "surface": "開けさせられなかった", "lemma": "開ける", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0697", "category": "inflection", "text": "私が開けない。", "surface": "開けない", "lemma": "開ける", "required_features": ["negative"]}
+{"id": "review-0698", "category": "inflection", "text": "私が開けなかった。", "surface": "開けなかった", "lemma": "開ける", "required_features": ["negative", "past"]}
+{"id": "review-0699", "category": "inflection", "text": "私が開けます。", "surface": "開けます", "lemma": "開ける", "required_features": ["polite"]}
+{"id": "review-0700", "category": "inflection", "text": "私が開けました。", "surface": "開けました", "lemma": "開ける", "required_features": ["polite", "past"]}
+{"id": "review-0701", "category": "inflection", "text": "私が開けて。", "surface": "開けて", "lemma": "開ける", "required_features": ["te_form"]}
+{"id": "review-0702", "category": "inflection", "text": "私が開けた。", "surface": "開けた", "lemma": "開ける", "required_features": ["past"]}
+{"id": "review-0703", "category": "inflection", "text": "私が開ければ。", "surface": "開ければ", "lemma": "開ける", "required_features": ["conditional"]}
+{"id": "review-0704", "category": "inflection", "text": "私が開けよう。", "surface": "開けよう", "lemma": "開ける", "required_features": ["volitional"]}
+{"id": "review-0705", "category": "honorific", "text": "先生がお閉めになる。", "surface": "お閉めになる", "lemma": "閉める", "required_features": ["honorific"]}
+{"id": "review-0706", "category": "honorific", "text": "先生がお閉めになりました。", "surface": "お閉めになりました", "lemma": "閉める", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0707", "category": "honorific", "text": "先生がお閉めにならなかった。", "surface": "お閉めにならなかった", "lemma": "閉める", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0708", "category": "honorific", "text": "先生がお閉めになっていた。", "surface": "お閉めになっていた", "lemma": "閉める", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0709", "category": "humble", "text": "私がお閉めする。", "surface": "お閉めする", "lemma": "閉める", "required_features": ["humble"]}
+{"id": "review-0710", "category": "humble", "text": "私がお閉めいたしました。", "surface": "お閉めいたしました", "lemma": "閉める", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0711", "category": "benefactive", "text": "先生がお閉めくださった。", "surface": "お閉めくださった", "lemma": "閉める", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0712", "category": "benefactive", "text": "先生にお閉めいただきました。", "surface": "お閉めいただきました", "lemma": "閉める", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0713", "category": "auxiliary", "text": "私が閉めている。", "surface": "閉めている", "lemma": "閉める", "required_features": ["progressive_resultative"]}
+{"id": "review-0714", "category": "auxiliary", "text": "私が閉めていた。", "surface": "閉めていた", "lemma": "閉める", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0715", "category": "auxiliary", "text": "私が閉めていません。", "surface": "閉めていません", "lemma": "閉める", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0716", "category": "benefactive", "text": "先生が閉めてくださる。", "surface": "閉めてくださる", "lemma": "閉める", "required_features": ["respectful_benefactive"]}
+{"id": "review-0717", "category": "benefactive", "text": "先生が閉めてくださった。", "surface": "閉めてくださった", "lemma": "閉める", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0718", "category": "benefactive", "text": "先生が閉めてくださらなかった。", "surface": "閉めてくださらなかった", "lemma": "閉める", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0719", "category": "benefactive", "text": "先生に閉めていただく。", "surface": "閉めていただく", "lemma": "閉める", "required_features": ["humble_benefactive"]}
+{"id": "review-0720", "category": "benefactive", "text": "先生に閉めていただいた。", "surface": "閉めていただいた", "lemma": "閉める", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0721", "category": "benefactive", "text": "先生に閉めていただきませんでした。", "surface": "閉めていただきませんでした", "lemma": "閉める", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0722", "category": "benefactive", "text": "友達に閉めてもらう。", "surface": "閉めてもらう", "lemma": "閉める", "required_features": ["benefactive"]}
+{"id": "review-0723", "category": "benefactive", "text": "友達が閉めてくれる。", "surface": "閉めてくれる", "lemma": "閉める", "required_features": ["benefactive"]}
+{"id": "review-0724", "category": "benefactive", "text": "私が閉めてあげる。", "surface": "閉めてあげる", "lemma": "閉める", "required_features": ["benefactive"]}
+{"id": "review-0725", "category": "auxiliary", "text": "私が閉めてしまった。", "surface": "閉めてしまった", "lemma": "閉める", "required_features": ["completion", "past"]}
+{"id": "review-0726", "category": "auxiliary", "text": "私が閉めてみた。", "surface": "閉めてみた", "lemma": "閉める", "required_features": ["trial", "past"]}
+{"id": "review-0727", "category": "causative", "text": "先生に閉めさせていただく。", "surface": "閉めさせていただく", "lemma": "閉める", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0728", "category": "causative", "text": "私は閉めさせられなかった。", "surface": "閉めさせられなかった", "lemma": "閉める", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0729", "category": "inflection", "text": "私が閉めない。", "surface": "閉めない", "lemma": "閉める", "required_features": ["negative"]}
+{"id": "review-0730", "category": "inflection", "text": "私が閉めなかった。", "surface": "閉めなかった", "lemma": "閉める", "required_features": ["negative", "past"]}
+{"id": "review-0731", "category": "inflection", "text": "私が閉めます。", "surface": "閉めます", "lemma": "閉める", "required_features": ["polite"]}
+{"id": "review-0732", "category": "inflection", "text": "私が閉めました。", "surface": "閉めました", "lemma": "閉める", "required_features": ["polite", "past"]}
+{"id": "review-0733", "category": "inflection", "text": "私が閉めて。", "surface": "閉めて", "lemma": "閉める", "required_features": ["te_form"]}
+{"id": "review-0734", "category": "inflection", "text": "私が閉めた。", "surface": "閉めた", "lemma": "閉める", "required_features": ["past"]}
+{"id": "review-0735", "category": "inflection", "text": "私が閉めれば。", "surface": "閉めれば", "lemma": "閉める", "required_features": ["conditional"]}
+{"id": "review-0736", "category": "inflection", "text": "私が閉めよう。", "surface": "閉めよう", "lemma": "閉める", "required_features": ["volitional"]}
+{"id": "review-0737", "category": "honorific", "text": "先生がお調べになる。", "surface": "お調べになる", "lemma": "調べる", "required_features": ["honorific"]}
+{"id": "review-0738", "category": "honorific", "text": "先生がお調べになりました。", "surface": "お調べになりました", "lemma": "調べる", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0739", "category": "honorific", "text": "先生がお調べにならなかった。", "surface": "お調べにならなかった", "lemma": "調べる", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0740", "category": "honorific", "text": "先生がお調べになっていた。", "surface": "お調べになっていた", "lemma": "調べる", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0741", "category": "humble", "text": "私がお調べする。", "surface": "お調べする", "lemma": "調べる", "required_features": ["humble"]}
+{"id": "review-0742", "category": "humble", "text": "私がお調べいたしました。", "surface": "お調べいたしました", "lemma": "調べる", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0743", "category": "benefactive", "text": "先生がお調べくださった。", "surface": "お調べくださった", "lemma": "調べる", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0744", "category": "benefactive", "text": "先生にお調べいただきました。", "surface": "お調べいただきました", "lemma": "調べる", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0745", "category": "auxiliary", "text": "私が調べている。", "surface": "調べている", "lemma": "調べる", "required_features": ["progressive_resultative"]}
+{"id": "review-0746", "category": "auxiliary", "text": "私が調べていた。", "surface": "調べていた", "lemma": "調べる", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0747", "category": "auxiliary", "text": "私が調べていません。", "surface": "調べていません", "lemma": "調べる", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0748", "category": "benefactive", "text": "先生が調べてくださる。", "surface": "調べてくださる", "lemma": "調べる", "required_features": ["respectful_benefactive"]}
+{"id": "review-0749", "category": "benefactive", "text": "先生が調べてくださった。", "surface": "調べてくださった", "lemma": "調べる", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0750", "category": "benefactive", "text": "先生が調べてくださらなかった。", "surface": "調べてくださらなかった", "lemma": "調べる", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0751", "category": "benefactive", "text": "先生に調べていただく。", "surface": "調べていただく", "lemma": "調べる", "required_features": ["humble_benefactive"]}
+{"id": "review-0752", "category": "benefactive", "text": "先生に調べていただいた。", "surface": "調べていただいた", "lemma": "調べる", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0753", "category": "benefactive", "text": "先生に調べていただきませんでした。", "surface": "調べていただきませんでした", "lemma": "調べる", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0754", "category": "benefactive", "text": "友達に調べてもらう。", "surface": "調べてもらう", "lemma": "調べる", "required_features": ["benefactive"]}
+{"id": "review-0755", "category": "benefactive", "text": "友達が調べてくれる。", "surface": "調べてくれる", "lemma": "調べる", "required_features": ["benefactive"]}
+{"id": "review-0756", "category": "benefactive", "text": "私が調べてあげる。", "surface": "調べてあげる", "lemma": "調べる", "required_features": ["benefactive"]}
+{"id": "review-0757", "category": "auxiliary", "text": "私が調べてしまった。", "surface": "調べてしまった", "lemma": "調べる", "required_features": ["completion", "past"]}
+{"id": "review-0758", "category": "auxiliary", "text": "私が調べてみた。", "surface": "調べてみた", "lemma": "調べる", "required_features": ["trial", "past"]}
+{"id": "review-0759", "category": "causative", "text": "先生に調べさせていただく。", "surface": "調べさせていただく", "lemma": "調べる", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0760", "category": "causative", "text": "私は調べさせられなかった。", "surface": "調べさせられなかった", "lemma": "調べる", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0761", "category": "inflection", "text": "私が調べない。", "surface": "調べない", "lemma": "調べる", "required_features": ["negative"]}
+{"id": "review-0762", "category": "inflection", "text": "私が調べなかった。", "surface": "調べなかった", "lemma": "調べる", "required_features": ["negative", "past"]}
+{"id": "review-0763", "category": "inflection", "text": "私が調べます。", "surface": "調べます", "lemma": "調べる", "required_features": ["polite"]}
+{"id": "review-0764", "category": "inflection", "text": "私が調べました。", "surface": "調べました", "lemma": "調べる", "required_features": ["polite", "past"]}
+{"id": "review-0765", "category": "inflection", "text": "私が調べて。", "surface": "調べて", "lemma": "調べる", "required_features": ["te_form"]}
+{"id": "review-0766", "category": "inflection", "text": "私が調べた。", "surface": "調べた", "lemma": "調べる", "required_features": ["past"]}
+{"id": "review-0767", "category": "inflection", "text": "私が調べれば。", "surface": "調べれば", "lemma": "調べる", "required_features": ["conditional"]}
+{"id": "review-0768", "category": "inflection", "text": "私が調べよう。", "surface": "調べよう", "lemma": "調べる", "required_features": ["volitional"]}
+{"id": "review-0769", "category": "honorific", "text": "先生がお届けになる。", "surface": "お届けになる", "lemma": "届ける", "required_features": ["honorific"]}
+{"id": "review-0770", "category": "honorific", "text": "先生がお届けになりました。", "surface": "お届けになりました", "lemma": "届ける", "required_features": ["honorific", "polite", "past"]}
+{"id": "review-0771", "category": "honorific", "text": "先生がお届けにならなかった。", "surface": "お届けにならなかった", "lemma": "届ける", "required_features": ["honorific", "negative", "past"]}
+{"id": "review-0772", "category": "honorific", "text": "先生がお届けになっていた。", "surface": "お届けになっていた", "lemma": "届ける", "required_features": ["honorific", "progressive_resultative", "past"]}
+{"id": "review-0773", "category": "humble", "text": "私がお届けする。", "surface": "お届けする", "lemma": "届ける", "required_features": ["humble"]}
+{"id": "review-0774", "category": "humble", "text": "私がお届けいたしました。", "surface": "お届けいたしました", "lemma": "届ける", "required_features": ["humble", "polite", "past"]}
+{"id": "review-0775", "category": "benefactive", "text": "先生がお届けくださった。", "surface": "お届けくださった", "lemma": "届ける", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0776", "category": "benefactive", "text": "先生にお届けいただきました。", "surface": "お届けいただきました", "lemma": "届ける", "required_features": ["humble_benefactive", "polite", "past"]}
+{"id": "review-0777", "category": "auxiliary", "text": "私が届けている。", "surface": "届けている", "lemma": "届ける", "required_features": ["progressive_resultative"]}
+{"id": "review-0778", "category": "auxiliary", "text": "私が届けていた。", "surface": "届けていた", "lemma": "届ける", "required_features": ["progressive_resultative", "past"]}
+{"id": "review-0779", "category": "auxiliary", "text": "私が届けていません。", "surface": "届けていません", "lemma": "届ける", "required_features": ["progressive_resultative", "negative", "polite"]}
+{"id": "review-0780", "category": "benefactive", "text": "先生が届けてくださる。", "surface": "届けてくださる", "lemma": "届ける", "required_features": ["respectful_benefactive"]}
+{"id": "review-0781", "category": "benefactive", "text": "先生が届けてくださった。", "surface": "届けてくださった", "lemma": "届ける", "required_features": ["respectful_benefactive", "past"]}
+{"id": "review-0782", "category": "benefactive", "text": "先生が届けてくださらなかった。", "surface": "届けてくださらなかった", "lemma": "届ける", "required_features": ["respectful_benefactive", "negative", "past"]}
+{"id": "review-0783", "category": "benefactive", "text": "先生に届けていただく。", "surface": "届けていただく", "lemma": "届ける", "required_features": ["humble_benefactive"]}
+{"id": "review-0784", "category": "benefactive", "text": "先生に届けていただいた。", "surface": "届けていただいた", "lemma": "届ける", "required_features": ["humble_benefactive", "past"]}
+{"id": "review-0785", "category": "benefactive", "text": "先生に届けていただきませんでした。", "surface": "届けていただきませんでした", "lemma": "届ける", "required_features": ["humble_benefactive", "negative", "polite", "past"]}
+{"id": "review-0786", "category": "benefactive", "text": "友達に届けてもらう。", "surface": "届けてもらう", "lemma": "届ける", "required_features": ["benefactive"]}
+{"id": "review-0787", "category": "benefactive", "text": "友達が届けてくれる。", "surface": "届けてくれる", "lemma": "届ける", "required_features": ["benefactive"]}
+{"id": "review-0788", "category": "benefactive", "text": "私が届けてあげる。", "surface": "届けてあげる", "lemma": "届ける", "required_features": ["benefactive"]}
+{"id": "review-0789", "category": "auxiliary", "text": "私が届けてしまった。", "surface": "届けてしまった", "lemma": "届ける", "required_features": ["completion", "past"]}
+{"id": "review-0790", "category": "auxiliary", "text": "私が届けてみた。", "surface": "届けてみた", "lemma": "届ける", "required_features": ["trial", "past"]}
+{"id": "review-0791", "category": "causative", "text": "先生に届けさせていただく。", "surface": "届けさせていただく", "lemma": "届ける", "required_features": ["causative", "humble_benefactive"]}
+{"id": "review-0792", "category": "causative", "text": "私は届けさせられなかった。", "surface": "届けさせられなかった", "lemma": "届ける", "required_features": ["causative", "voice_ambiguous", "negative", "past"]}
+{"id": "review-0793", "category": "inflection", "text": "私が届けない。", "surface": "届けない", "lemma": "届ける", "required_features": ["negative"]}
+{"id": "review-0794", "category": "inflection", "text": "私が届けなかった。", "surface": "届けなかった", "lemma": "届ける", "required_features": ["negative", "past"]}
+{"id": "review-0795", "category": "inflection", "text": "私が届けます。", "surface": "届けます", "lemma": "届ける", "required_features": ["polite"]}
+{"id": "review-0796", "category": "inflection", "text": "私が届けました。", "surface": "届けました", "lemma": "届ける", "required_features": ["polite", "past"]}
+{"id": "review-0797", "category": "inflection", "text": "私が届けて。", "surface": "届けて", "lemma": "届ける", "required_features": ["te_form"]}
+{"id": "review-0798", "category": "inflection", "text": "私が届けた。", "surface": "届けた", "lemma": "届ける", "required_features": ["past"]}
+{"id": "review-0799", "category": "inflection", "text": "私が届ければ。", "surface": "届ければ", "lemma": "届ける", "required_features": ["conditional"]}
+{"id": "review-0800", "category": "inflection", "text": "私が届けよう。", "surface": "届けよう", "lemma": "届ける", "required_features": ["volitional"]}
+{"id": "review-0801", "category": "negative", "text": "お茶になった。", "rejected_prefix_span": "お茶になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0802", "category": "negative", "text": "お金になった。", "rejected_prefix_span": "お金になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0803", "category": "negative", "text": "お店になった。", "rejected_prefix_span": "お店になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0804", "category": "negative", "text": "お酒になった。", "rejected_prefix_span": "お酒になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0805", "category": "negative", "text": "お薬になった。", "rejected_prefix_span": "お薬になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0806", "category": "negative", "text": "お部屋になった。", "rejected_prefix_span": "お部屋になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0807", "category": "negative", "text": "お土産になった。", "rejected_prefix_span": "お土産になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0808", "category": "negative", "text": "ご迷惑になった。", "rejected_prefix_span": "ご迷惑になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0809", "category": "negative", "text": "ご参考になった。", "rejected_prefix_span": "ご参考になった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0810", "category": "negative", "text": "お話を聞いた。", "rejected_prefix_span": "お話を聞いた", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0811", "category": "negative", "text": "ご飯をいただいた。", "rejected_prefix_span": "ご飯をいただいた", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}
+{"id": "review-0812", "category": "negative", "text": "お金をくださった。", "rejected_prefix_span": "お金をくださった", "rejected_features": ["humble_benefactive", "respectful_benefactive"]}

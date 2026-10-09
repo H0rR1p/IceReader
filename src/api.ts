@@ -1,4 +1,23 @@
 import type { AiUsageSummary, AnalyzeResponse, ApiSettings, ContentBlock, ImportedBook, Lexeme, Sentence, Token, TranslationQueuePage, VoiceJob, VoiceSettings } from './types'
+import type { AnalysisCapabilities, AnalysisPreferences, SentenceStructure } from './types'
+
+export async function loadAnalysisCapabilities(signal?: AbortSignal): Promise<AnalysisCapabilities> {
+  return parseResponse(await fetch('/api/analysis/capabilities', { signal }))
+}
+export async function loadAnalysisPreferences(signal?: AbortSignal): Promise<AnalysisPreferences> {
+  return parseResponse(await fetch('/api/analysis/preferences', { signal }))
+}
+export async function saveAnalysisPreferences(preferences: AnalysisPreferences, signal?: AbortSignal): Promise<AnalysisPreferences> {
+  return parseResponse(await fetch('/api/analysis/preferences', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(preferences), signal,
+  }))
+}
+export async function requestSentenceStructures(sentenceIds: string[], signal?: AbortSignal, requiredVersion?: string, force = false): Promise<{ results: SentenceStructure[]; version: string }> {
+  return parseResponse(await fetch('/api/sentences/structure', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+    body: JSON.stringify({ sentence_ids: sentenceIds, required_version: requiredVersion, force }),
+  }))
+}
 
 export class ApiRequestError extends Error {
   constructor(message: string, public status: number, public retryAfterMs: number | null = null) {
@@ -219,7 +238,7 @@ export async function explainSentence(
   signal?: AbortSignal,
   annotationMode: 'none' | 'grammar' = 'none',
   detailMode: 'meaning' | 'full' = 'full',
-  contextBefore: string[] = [],
+  _contextBefore: string[] = [],
 ): Promise<AnalyzeResponse> {
   const response = await fetch('/api/sentences/explain', {
     method: 'POST',
@@ -231,7 +250,6 @@ export async function explainSentence(
       tokens,
       annotation_mode: annotationMode,
       detail_mode: detailMode,
-      context_before: contextBefore,
       settings: { base_url: settings.baseUrl, model: settings.model },
     }),
     signal,
@@ -253,7 +271,7 @@ export async function explainSentences(
   annotationMode: 'none' | 'grammar' = 'none',
   signal?: AbortSignal,
   detailMode: 'meaning' | 'full' = 'full',
-  contextBefore: string[] = [],
+  _contextBefore: string[] = [],
 ): Promise<AnalyzeResponse> {
   const response = await fetch('/api/sentences/explain-batch', {
     method: 'POST',
@@ -267,7 +285,6 @@ export async function explainSentences(
       })),
       annotation_mode: annotationMode,
       detail_mode: detailMode,
-      context_before: contextBefore,
       settings: { base_url: settings.baseUrl, model: settings.model },
     }),
     signal,
@@ -368,16 +385,24 @@ export async function loadKnowledgeStates(items: LearningEventInput['item'][], s
 }
 
 export type CardCandidate = {
+  source?: GrammarCardSource
   id: string; knowledge_item_id: string; lemma: string; reading: string; gloss: string
   sentence: string; book_id: string; book_title: string; chapter_id: string; sentence_id: string
   card_template: string; status: string; created_at: number; updated_at: number
 }
 
 export type StudyCard = {
+  source?: GrammarCardSource
   id: string; note_id: string; knowledge_item_id: string; lemma: string; reading: string; gloss: string
   sentence: string; book_id: string; book_title: string; chapter_id: string; sentence_id: string
   card_template: string; status: string; tags: string[]; difficulty: number; stability: number
   retrievability: number; due_at: number; reps: number; lapses: number; updated_at: number
+}
+
+export interface GrammarCardSource {
+  kind: 'grammar'; grammar_id: string; span_id: string; quote: string; start: number; end: number
+  chapter_anchor: number; analysis_revision: number; rules_version: string; original_sentence: string
+  question: string; answer: string; base_form: string; explanation: string; derivation: string[]
 }
 
 export async function createCardCandidate(payload: Record<string, unknown>): Promise<CardCandidate> {
@@ -488,8 +513,8 @@ export async function reviewCard(cardId: string, rating: 'again' | 'hard' | 'goo
   await recordActivityMetric('review', { cards_reviewed: 1 }).catch(() => undefined)
 }
 
-export async function downloadFullBackup(): Promise<void> {
-  const response = await fetch('/api/data/backup')
+export async function downloadFullBackup(schemaVersion?: 1 | 3): Promise<void> {
+  const response = await fetch(`/api/data/backup${schemaVersion === undefined ? '' : `?schema_version=${schemaVersion}`}`)
   if (!response.ok) throw new Error((await response.text()) || '无法创建备份')
   const blob = await response.blob()
   const disposition = response.headers.get('Content-Disposition') ?? ''
@@ -506,10 +531,10 @@ export async function restoreFullBackup(file: File): Promise<{ restored_rows: nu
   return parseResponse(await fetch('/api/data/restore', { method: 'POST', body: form }))
 }
 
-export async function downloadBookTransfer(bookIds?: string[]): Promise<void> {
+export async function downloadBookTransfer(bookIds?: string[], schemaVersion?: 1 | 2 | 3): Promise<void> {
   const response = bookIds ? await fetch('/api/data/book-share', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ book_ids: bookIds }),
-  }) : await fetch('/api/data/book-transfer')
+  }) : await fetch(`/api/data/book-transfer${schemaVersion === undefined ? '' : `?schema_version=${schemaVersion}`}`)
   if (!response.ok) throw new Error((await response.text()) || '无法创建书籍迁移包')
   const blob = await response.blob()
   const disposition = response.headers.get('Content-Disposition') ?? ''

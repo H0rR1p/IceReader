@@ -28,7 +28,7 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
     onNavigate('library')
   }
   const item = (target: AppPage, icon: string, label: string, detail?: string) => (
-    <button className={`app-nav-item ${page === target ? 'active' : ''}`} onClick={() => onNavigate(target)}>
+    <button className={`app-nav-item ${page === target ? 'active' : ''}`} aria-label={label} title={label} onClick={() => onNavigate(target)}>
       <span aria-hidden="true">{icon}</span><strong>{label}</strong>{detail && <small>{detail}</small>}
     </button>
   )
@@ -40,8 +40,8 @@ export default function AppNavigation({ page, user, bookCount, canResumeReading,
     <nav aria-label="主要页面">
       <p className="nav-section-label">阅读</p>
       {item('library', '▦', '我的书架', `${bookCount} 本`)}
-      {canResumeReading && onResumeReading && <button className="app-nav-item resume-reading-item" onClick={onResumeReading}><span aria-hidden="true">▶</span><strong>继续阅读</strong></button>}
-      <button className="app-nav-item" onClick={onImport}><span aria-hidden="true">＋</span><strong>导入书籍</strong></button>
+      {canResumeReading && onResumeReading && <button className="app-nav-item resume-reading-item" aria-label="继续阅读" title="继续阅读" onClick={onResumeReading}><span aria-hidden="true">▶</span><strong>继续阅读</strong></button>}
+      <button className="app-nav-item" aria-label="导入书籍" title="导入书籍" onClick={onImport}><span aria-hidden="true">＋</span><strong>导入书籍</strong></button>
       <p className="nav-section-label">学习</p>
       {item('dictionary', 'あ', '个人词库')}
       {item('cards', '◇', '词语卡片')}

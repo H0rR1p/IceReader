@@ -94,8 +94,11 @@ def initialize_store() -> None:
                 );
                 CREATE INDEX IF NOT EXISTS idx_knowledge_blindspots
                     ON user_knowledge_states(user_id, mastery, confidence, updated_at DESC);
+                CREATE TABLE IF NOT EXISTS knowledge_aliases(alias_id TEXT PRIMARY KEY,target_id TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS canonical_aliases(type TEXT NOT NULL,alias_key TEXT NOT NULL,target_id TEXT NOT NULL,PRIMARY KEY(type,alias_key));
                 """
             )
+            _upgrade_grammar_keys(connection)
             connection.commit()
             _initialized_path = resolved
         finally:
@@ -116,7 +119,35 @@ def _connect():
         connection.close()
 
 
+def _upgrade_grammar_keys(connection):
+    import re
+    from ..linguistics.rules import get_rule_catalog
+    normalize = lambda value: re.sub(r'[「」『』\s]', '', value).replace('〜','~').replace('～','~').lstrip('~').lower()
+    catalog = {}
+    for rule in get_rule_catalog(include_disabled=True):
+        key = normalize(rule['label'])
+        catalog.setdefault(key, []).append(rule['id'])
+    rows = connection.execute("SELECT id,canonical_key FROM knowledge_items WHERE type='grammar'").fetchall()
+    for row in rows:
+        matches = catalog.get(normalize(row['canonical_key']), [])
+        if len(matches) != 1 or row['canonical_key'] == matches[0]:
+            continue
+        found = connection.execute("SELECT id FROM knowledge_items WHERE type='grammar' AND canonical_key=?", (matches[0],)).fetchone()
+        target = str(found[0]) if found else str(row['id'])
+        if not found:
+            connection.execute('UPDATE knowledge_items SET canonical_key=? WHERE id=?', (matches[0],row['id']))
+        elif target != row['id']:
+            connection.execute('INSERT OR IGNORE INTO knowledge_aliases VALUES(?,?)', (row['id'],target))
+        connection.execute("INSERT OR IGNORE INTO canonical_aliases VALUES('grammar',?,?)", (row['canonical_key'],target))
+        users = [value[0] for value in connection.execute('SELECT DISTINCT user_id FROM learning_events WHERE knowledge_item_id IN(?,?)', (row['id'],target))]
+        for user in users:
+            _project_item(connection,user,target)
+
+
 def ensure_item(item: dict, connection: sqlite3.Connection) -> str:
+    alias = connection.execute('SELECT target_id FROM canonical_aliases WHERE type=? AND alias_key=?', (item['type'], item['canonical_key'])).fetchone()
+    if alias:
+        return str(alias[0])
     item_id = str(item["id"])
     connection.execute(
         """INSERT INTO knowledge_items(id, type, canonical_key, lemma, reading, grammar_pattern, created_at)
@@ -137,6 +168,14 @@ def ensure_item(item: dict, connection: sqlite3.Connection) -> str:
 def ensure_knowledge_item(item: dict) -> str:
     with _connect() as connection:
         return ensure_item(item, connection)
+
+
+def get_knowledge_item(item_id: str) -> dict:
+    with _connect() as connection:
+        row = connection.execute('SELECT * FROM knowledge_items WHERE id=?', (item_id,)).fetchone()
+    if row is None:
+        raise KeyError(item_id)
+    return dict(row)
 
 
 def append_events(user_id: str, device_id: str, events: list[dict]) -> dict[str, int]:
@@ -167,10 +206,12 @@ def append_events(user_id: str, device_id: str, events: list[dict]) -> dict[str,
 
 
 def _project_item(connection: sqlite3.Connection, user_id: str, item_id: str) -> None:
+    alias = connection.execute('SELECT target_id FROM knowledge_aliases WHERE alias_id=?', (item_id,)).fetchone()
+    item_id = str(alias[0]) if alias else item_id
     rows = connection.execute(
         """SELECT event_type, evidence_weight, occurred_at FROM learning_events
-           WHERE user_id=? AND knowledge_item_id=? ORDER BY occurred_at, id""",
-        (user_id, item_id),
+           WHERE user_id=? AND (knowledge_item_id=? OR knowledge_item_id IN(SELECT alias_id FROM knowledge_aliases WHERE target_id=?)) ORDER BY occurred_at, id""",
+        (user_id, item_id, item_id),
     ).fetchall()
     mastery = 0.5
     confidence = 0.0
@@ -241,7 +282,7 @@ def list_blindspots(user_id: str, limit: int = 50) -> list[dict]:
         rows = connection.execute(
             """SELECT s.*, i.type, i.canonical_key, i.lemma, i.reading, i.grammar_pattern
                FROM user_knowledge_states s JOIN knowledge_items i ON i.id=s.knowledge_item_id
-               WHERE s.user_id=? AND (s.mastery < 0.5 OR s.lookup_count > 0)
+               WHERE s.user_id=? AND s.knowledge_item_id NOT IN(SELECT alias_id FROM knowledge_aliases) AND (s.mastery < 0.5 OR s.lookup_count > 0)
                ORDER BY s.mastery ASC, s.lookup_count DESC, s.updated_at DESC LIMIT ?""",
             (user_id, min(200, max(1, limit))),
         ).fetchall()
@@ -268,13 +309,19 @@ def knowledge_states(user_id: str, items: list[dict]) -> list[dict]:
     result=[]
     with _connect() as connection:
         for item in items:
+            alias=connection.execute('SELECT target_id FROM canonical_aliases WHERE type=? AND alias_key=?', (item['type'],item['canonical_key'])).fetchone()
+            if alias:
+                canonical=connection.execute('SELECT canonical_key FROM knowledge_items WHERE id=?', (alias[0],)).fetchone()
+                query_key=canonical[0] if canonical else item['canonical_key']
+            else:
+                query_key=item['canonical_key']
             row=connection.execute(
                 """SELECT i.type,i.canonical_key,i.lemma,i.reading,i.grammar_pattern,
                    s.mastery,s.confidence,s.exposure_count,s.lookup_count,s.last_seen_at
                    FROM knowledge_items i LEFT JOIN user_knowledge_states s
                      ON s.knowledge_item_id=i.id AND s.user_id=?
                    WHERE i.type=? AND i.canonical_key=?""",
-                (user_id,item["type"],item["canonical_key"]),
+                (user_id,item["type"],query_key),
             ).fetchone()
             value=dict(row) if row else {
                 "type":item["type"],"canonical_key":item["canonical_key"],
@@ -283,5 +330,6 @@ def knowledge_states(user_id: str, items: list[dict]) -> list[dict]:
             }
             if value["mastery"] is None:
                 value.update({"mastery":0.5,"confidence":0.0,"exposure_count":0,"lookup_count":0,"last_seen_at":None})
+            value['canonical_key']=item['canonical_key']
             result.append(value)
     return result

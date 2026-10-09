@@ -17,6 +17,7 @@ from ...models import (
     ExplainBatchRequest,
     ImportedChapter,
     LexemeOut,
+    LearningSpanSenseOut,
     SentenceOut,
     TokenOut,
 )
@@ -31,6 +32,10 @@ from ...nlp import (
     tokenize_sentence,
 )
 from ...settings_store import resolve_settings
+from .context import build_contexts, dependency_hash, validate_tokens
+from .prompt_payloads import visible_batch_hash, lexical_tokens, learning_units
+from ..linguistics import service as linguistics_service
+from ..linguistics import repository as linguistics_store
 
 
 def _local_analysis(chapter_id: str, text: str, spans=None) -> tuple[list[SentenceOut], list[TokenOut]]:
@@ -169,9 +174,9 @@ def _entry_for_token(user_id: str, token: TokenOut) -> dict | None:
 
 def _result_for_sentence(
     request_item, entries: dict[str, dict | None], enriched: dict,
-    annotation_mode: str, detail_mode: str,
+    annotation_mode: str, detail_mode: str, lexical_targets=None, structure: dict | None = None,
 ) -> AnalyzeResponse:
-    content_tokens = [token for token in request_item.tokens if token.is_content]
+    content_tokens = lexical_targets if lexical_targets is not None else [token for token in request_item.tokens if token.is_content]
     sense_rows = {
         str(row[0]): {"gloss_zh": row[1], "fallback_senses_zh": row[2]}
         for row in enriched.get("words", [])
@@ -198,7 +203,7 @@ def _result_for_sentence(
                 senses_zh=senses, source=str(entry.get("source") or "本地词典"),
             )
             continue
-        gloss = str(ai_row.get("gloss_zh", "")).strip()
+        gloss = str(ai_row.get("gloss_zh", "") or known_contexts.get(token.id, "")).strip()
         fallback = [
             str(value).strip() for value in ai_row.get("fallback_senses_zh", []) if str(value).strip()
         ]
@@ -220,18 +225,18 @@ def _result_for_sentence(
             try:
                 if not isinstance(note, list) or len(note) < 6:
                     continue
-                note_type, start, end, quote, structure, explanation = (
+                note_type, start, end, quote, structure_name, explanation = (
                     str(note[0]), int(note[1]), int(note[2]), str(note[3]),
                     str(note[4]).strip(), str(note[5]).strip(),
                 )
-                if note_type != "grammar" or not structure:
+                if note_type != "grammar" or not structure_name:
                     continue
                 if start < 0 or end <= start or end > len(original) or original[start:end] != quote or not explanation:
                     continue
                 annotations.append(AnnotationOut(
-                    id=stable_id("ann", f"{request_item.sentence.id}:{start}:{end}:{structure}:{explanation}"),
+                    id=stable_id("ann", f"{request_item.sentence.id}:{start}:{end}:{structure_name}:{explanation}"),
                     sentence_id=request_item.sentence.id, type=note_type, anchor_start=start, anchor_end=end,
-                    quote=quote, structure=structure, explanation_zh=explanation,
+                    quote=quote, structure=structure_name, explanation_zh=explanation,
                 ))
             except (TypeError, ValueError):
                 continue
@@ -241,14 +246,39 @@ def _result_for_sentence(
             else str(enriched.get("meaning", "")).strip()
         ),
         "status": "complete", "error": None, "explanation_status": "complete",
+        "translation_quality_status": request_item.sentence.translation_quality_status if annotation_mode == 'grammar' else 'unreviewed',
+        "analysis_stale_reason": request_item.sentence.analysis_stale_reason if annotation_mode == 'grammar' else None,
         "explanation_detail": (
             request_item.sentence.explanation_detail if annotation_mode == "grammar" else detail_mode
         ),
     })
-    return AnalyzeResponse(
+    result = AnalyzeResponse(
         sentences=[sentence], tokens=request_item.tokens, annotations=annotations,
         context_senses=context_senses, lexemes=list(lexemes.values()), warnings=warnings,
     )
+    for annotation in result.annotations:
+        annotation.analysis_revision = sentence.analysis_revision
+    for sense in result.context_senses:
+        sense.analysis_revision = sentence.analysis_revision
+    if structure:
+        result.learning_spans = [linguistics_service.LearningSpan.model_validate(value) for value in structure["learning_spans"]]
+        result.analysis_manifest = structure["analysis_manifest"]
+        allowed_spans = {span["id"] for span in structure["learning_spans"]}
+        result.learning_span_senses = [LearningSpanSenseOut(span_id=str(value[0]), gloss_zh=value[1].strip(),
+                                                          sentence_id=request_item.sentence.id)
+            for value in enriched.get("unit_senses", []) if isinstance(value, list) and len(value) >= 2
+            and str(value[0]) in allowed_spans and isinstance(value[1], str) and value[1].strip()]
+    return result
+
+
+def _build_learning_structures(user_id: str, items, contexts: dict) -> dict[str, dict]:
+    reference_ids = [item.sentence.id for item in items if contexts[item.sentence.id].mode == "reference"]
+    persisted = linguistics_service.structure_results(user_id, reference_ids,context_hashes={sid:contexts[sid].context_hash for sid in reference_ids})["results"] if reference_ids else []
+    results = {row["sentence_id"]: row for row in persisted}
+    for item in items:
+        if item.sentence.id not in results:
+            results[item.sentence.id] = linguistics_service.analyze_sentence(item.sentence.id, item.sentence.original)
+    return results
 
 
 def _is_splittable_ai_error(error: Exception) -> bool:
@@ -259,39 +289,57 @@ def _is_splittable_ai_error(error: Exception) -> bool:
 async def _fetch_ai_rows_resilient(
     user_id: str, misses: list[dict], api_key: str, base_url: str, model: str,
     annotation_mode: str, detail_mode: str, context_before: list[str], depth: int = 0,
+    attempt_budget: list[int] | None = None,
 ) -> list[dict]:
-    if not misses:
+    targets = [item for item in misses if item.get("generate", True)]
+    if not targets:
         return []
+    # One request-wide recovery budget prevents missing rows from recursively
+    # multiplying JSON repairs. 429/network/5xx never trigger batch splitting.
+    budget = attempt_budget if attempt_budget is not None else [min(16, len(targets) * 2 + 2)]
+    if budget[0] <= 0:
+        raise RuntimeError("AI 分批恢复预算已用完，请稍后重试")
+    budget[0] -= 1
+    batch_hash = visible_batch_hash(misses, annotation_mode, detail_mode)
     try:
         rows = await explain_sentences_with_ai(
             user_id, misses, api_key, base_url, model, annotation_mode,
             detail_mode=detail_mode, context_before=context_before,
         )
+    except AiRateLimitError:
+        raise
     except Exception as exc:
-        if len(misses) > 1 and depth < 4 and _is_splittable_ai_error(exc):
-            middle = max(1, len(misses) // 2)
+        if len(targets) > 1 and depth < 4 and _is_splittable_ai_error(exc):
+            middle = max(1, len(targets) // 2)
+            left_ids = {str(item["sentence"]["id"]) for item in targets[:middle]}
+            right_ids = {str(item["sentence"]["id"]) for item in targets[middle:]}
+            left_items = [item for item in misses if not item.get("generate", True) or str(item["sentence"]["id"]) in left_ids]
+            right_items = [item for item in misses if not item.get("generate", True) or str(item["sentence"]["id"]) in right_ids]
             left = await _fetch_ai_rows_resilient(
-                user_id, misses[:middle], api_key, base_url, model, annotation_mode,
-                detail_mode, context_before, depth + 1,
+                user_id, left_items, api_key, base_url, model, annotation_mode,
+                detail_mode, context_before, depth + 1, budget,
             )
-            right_context = [
-                *(context_before[-2:]),
-                *(str(item["sentence"].get("original", "")) for item in misses[:middle]),
-            ][-2:]
             right = await _fetch_ai_rows_resilient(
-                user_id, misses[middle:], api_key, base_url, model, annotation_mode,
-                detail_mode, right_context, depth + 1,
+                user_id, right_items, api_key, base_url, model, annotation_mode,
+                detail_mode, context_before, depth + 1, budget,
             )
             return [*left, *right]
         raise
-    returned = {str(row.get("id")) for row in rows if isinstance(row, dict)}
-    missing_rows = [item for item in misses if str(item["sentence"].get("id")) not in returned]
-    if missing_rows:
+    allowed = {str(item["sentence"]["id"]) for item in targets}
+    rows = [{**row, "_batch_dependency_hash": batch_hash} for row in rows
+            if isinstance(row, dict) and str(row.get("id")) in allowed]
+    returned = {str(row.get("id")) for row in rows}
+    if len(returned) != len(rows):
+        raise RuntimeError("AI 返回了重复句子结果")
+    missing_ids = allowed - returned
+    missing_rows = [{**item, "generate": str(item["sentence"]["id"]) in missing_ids}
+                    for item in misses]
+    if missing_ids:
         if depth >= 4:
-            raise RuntimeError(f"AI 未返回句子 {missing_rows[0]['sentence'].get('id', '')} 的结果")
+            raise RuntimeError(f"AI 未返回句子 {sorted(missing_ids)[0]} 的结果")
         rows.extend(await _fetch_ai_rows_resilient(
             user_id, missing_rows, api_key, base_url, model, annotation_mode,
-            detail_mode, context_before, depth + 1,
+            detail_mode, context_before, depth + 1, budget,
         ))
     return rows
 
@@ -302,11 +350,17 @@ async def _explain_batch(
     api_key, base_url, model = resolve_settings(user_id, x_api_key, str(request.settings.base_url), request.settings.model)
     if not api_key:
         raise HTTPException(401, "请在设置中输入 API Key")
+    for item in request.items:
+        validate_tokens(item.sentence, item.tokens)
+    contexts = await asyncio.to_thread(build_contexts, user_id,
+        [item.sentence for item in request.items], request.context_policy, request.context_before)
+    structures = await asyncio.to_thread(_build_learning_structures, user_id, request.items, contexts) if request.annotation_mode != "grammar" and request.detail_mode == "full" else {}
     prepared: list[dict] = []
     cached_rows: dict[str, dict] = {}
-    misses: list[dict] = []
+    visible_items: list[dict] = []
     for item in request.items:
-        content_tokens = [token for token in item.tokens if token.is_content]
+        structure = structures.get(item.sentence.id)
+        content_tokens = lexical_tokens(item.tokens, structure["learning_spans"]) if structure else [token for token in item.tokens if token.is_content]
         entries = {} if request.annotation_mode == "grammar" or request.detail_mode == "meaning" else {
             token.id: _entry_for_token(user_id, token) for token in content_tokens
         }
@@ -323,13 +377,39 @@ async def _explain_batch(
                       for token in content_tokens if entries.get(token.id)],
             "annotation_mode": request.annotation_mode,
             "detail_mode": request.detail_mode,
-            "context_before": request.context_before,
+            "context_hash": contexts[item.sentence.id].context_hash,
+            "provider": base_url.rstrip("/"),
+            "token_analysis": [[token.surface, token.lemma, token.reading, token.part_of_speech,
+                                getattr(token, "role", None), getattr(token, "conjugation_type", None),
+                                getattr(token, "conjugation_form", None), token.start, token.end] for token in item.tokens],
+            "structure_manifest": structure["analysis_manifest"] if structure else None,
+            "learning_units": [value[1:] for value in learning_units(structure["learning_spans"])] if structure else [],
         }
-        cache_key = make_cache_key(user_id, "sentence", model, PROMPT_VERSION, cache_value)
         prepared_item = {
-            "item": item, "entries": entries, "unresolved_tokens": unresolved, "cache_key": cache_key,
+            "item": item, "entries": entries, "unresolved_tokens": unresolved, "cache_value": cache_value,
+            "lexical_targets": content_tokens, "structure": structure,
         }
         prepared.append(prepared_item)
+        visible_items.append({
+            "sentence": item.sentence.model_dump(),
+            "unresolved_tokens": [token.model_dump() for token in unresolved],
+            "known_tokens": [[token.id, token.surface, token.lemma, token.reading, token.part_of_speech,
+                              entries[token.id]["senses_zh"][:3], token.start, token.end]
+                             for token in content_tokens if entries.get(token.id)],
+            "analysis_context": contexts[item.sentence.id].prompt_data(),
+            "learning_units": learning_units(structure["learning_spans"]) if structure else [],
+            "analysis_manifest": structure["analysis_manifest"] if structure else {},
+        })
+
+    initial_batch_hash = visible_batch_hash(visible_items, request.annotation_mode, request.detail_mode)
+    misses = []
+    for prepared_item, visible in zip(prepared, visible_items):
+        item = prepared_item["item"]
+        content_tokens = prepared_item["lexical_targets"]
+        unresolved = prepared_item["unresolved_tokens"]
+        cache_key = make_cache_key(user_id, "sentence", model, PROMPT_VERSION,
+                                   {**prepared_item["cache_value"], "batch_dependency_hash": initial_batch_hash})
+        prepared_item["cache_key"] = cache_key
         cached = get_cached_response(user_id, cache_key)
         if cached:
             restored_words = []
@@ -346,29 +426,33 @@ async def _explain_batch(
                 "contexts": [[content_tokens[row[0]].id, row[1]] for row in cached.get("contexts", [])
                              if isinstance(row, list) and len(row) >= 2 and isinstance(row[0], int)
                              and 0 <= row[0] < len(content_tokens)],
+                "unit_senses": [[prepared_item["structure"]["learning_spans"][value[0]]["id"], value[1]]
+                                for value in cached.get("unit_senses", [])
+                                if prepared_item["structure"] and isinstance(value, list) and len(value) >= 2
+                                and isinstance(value[0], int) and 0 <= value[0] < len(prepared_item["structure"]["learning_spans"])],
             }
-        else:
-            misses.append({
-                "sentence": item.sentence.model_dump(),
-                "unresolved_tokens": [token.model_dump() for token in unresolved],
-                "known_tokens": [[token.id, token.surface, token.lemma, token.reading, token.part_of_speech,
-                                  entries[token.id]["senses_zh"][:3]]
-                                 for token in content_tokens if entries.get(token.id)],
-            })
+        visible["generate"] = not bool(cached)
+        misses.append(visible)
 
     try:
+        legacy_window = [ref["original"] for ref in next(iter(contexts.values())).preceding_sentence_refs] if all(value.mode == "transient" for value in contexts.values()) else []
         fresh_rows = await _fetch_ai_rows_resilient(
             user_id, misses, api_key, base_url, model, request.annotation_mode,
-            request.detail_mode, request.context_before,
-        ) if misses else []
+            request.detail_mode, legacy_window,
+        ) if any(item["generate"] for item in misses) else []
     except AiRateLimitError:
         raise
     except Exception as exc:
         raise HTTPException(502, f"句子释义失败：{exc}") from exc
     fresh_by_id = {str(row.get("id")): row for row in fresh_rows if isinstance(row, dict)}
+    if any(value.mode=='reference' for value in contexts.values()):
+        current_contexts=await asyncio.to_thread(build_contexts,user_id,[item.sentence for item in request.items],request.context_policy,request.context_before)
+        if any(current_contexts[sid].context_hash!=value.context_hash for sid,value in contexts.items()):
+            raise HTTPException(409,'原文、前文或人物事实在释义期间变化，请刷新后重试；旧结果未覆盖当前版本')
     combined = AnalyzeResponse(
         sentences=[], tokens=[], annotations=[], context_senses=[], lexemes=[], warnings=[],
     )
+    combined.analysis_source = "ai+cache" if cached_rows and fresh_rows else "ai-cache" if cached_rows else "ai"
     lexemes_by_key: dict[str, LexemeOut] = {}
     for prepared_item in prepared:
         item = prepared_item["item"]
@@ -384,24 +468,55 @@ async def _explain_batch(
                 for word in row.get("words", [])
                 if isinstance(word, list) and len(word) >= 3 and word[0] in token_indexes
             ]
-            context_indexes = {token.id: index for index, token in enumerate(token for token in item.tokens if token.is_content)}
+            context_indexes = {token.id: index for index, token in enumerate(prepared_item["lexical_targets"])}
             cache_contexts = [[context_indexes[value[0]], value[1]] for value in row.get("contexts", [])
                               if isinstance(value, list) and len(value) >= 2 and value[0] in context_indexes]
-            cache_payload = {**row, "id": "cached", "words": cache_words, "contexts": cache_contexts}
+            actual_hash = str(row.get("_batch_dependency_hash") or initial_batch_hash)
+            actual_key = make_cache_key(user_id, "sentence", model, PROMPT_VERSION,
+                {**prepared_item["cache_value"], "batch_dependency_hash": actual_hash})
+            cache_payload = {key: value for key, value in row.items() if not key.startswith("_")}
+            cache_payload.update(id="cached", words=cache_words, contexts=cache_contexts,
+                                 batch_dependency_hash=actual_hash)
+            span_indexes = {span["id"]: index for index, span in enumerate(prepared_item["structure"]["learning_spans"])} if prepared_item["structure"] else {}
+            cache_payload["unit_senses"] = [[span_indexes[value[0]], value[1]] for value in row.get("unit_senses", [])
+                                           if isinstance(value, list) and len(value) >= 2 and value[0] in span_indexes]
             set_cached_response(
-                user_id, prepared_item["cache_key"], "sentence", model, PROMPT_VERSION, cache_payload,
+                user_id, actual_key, "sentence", model, PROMPT_VERSION, cache_payload,
             )
+        else:
+            actual_hash = str(row.get("batch_dependency_hash") or initial_batch_hash)
+        combined.analysis_contexts.append(contexts[item.sentence.id].metadata(actual_hash))
+        if contexts[item.sentence.id].book_id:
+            from ..book_memory.repository import record_dependencies,record_context_target
+            await asyncio.to_thread(record_dependencies,user_id,contexts[item.sentence.id].book_id,item.sentence.id,contexts[item.sentence.id].entity_fact_refs)
+            source=await asyncio.to_thread(linguistics_service.owned_sentence,user_id,item.sentence.id)
+            await asyncio.to_thread(record_context_target,user_id,contexts[item.sentence.id].book_id,item.sentence.id,
+                {'source_text':'\n'.join([*[ref['original'] for ref in contexts[item.sentence.id].preceding_sentence_refs],item.sentence.original]),
+                 'chapter_order':int(source[1].get('order',0)),'target_end':item.sentence.end,
+                 'budget':contexts[item.sentence.id].policy['entity_token_budget'],'allow_future':contexts[item.sentence.id].policy['allow_future_facts']})
+        if contexts[item.sentence.id].truncated:
+            combined.warnings.append("前文已按保守预算保留最近的完整句；实际消耗以 AI usage 为准")
         result = _result_for_sentence(
             item, prepared_item["entries"], row, request.annotation_mode, request.detail_mode,
+            prepared_item["lexical_targets"], prepared_item["structure"],
         )
         combined.sentences.extend(result.sentences)
         combined.tokens.extend(result.tokens)
         combined.annotations.extend(result.annotations)
         combined.context_senses.extend(result.context_senses)
         combined.warnings.extend(result.warnings)
+        combined.learning_spans.extend(result.learning_spans)
+        combined.learning_span_senses.extend(result.learning_span_senses)
+        if result.analysis_manifest:
+            combined.analysis_manifest = result.analysis_manifest
+            if contexts[item.sentence.id].mode == "reference":
+                await asyncio.to_thread(linguistics_store.save_span_senses, user_id, item.sentence.id,
+                    [value.model_dump() for value in result.learning_span_senses], result.analysis_manifest,
+                    contexts[item.sentence.id].context_hash)
         for lexeme in result.lexemes:
             lexemes_by_key[lexeme.key] = lexeme
     combined.lexemes = list(lexemes_by_key.values())
+    combined.context_hash = dependency_hash(combined.analysis_contexts)
     return combined
 
 

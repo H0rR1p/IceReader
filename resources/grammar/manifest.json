@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "version": "1.1.0",
+  "grammar_count": 88,
+  "license": "AGPL-3.0-or-later",
+  "authors": [
+    "IceReader contributors"
+  ],
+  "description_zh": "原创日语活用与教学跨度规则；上下文不充分时保留候选，不将形态识别冒充语义消歧。",
+  "sources": [
+    {
+      "name": "SudachiPy morphology API",
+      "url": "https://worksapplications.github.io/sudachi.rs/python/api/sudachipy.morpheme.html",
+      "use": "POS and conjugation metadata interface, no copied rule text"
+    },
+    {
+      "name": "Universal Dependencies Japanese",
+      "url": "https://universaldependencies.org/ja/index.html",
+      "use": "Morphology versus syntactic-word distinction, no copied examples or source code"
+    }
+  ],
+  "capabilities": [
+    "morphology",
+    "constructions",
+    "idioms",
+    "overlapping_spans",
+    "ambiguity_candidates"
+  ],
+  "offset_unit": "unicode_codepoints"
+}

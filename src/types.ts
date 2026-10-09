@@ -49,6 +49,7 @@ export interface Book {
 }
 
 export interface Chapter {
+  active_generation?: string
   id: string
   bookId: string
   title: string
@@ -58,9 +59,13 @@ export interface Chapter {
   originalHtmlUrl?: string
   status: ChapterStatus
   error?: string
+  segmentation_revision?: number
+  analysis_revision?: number
 }
 
 export interface Sentence {
+  translation_quality_status?: 'unreviewed' | 'confirmed' | 'verified' | 'user_confirmed' | 'needs_review' | 'rejected'
+  analysis_stale_reason?: string | null
   id: string
   chapter_id: string
   start: number
@@ -71,6 +76,38 @@ export interface Sentence {
   error?: string | null
   explanation_status?: 'idle' | 'processing' | 'complete' | 'failed'
   explanation_detail?: 'meaning' | 'full' | null
+  segmentation_revision?: number
+  analysis_revision?: number
+}
+
+export interface MorphStep { surface: string; lemma: string; feature: string; explanation_zh: string }
+export interface MorphCandidate { id: string; label: string; features: string[]; evidence: string[]; status: 'supported' | 'possible' | 'selected' | 'rejected'; lemma?: string; reading?: string; derivation?: string[] }
+export interface LearningSpan {
+  override_revision?: number
+  choice_id?: string
+  id: string; sentence_id: string; start: number; end: number; surface: string; lemma: string; reading: string
+  kind: 'morphology' | 'construction' | 'idiom' | 'lexical'; grammar_ids: string[]; features: string[]
+  token_ids: string[]; steps: MorphStep[]; candidates: MorphCandidate[]; explanation_zh: string; children: string[]
+  derivation: string[]
+  source: 'rule' | 'parser' | 'ai' | 'user'; version: string; status: 'determined' | 'ambiguous' | 'unknown' | 'user_confirmed'
+  captures: Record<string, string>; evidence: string[]
+}
+export interface AnalysisManifest {
+  version: string; tokenizer_version: string; dictionary_version: string; rules_version: string; parser_version: string
+  text_hash: string; revision: number
+}
+export interface LearningSpanSense { span_id: string; gloss_zh: string; sentence_id?: string }
+export interface SentenceStructure { sentence_id: string; learning_spans: LearningSpan[]; analysis_manifest: AnalysisManifest; learning_span_senses?: LearningSpanSense[] }
+export interface StructureSnapshot extends SentenceStructure { chapter_id: string; cached_at: number }
+export interface ContextPolicy {
+  preceding_sentences: 0 | 2 | 4 | 8; token_budget: number; include_previous_translation: boolean
+  cross_chapter: boolean; entity_token_budget: number; allow_future_facts: boolean
+}
+export interface AnalysisPreferences { context_policy: ContextPolicy; dependency_enhancement: boolean; ambiguity_resolution: boolean }
+export interface AnalysisCapabilities {
+  version: string; rules_version: string; grammar_count: number
+  linguistics_v1: boolean; grammar_learning_v1?: boolean; dependency_enhancement: { available: boolean; enabled: boolean }
+  ambiguity_resolution: boolean; book_memory_v1?: boolean
 }
 
 export interface TranslationQueueItem {
@@ -87,11 +124,19 @@ export interface TranslationQueuePage {
 }
 
 export interface Token {
+  analysis_revision?: number
   id: string
   sentence_id: string
   start: number
   end: number
   surface: string
+  pos_full?: string[]
+  conjugation_type?: string
+  conjugation_form?: string
+  normalized_form?: string
+  surface_reading?: string
+  lemma_reading?: string | null
+  role?: 'lexical' | 'grammatical' | 'punctuation' | 'unknown'
   lemma: string
   reading: string
   part_of_speech: string
@@ -160,6 +205,8 @@ export interface AnalyzeResponse {
   context_senses: ContextSense[]
   lexemes: Omit<Lexeme, 'updatedAt' | 'firstKana'>[]
   warnings: string[]
+  learning_span_senses?: LearningSpanSense[]
+  analysis_source?: 'local' | 'ai' | 'cache' | 'mixed'
 }
 
 export interface ApiSettings {

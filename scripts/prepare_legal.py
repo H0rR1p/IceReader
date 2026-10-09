@@ -23,19 +23,25 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 import time
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
+from desktop_native_sources import file_hash, prepare as prepare_desktop_native
 
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
 ROOT = Path(__file__).resolve().parent.parent
 LICENSE_NAME = re.compile(r"^(licen[cs]e|copying|notice|authors)([._-]|$)", re.I)
-SOURCE_DIRS = {"backend", "src", "desktop", "scripts", "ymm4-bridge", "public", "assets"}
+SOURCE_DIRS = {"backend", "src", "desktop", "scripts", "ymm4-bridge", "public", "assets", "resources", "tests"}
 SOURCE_ROOTS = {"README.md", "NOTICE.md", "LICENSE", "COPYRIGHT", "SOURCE-BUILD.txt", "THIRD-PARTY-NOTICES.txt", "package.json",
                 "package-lock.json", "electron-builder.yml", "index.html", "start.ps1",
                 "vite.config.ts", "tsconfig.json", "tsconfig.app.json", "tsconfig.node.json",
                 "Dockerfile.cloud", "compose.cloud.yml", "cloud.env.example", ".gitignore", ".dockerignore", ".gitattributes"}
 EXCLUDED_PARTS = {"node_modules", "__pycache__", ".pytest_cache", "bin", "obj"}
+PRIVATE_SOURCE_NAMES = {
+    "日语语法切分与上下文翻译实施方案.md", "日语语法切分与上下文翻译优化方案.md",
+    "冰读自适应学习与账号系统升级方案.md", "切分、翻译优化.txt",
+    "platform-integration-report.md", "grammar-development-progress.md",
+}
 
 
 def read_url(url: str) -> bytes:
@@ -340,7 +346,7 @@ def own_source_files():
             relative = path.relative_to(ROOT)
             if not path.is_file() or any(part in EXCLUDED_PARTS for part in relative.parts):
                 continue
-            if path.suffix in {".pyc", ".log", ".ymmp"} or path.name.startswith(".env"):
+            if path.suffix in {".pyc", ".log", ".ymmp"} or path.name.startswith(".env") or path.name in PRIVATE_SOURCE_NAMES:
                 continue
             files.append(path)
     return sorted(files)
@@ -458,6 +464,17 @@ def main():
         raise RuntimeError("Electron/Chromium runtime notices are missing")
     if not args.cloud:
         save_licenses(licenses_dir / "runtime" / "chromium", [("LICENSES.chromium.html", electron_notices.read_bytes())])
+        native_sources, native_manifest = prepare_desktop_native(args.fetch)
+        source_archives.extend(native_sources)
+        native_licenses = [{"path": path.relative_to(ROOT).as_posix(), "sha256": file_hash(path)}
+                           for path in [licenses_dir / "runtime/chromium/00-LICENSES.chromium.html",
+                                        licenses_dir / "runtime/desktop-native/COPYING.LGPLv2.1",
+                                        licenses_dir / "runtime/desktop-native/CREDITS.chromium"]]
+        rows.append({"ecosystem": "runtime", "name": "Electron/Chromium native components",
+                     "version": native_manifest["electron_version"], "scopes": ["runtime"],
+                     "license": "Upstream component licenses including LGPL-2.1-or-later and MPL",
+                     "source_url": native_manifest["sources"][0]["url"], "licenses": native_licenses,
+                     "source_manifest": "third_party_licenses/runtime/desktop-native/manifest.json"})
     # certifi's upstream license file is a short notice, not the complete MPL.
     mpl = licenses_dir / "texts" / "MPL-2.0.txt"
     if not mpl.is_file():
@@ -485,6 +502,14 @@ JSZip is used under its MIT option. certifi retains MPL-2.0; its unmodified
 source (including the certificate bundle) is supplied in the source archive.
 PyInstaller uses GPL with a bootloader exception; preserve that exception.
 Electron/Chromium notices remain LICENSE.electron.txt / LICENSES.chromium.html.
+The desktop archive also contains full Electron and Chromium source repositories,
+the matching Chromium FFmpeg fork, upstream patches/configuration, dictionaries
+and MPL Readability sources. Pinned revisions, archive and runtime hashes are in
+third_party_licenses/runtime/desktop-native/manifest.json. See SOURCE-BUILD.txt
+for rebuilding FFmpeg, replacing its shared DLL, and relinking the runtime with
+modified Blink/libusb/etc. Debugging such changes by reverse engineering is
+permitted; no project EULA restricts rights granted by the component licenses.
+This release uses FFmpeg under LGPL-2.1-or-later (GPL/nonfree config disabled).
 Build-only tools are listed for transparency, not as shipped app modules.
 
 External software and content
@@ -530,11 +555,20 @@ Use this source-packaging workflow for every release, including modified ones.
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, stderr=subprocess.DEVNULL).decode().strip()
     except (OSError, subprocess.CalledProcessError):
         commit = "source-snapshot-in-container"
+    try:
+        branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, stderr=subprocess.DEVNULL).decode().strip() or "detached"
+        dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, stderr=subprocess.DEVNULL).strip())
+    except (OSError, subprocess.CalledProcessError):
+        branch, dirty = "unknown", None
     files = own_source_files()
     source_manifest = {"version": project["version"], "base_commit": commit,
+                       "source_branch": branch, "working_tree_dirty": dirty,
+                       "snapshot_kind": "working-tree",
                        "includes_working_tree_changes": True, "project_license": "AGPL-3.0-or-later",
                        "files": [{"path": path.relative_to(ROOT).as_posix(), "sha256": sha256(path.read_bytes())} for path in files],
-                       "dependency_sources": [{"file": path.name, "sha256": sha256(path.read_bytes())} for path in source_archives]}
+                       "dependency_sources": [{"file": path.name, "archive_path": "dependency-sources/" + path.name,
+                                               "sha256": file_hash(path)} for path in source_archives],
+                       "desktop_native_sources": native_manifest if not args.cloud else None}
     temporary = output / "corresponding-source.zip.tmp"
     with ZipFile(temporary, "w", compression=ZIP_DEFLATED) as archive:
         for path in files:
@@ -543,14 +577,19 @@ Use this source-packaging workflow for every release, including modified ones.
             if path.is_file():
                 archive.write(path, "IceReader/" + path.relative_to(ROOT).as_posix())
         for path in sorted(set(source_archives)):
-            archive.write(path, "dependency-sources/" + path.name)
+            # Upstream archives are already compressed. Storing them avoids
+            # a long recompression pass and preserves their original bytes.
+            archive.write(path, "dependency-sources/" + path.name, compress_type=ZIP_STORED)
         archive.writestr("SOURCE-MANIFEST.json", json.dumps(source_manifest, ensure_ascii=False, indent=2))
         archive.writestr("IceReader/backend/requirements-release.txt", "\n".join(
             f"{row['name']}=={row['version']}" for row in rows if row["ecosystem"] == "python") + "\n")
     temporary.replace(output / "corresponding-source.zip")
-    source_hash = sha256((output / "corresponding-source.zip").read_bytes())
+    source_hash = file_hash(output / "corresponding-source.zip")
     write_json(output / "release.json", {"version": project["version"], "base_commit": commit,
-                                         "source_sha256": source_hash, "license": "AGPL-3.0-or-later"})
+                                         "source_branch": branch, "working_tree_dirty": dirty,
+                                         "source_sha256": source_hash, "license": "AGPL-3.0-or-later",
+                                         "source_bytes": (output / "corresponding-source.zip").stat().st_size,
+                                         "desktop_native_sources": bool(not args.cloud)})
     print(f"Legal bundle: {len(rows)} components, {len(source_archives)} dependency source archives; {output}")
 
 

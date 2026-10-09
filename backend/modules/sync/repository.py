@@ -7,12 +7,11 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from ...paths import DATA_DIR
+from .protocol import (ALLOWED_TYPES, APPEND_ONLY_TYPES, FORK_ON_CONFLICT_TYPES,
+                       capabilities, revision_conflict, validate_exchange, generation_conflict, history_flag_advance)
 
 
 SYNC_PATH=DATA_DIR / "sync.sqlite3"
-APPEND_ONLY_TYPES={"learning_event","review_log"}
-FORK_ON_CONFLICT_TYPES={"note"}
-ALLOWED_TYPES={"knowledge_item","learning_event","note","card","review_log","bookmark","reading_progress","preference","lexeme"}
 _lock=threading.Lock(); _initialized_path: Path | None=None
 
 
@@ -39,10 +38,11 @@ def initialize_store():
                     PRIMARY KEY(user_id,entity_type,entity_id)
                 );
                 CREATE TABLE IF NOT EXISTS sync_changes(
-                    cursor INTEGER PRIMARY KEY AUTOINCREMENT,change_id TEXT NOT NULL UNIQUE,user_id TEXT NOT NULL,
+                    cursor INTEGER PRIMARY KEY AUTOINCREMENT,change_id TEXT NOT NULL,user_id TEXT NOT NULL,
                     source_device_id TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT NOT NULL,
                     operation TEXT NOT NULL,base_version INTEGER,version INTEGER NOT NULL,payload_json TEXT NOT NULL,
-                    updated_at REAL NOT NULL,deleted_at REAL,conflict_group TEXT,created_at REAL NOT NULL
+                    updated_at REAL NOT NULL,deleted_at REAL,conflict_group TEXT,created_at REAL NOT NULL,
+                    UNIQUE(user_id,change_id)
                 );
                 CREATE INDEX IF NOT EXISTS idx_sync_changes_user_cursor ON sync_changes(user_id,cursor);
                 CREATE TABLE IF NOT EXISTS sync_bindings(
@@ -53,7 +53,24 @@ def initialize_store():
                     user_id TEXT NOT NULL,device_id TEXT NOT NULL,pull_cursor INTEGER NOT NULL DEFAULT 0,
                     updated_at REAL NOT NULL,PRIMARY KEY(user_id,device_id)
                 );
+                CREATE TABLE IF NOT EXISTS sync_projection_receipts(user_id TEXT NOT NULL,change_id TEXT NOT NULL,
+                    status TEXT NOT NULL,payload_json TEXT NOT NULL,reason TEXT,updated_at REAL NOT NULL,
+                    PRIMARY KEY(user_id,change_id));
             """)
+            definition = connection.execute("SELECT sql FROM sqlite_master WHERE name='sync_changes'").fetchone()[0]
+            if "change_id TEXT NOT NULL UNIQUE" in definition:
+                connection.executescript("""
+                    CREATE TABLE sync_changes_v3(
+                        cursor INTEGER PRIMARY KEY AUTOINCREMENT,change_id TEXT NOT NULL,user_id TEXT NOT NULL,
+                        source_device_id TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT NOT NULL,
+                        operation TEXT NOT NULL,base_version INTEGER,version INTEGER NOT NULL,payload_json TEXT NOT NULL,
+                        updated_at REAL NOT NULL,deleted_at REAL,conflict_group TEXT,created_at REAL NOT NULL,
+                        UNIQUE(user_id,change_id));
+                    INSERT INTO sync_changes_v3 SELECT * FROM sync_changes;
+                    DROP TABLE sync_changes;
+                    ALTER TABLE sync_changes_v3 RENAME TO sync_changes;
+                    CREATE INDEX idx_sync_changes_user_cursor ON sync_changes(user_id,cursor);
+                """)
             connection.commit(); _initialized_path=resolved
         finally: connection.close()
 
@@ -78,17 +95,25 @@ def _append_change(connection,user_id,device_id,mutation,entity_id,version,confl
         (user_id,mutation["entity_type"],entity_id,version,json.dumps(payload,ensure_ascii=False,separators=(",",":")),device_id,float(mutation.get("updated_at") or time.time()),deleted_at,conflict_group))
 
 
-def push_changes(user_id: str,device_id: str,mutations: list[dict]) -> dict:
+def push_changes(user_id: str,device_id: str,mutations: list[dict], *, schema_version: int=3, peer_capabilities=None) -> dict:
+    validate_exchange(mutations, schema_version, peer_capabilities)
     accepted=[]; skipped=[]; conflicts=[]
     with _connect() as connection:
         for mutation in mutations:
             entity_type=str(mutation["entity_type"]); entity_id=str(mutation["entity_id"])
             if entity_type not in ALLOWED_TYPES: raise ValueError(f"unsupported_entity:{entity_type}")
-            duplicate=connection.execute("SELECT cursor FROM sync_changes WHERE change_id=?",(mutation["change_id"],)).fetchone()
+            duplicate=connection.execute("SELECT cursor FROM sync_changes WHERE user_id=? AND change_id=?",(user_id,mutation["change_id"])).fetchone()
             if duplicate: skipped.append({"change_id":mutation["change_id"],"reason":"duplicate","cursor":duplicate[0]}); continue
             current=connection.execute("SELECT * FROM sync_entities WHERE user_id=? AND entity_type=? AND entity_id=?",(user_id,entity_type,entity_id)).fetchone()
             incoming_payload=mutation.get("payload") or {}; current_payload=json.loads(current["payload_json"]) if current else None
-            if current and entity_type in APPEND_ONLY_TYPES:
+            reason=revision_conflict(entity_type,incoming_payload,current_payload) or generation_conflict(connection,user_id,mutation)
+            if reason:
+                conflict_group=(current["conflict_group"] if current else None) or str(uuid.uuid4()); fork_id=f"{entity_id}@{device_id}@{mutation['change_id']}"
+                if current:
+                    connection.execute("UPDATE sync_entities SET conflict_group=? WHERE user_id=? AND entity_type=? AND entity_id=?",(conflict_group,user_id,entity_type,entity_id))
+                _append_change(connection,user_id,device_id,mutation,fork_id,1,conflict_group)
+                conflicts.append({"change_id":mutation["change_id"],"entity_type":entity_type,"entity_id":entity_id,"fork_id":fork_id,"conflict_group":conflict_group,"reason":reason}); continue
+            if current and entity_type in APPEND_ONLY_TYPES and not history_flag_advance(entity_type,incoming_payload,current_payload):
                 if current_payload==incoming_payload: skipped.append({"change_id":mutation["change_id"],"reason":"same_append_only_entity"}); continue
                 conflict_group=current["conflict_group"] or str(uuid.uuid4()); fork_id=f"{entity_id}@{device_id}@{str(mutation['change_id'])[:8]}"
                 connection.execute("UPDATE sync_entities SET conflict_group=? WHERE user_id=? AND entity_type=? AND entity_id=?",(conflict_group,user_id,entity_type,entity_id))
@@ -109,9 +134,10 @@ def push_changes(user_id: str,device_id: str,mutations: list[dict]) -> dict:
     return {"accepted":accepted,"skipped":skipped,"conflicts":conflicts,"cursor":int(cursor)}
 
 
-def pull_changes(user_id: str,device_id: str,after: int=0,limit: int=500) -> dict:
+def pull_changes(user_id: str,device_id: str,after: int=0,limit: int=500, *, schema_version: int=3, peer_capabilities=None) -> dict:
     with _connect() as connection:
         rows=connection.execute("SELECT * FROM sync_changes WHERE user_id=? AND cursor>? ORDER BY cursor LIMIT ?",(user_id,max(0,after),min(2000,max(1,limit)))).fetchall()
+        validate_exchange([{**dict(row),"payload":json.loads(row["payload_json"])} for row in rows],schema_version,peer_capabilities)
         cursor=int(rows[-1]["cursor"]) if rows else max(0,after)
         connection.execute("""INSERT INTO sync_device_cursors(user_id,device_id,pull_cursor,updated_at) VALUES(?,?,?,?)
             ON CONFLICT(user_id,device_id) DO UPDATE SET pull_cursor=MAX(pull_cursor,excluded.pull_cursor),updated_at=excluded.updated_at""",(user_id,device_id,cursor,time.time()))
@@ -176,9 +202,28 @@ def sync_status(user_id: str) -> dict:
         cursor=connection.execute("SELECT COALESCE(MAX(cursor),0) FROM sync_changes WHERE user_id=?",(user_id,)).fetchone()[0]
         devices=connection.execute("SELECT COUNT(*) FROM sync_device_cursors WHERE user_id=?",(user_id,)).fetchone()[0]
         bindings=connection.execute("SELECT COUNT(*) FROM sync_bindings WHERE user_id=?",(user_id,)).fetchone()[0]
-    return {"cursor":int(cursor),"entities":int(row["entities"] or 0),"tombstones":int(row["tombstones"] or 0),"conflicts":int(row["conflicts"] or 0),"devices":int(devices),"bindings":int(bindings),"content_scope":"learning-only"}
+        projections=connection.execute("SELECT SUM(status='conflict'),SUM(status='pending') FROM sync_projection_receipts WHERE user_id=?",(user_id,)).fetchone()
+    projection_conflicts=int(projections[0] or 0)
+    return {"cursor":int(cursor),"entities":int(row["entities"] or 0),"tombstones":int(row["tombstones"] or 0),"conflicts":max(int(row["conflicts"] or 0),projection_conflicts),"projection_conflicts":projection_conflicts,"pending_projections":int(projections[1] or 0),"devices":int(devices),"bindings":int(bindings),**capabilities()}
 
 
 def record_local_change(user_id: str,device_id: str,entity_type: str,entity_id: str,payload: dict,updated_at: float | None=None,deleted_at: float | None=None):
     return push_changes(user_id,device_id,[{"change_id":str(uuid.uuid4()),"entity_type":entity_type,"entity_id":entity_id,"payload":payload,"updated_at":updated_at or time.time(),"deleted_at":deleted_at}])
+
+
+def projection_receipt(user_id: str, change_id: str) -> str | None:
+    with _connect() as connection:
+        row = connection.execute("SELECT status FROM sync_projection_receipts WHERE user_id=? AND change_id=?", (user_id,change_id)).fetchone()
+    return row[0] if row else None
+
+
+def save_projection_receipt(user_id: str, change: dict, status: str, reason: str | None=None):
+    with _connect() as connection:
+        connection.execute("INSERT INTO sync_projection_receipts VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,change_id) DO UPDATE SET status=excluded.status,payload_json=excluded.payload_json,reason=excluded.reason,updated_at=excluded.updated_at", (user_id,change['change_id'],status,json.dumps(change,ensure_ascii=False),reason,time.time()))
+
+
+def pending_projections(user_id: str) -> list[dict]:
+    with _connect() as connection:
+        rows = connection.execute("SELECT payload_json FROM sync_projection_receipts WHERE user_id=? AND status='pending' ORDER BY updated_at", (user_id,)).fetchall()
+    return [json.loads(row[0]) for row in rows]
 

@@ -41,9 +41,13 @@ async function api(page, url, options) {
   // page download events. Check the completed native file, as for migrations.
   const sourcePath = path.join(profile, 'test-download.zip')
   let sourceHash = ''
-  for (let attempt = 0; attempt < 60; attempt++) {
-    if (fs.existsSync(sourcePath)) sourceHash = require('node:crypto').createHash('sha256').update(fs.readFileSync(sourcePath)).digest('hex')
-    if (sourceHash === legal.value.source_sha256) break
+  for (let attempt = 0; attempt < 180; attempt++) {
+    if (fs.existsSync(sourcePath) && fs.statSync(sourcePath).size === legal.value.source_bytes) {
+      const digest = require('node:crypto').createHash('sha256')
+      for await (const chunk of fs.createReadStream(sourcePath)) digest.update(chunk)
+      sourceHash = digest.digest('hex')
+      break
+    }
     await new Promise(resolve => setTimeout(resolve, 1000))
   }
   assert.ok(fs.existsSync(sourcePath), 'native corresponding-source download')

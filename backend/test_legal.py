@@ -21,6 +21,9 @@ def test_source_and_license_downloads_are_public_and_versioned(tmp_path, monkeyp
     download = client.get("/api/legal/source")
     assert download.status_code == 200 and download.content == b"matching-source"
     assert "attachment" in download.headers["content-disposition"]
+    probe = client.head("/api/legal/source")
+    assert probe.status_code == 200 and probe.content == b""
+    assert probe.headers["content-length"] == str(len(download.content))
     assert '/api/legal/source' in client.get("/").text
     # Do not expose arbitrary files from the release folder.
     (tmp_path / "private.txt").write_text("private")

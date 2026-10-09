@@ -4,9 +4,10 @@ import sqlite3
 import threading
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any
+from fastapi import HTTPException
 from ...models import ChapterSnapshot, LibraryIndex, LibraryPatch, LibrarySnapshot, StudyDataSnapshot
 from ...nlp import kata
 from ...paths import DATA_DIR
@@ -729,9 +730,70 @@ def owns_resource_key(user_id: str, resource_key: str) -> bool:
         ).fetchone() is not None
 
 
-def apply_library_patch(user_id: str, patch: LibraryPatch) -> dict[str, int]:
+def _validate_analysis_patch(connection, user_id: str, patch: LibraryPatch) -> None:
+    staged = {(table, str(row.get(TABLE_KEYS.get(table, 'id'), ''))): row
+              for table, rows in patch.upserts.items() for row in rows}
+
+    def stored(table, identity):
+        value = connection.execute('SELECT payload FROM records WHERE owner_user_id=? AND table_name=? AND record_key=?', (user_id, table, str(identity))).fetchone()
+        return json.loads(value[0]) if value else None
+
+    def get(table, identity):
+        return staged.get((table, str(identity))) or stored(table, identity)
+
+    def chapter_for(table, row):
+        if table == 'chapters':
+            return stored('chapters', row.get('id'))
+        if table == 'contextSenses':
+            token = get('tokens', row.get('token_id'))
+            if token is None:
+                raise HTTPException(409, '词语来源已变化，请刷新章节')
+            row = token
+        if table in {'tokens','annotations','contextSenses'}:
+            parent = get('sentences', row.get('sentence_id'))
+            if parent is None:
+                raise HTTPException(409, '句子来源已变化，请刷新章节')
+            row = parent
+        return stored('chapters', row.get('chapter_id')) or get('chapters', row.get('chapter_id'))
+
+    protected = {'chapters','sentences','tokens','annotations','contextSenses'}
+    for table, rows in patch.upserts.items():
+        if table not in protected:
+            continue
+        for row in rows:
+            chapter = chapter_for(table, row)
+            if chapter is None:
+                # Preserve legacy imports, whose chapter and sentences are
+                # inserted together, while rejecting detached late results.
+                if table != 'chapters':
+                    raise HTTPException(409, '章节不存在或无权访问')
+                continue
+            current = int(chapter.get('analysis_revision', 1))
+            if current > 1 and int(row.get('analysis_revision', 1)) != current:
+                raise HTTPException(409, '旧切分结果不能覆盖当前版本，请刷新章节')
+            if table == 'sentences' and current > 1:
+                prior = stored('sentences', row.get('id'))
+                if not prior or any(prior.get(key) != row.get(key) for key in ('chapter_id','start','end','original')):
+                    raise HTTPException(409, '不能通过释义保存修改句界')
+            if table == 'chapters' and current > 1 and (row.get('text') != chapter.get('text') or row.get('active_generation') != chapter.get('active_generation')):
+                raise HTTPException(409, '请使用重新切分接口切换分析版本')
+    for table, keys in patch.deletes.items():
+        if table not in protected:
+            continue
+        for key in keys:
+            row = stored(table, key)
+            if row:
+                chapter = chapter_for(table, row)
+                if chapter and int(chapter.get('analysis_revision', 1)) > 1 and patch.expected_revisions.get(chapter['id']) != int(chapter['analysis_revision']):
+                    raise HTTPException(409, '版本化章节须使用重切或删书接口')
+
+
+def apply_library_patch(user_id: str, patch: LibraryPatch, *, _connection=None) -> dict[str, int]:
     changed = 0
-    with _connect(user_id) as connection:
+    with (nullcontext(_connection) if _connection is not None else _connect(user_id)) as connection:
+        if _connection is None:
+            connection.execute('BEGIN IMMEDIATE')
+        _validate_analysis_patch(connection, user_id, patch)
         for table_name, keys in patch.deletes.items():
             if table_name not in TABLE_KEYS:
                 raise ValueError(f"未知数据表：{table_name}")
@@ -916,6 +978,22 @@ def delete_book(user_id: str, book_id: str) -> dict[str, Any]:
 def save_library(user_id: str, snapshot: LibrarySnapshot) -> LibrarySnapshot:
     values = snapshot.model_dump()
     with _connect(user_id) as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        _validate_analysis_patch(connection,user_id,LibraryPatch(upserts=values))
+        incoming_chapters={str(row['id']):row for row in values.get('chapters',[])}
+        incoming_sentences={str(row['id']) for row in values.get('sentences',[])}
+        incoming_tokens={str(row['id']) for row in values.get('tokens',[])}
+        for encoded, in connection.execute("SELECT payload FROM records WHERE owner_user_id=? AND table_name='chapters' AND COALESCE(json_extract(payload,'$.analysis_revision'),1)>1",(user_id,)):
+            chapter=json.loads(encoded)
+            if chapter['id'] not in incoming_chapters:
+                raise HTTPException(409,'完整保存缺少当前分析版本，请使用专门的删除或恢复接口')
+            expected_ids={row[0] for row in connection.execute("SELECT record_key FROM records WHERE owner_user_id=? AND table_name='sentences' AND json_extract(payload,'$.chapter_id')=?",(user_id,chapter['id']))}
+            if not expected_ids.issubset(incoming_sentences):
+                raise HTTPException(409,'完整保存缺少当前版本句子，拒绝覆盖')
+            for sentence_id in expected_ids:
+                token_ids={row[0] for row in connection.execute("SELECT record_key FROM records WHERE owner_user_id=? AND table_name='tokens' AND json_extract(payload,'$.sentence_id')=?",(user_id,sentence_id))}
+                if not token_ids.issubset(incoming_tokens):
+                    raise HTTPException(409,'完整保存缺少当前版本词素，拒绝覆盖')
         for table_name, key_name in TABLE_KEYS.items():
             rows = values.get(table_name, [])
             incoming_keys = {str(row[key_name]) for row in rows}
@@ -927,7 +1005,6 @@ def save_library(user_id: str, snapshot: LibrarySnapshot) -> LibrarySnapshot:
                 "INSERT INTO records (owner_user_id, table_name, record_key, payload) VALUES (?, ?, ?, ?) ON CONFLICT(owner_user_id, table_name, record_key) DO UPDATE SET payload = excluded.payload",
                 ((user_id, table_name, str(row[key_name]), json.dumps(row, ensure_ascii=False, separators=(",", ":"))) for row in rows),
             )
-    with _connect(user_id) as connection:
         book_ids = {str(row["id"]) for row in values.get("books", [])}
         bookmark_ids = {str(row["id"]) for row in values.get("bookmarks", [])}
         if book_ids:
@@ -951,8 +1028,8 @@ def save_library(user_id: str, snapshot: LibrarySnapshot) -> LibrarySnapshot:
             )
         else:
             connection.execute("DELETE FROM user_bookmarks WHERE user_id = ?", (user_id,))
-    apply_library_patch(user_id, LibraryPatch(upserts={
-        "books": values.get("books", []), "bookmarks": values.get("bookmarks", []),
-    }))
+        apply_library_patch(user_id, LibraryPatch(upserts={
+            "books": values.get("books", []), "bookmarks": values.get("bookmarks", []),
+        }), _connection=connection)
     return snapshot
 

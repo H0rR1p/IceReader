@@ -3,6 +3,7 @@ import { db, loadBookBookmarks, syncRecords } from '../../db'
 import type { AnalyzeResponse, Book, Chapter, Sentence, SentenceBookmark, Token } from '../../types'
 import type { BackgroundJob } from '../translation/pipeline'
 import Reader from './Reader'
+import ResegmentationControls from './ResegmentationControls'
 
 
 export default function Workspace({ userId, book, activeChapter, loadingChapterId, onSelectChapter, onProcessChapter, onExplainSentence, backgroundJob, dataRevision, onBackgroundBook, onBackgroundChapter, onCancelBackground, onBookImageVisibility, onNotice }: {
@@ -36,7 +37,7 @@ export default function Workspace({ userId, book, activeChapter, loadingChapterI
       .then((rows) => { if (!controller.signal.aborted) setBookmarks(rows) })
       .catch((error) => { if (!controller.signal.aborted) onNotice(error instanceof Error ? error.message : String(error)) })
     return () => controller.abort()
-  }, [book.id, onNotice])
+  }, [book.id, activeChapter?.analysis_revision, dataRevision, onNotice])
 
   async function toggleBookmark(sentence: Sentence) {
     const existing = bookmarks.find((bookmark) => bookmark.sentenceId === sentence.id)
@@ -72,14 +73,14 @@ export default function Workspace({ userId, book, activeChapter, loadingChapterI
         <button className="sidebar-collapse left" type="button" aria-label={leftCollapsed ? '展开左侧栏' : '收起左侧栏'} title={leftCollapsed ? '展开左侧栏' : '收起左侧栏'} onClick={() => setLeftCollapsed((value) => !value)}>{leftCollapsed ? '›' : '‹'}</button>
         {!leftCollapsed && <div className="chapter-nav-content">
           <div className="book-heading"><small>正在阅读</small><h2>{book.title}</h2>{book.author && <p>{book.author}</p>}</div>
-          <div className="book-background-actions">
-            <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('segment')}>后台切分全书</button>
-            <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('translate')}>后台翻译全书</button>
-          </div>
           <label className="reader-image-toggle">
             <input type="checkbox" checked={showBookImages} onChange={(event) => void onBookImageVisibility(book, event.target.checked).catch((error) => onNotice(error instanceof Error ? error.message : String(error)))} />
             <span><strong>显示全书插图</strong><small>换章后继续沿用</small></span>
           </label>
+          <ResegmentationControls book={book} chapter={activeChapter} onPauseTranslation={onCancelBackground} onReload={onSelectChapter} onNotice={onNotice}>
+            <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('segment')}>后台切分全书</button>
+            <button className="button small" disabled={backgroundJob?.running} onClick={() => onBackgroundBook('translate')}>后台翻译全书</button>
+          </ResegmentationControls>
           {backgroundJob && <BackgroundProgress job={backgroundJob} onCancel={onCancelBackground} />}
           <div className="nav-mode-tabs" role="tablist" aria-label="左侧栏模式">
             <button className={navMode === 'chapters' ? 'active' : ''} onClick={() => setNavMode('chapters')}>目录</button>

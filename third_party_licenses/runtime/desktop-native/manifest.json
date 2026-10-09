@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "electron_version": "42.4.0",
+  "chromium_version": "148.0.7778.254",
+  "ffmpeg_revision": "b5e18fb9da84e26ceef30d4e4886696bf59337c0",
+  "official_runtime_zip_sha256": "ffc056685b4a769d7977ef3d58bdc332446d081f025ee074d77b498d2962e2cd",
+  "official_checksums_url": "https://github.com/electron/electron/releases/download/v42.4.0/SHASUMS256.txt",
+  "runtime_hashes": {
+    "electron.exe": "5cc8c0fb38d138db863e05c6279676147fde820998d8968c1203f44a9f6ee6d3",
+    "ffmpeg.dll": "80d1ff5d7689071edae78164eacf92e4924689936d8cd818340377318b0a5da6",
+    "libEGL.dll": "380900fd2c24f14d602e5bf6d43c86f9c69362ac911d44f9609971a62735dbd7",
+    "libGLESv2.dll": "d6a0d6700956b66e4b0d75f6cc102a9e0dfd7d923c5fba1ab227aa3cb0ba3b0b",
+    "LICENSES.chromium.html": "e3c8a6093358521d4512d68945e16338755e687619196e63948d46c9267537b6"
+  },
+  "sources": [
+    {
+      "file": "electron-v42.4.0.tar.gz",
+      "url": "https://codeload.github.com/electron/electron/tar.gz/refs/tags/v42.4.0",
+      "sha256": "7adc30ead5be30b51d84388eea71b63974fd4d53c7b40c8aaa5de1869f5436fe",
+      "bytes": 18904909
+    },
+    {
+      "file": "chromium-148.0.7778.254.tar.gz",
+      "url": "https://codeload.github.com/chromium/chromium/tar.gz/refs/tags/148.0.7778.254",
+      "sha256": "ed00b49bc7eedbe2c74b60f766c022c4add12d4ec6b755b7fbfc40991b7ebcdf",
+      "bytes": 1443998659
+    },
+    {
+      "file": "ffmpeg-b5e18fb9.tar.gz",
+      "url": "https://chromium.googlesource.com/chromium/third_party/ffmpeg/+archive/b5e18fb9da84e26ceef30d4e4886696bf59337c0.tar.gz",
+      "sha256": "dd44c002f6c76990b080dac579c35bf4d6ce97f858e19a4ee92b808d8a0e717a",
+      "bytes": 18246377
+    },
+    {
+      "file": "hunspell-dictionaries-cccf64a8.tar.gz",
+      "url": "https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/+archive/cccf64a8acc951afe3f47fee023908e55699bc58.tar.gz",
+      "sha256": "d71accbef1c291d1474013c8a74a860257d5cdd605fbab2d1948e8849b23f172",
+      "bytes": 69491523
+    },
+    {
+      "file": "readability-d7949dc4.tar.gz",
+      "url": "https://codeload.github.com/mozilla/readability/tar.gz/d7949dc47dd9ed9ee1d3b34ffdcf3bce28cde435",
+      "sha256": "3bba85721a3f2d1c20bdf1b90766b3b28a49f1a4417b990182e64be311299897",
+      "bytes": 5065221
+    }
+  ],
+  "scope": "Official unmodified Windows x64 Electron libraries. Application EXE branding edits only; original EXE source and all upstream patches are supplied.",
+  "included_native_source": "Full Electron and Chromium repositories, exact Chromium FFmpeg fork, dictionaries and MPL Readability; Chromium archive includes Blink, locally modified libusb, Hunspell, ISimpleDOM, hyphenation patterns and their build files.",
+  "build_instructions": "SOURCE-BUILD.txt; full pinned upstream build instructions and patches accompany Electron source.",
+  "license_policy": "Preserve all upstream licenses. Choose the MPL option where upstream offers an MPL/GPL/LGPL alternative; source is supplied even for those dual-licensed files."
+}

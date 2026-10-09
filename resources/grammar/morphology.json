@@ -1,0 +1,184 @@
+{
+  "version": "1.1.0",
+  "max_chain_tokens": 24,
+  "features": {
+    "dictionary": "词典形：词典中用来查这个词的基本形式。",
+    "stem": "连接后面的变化：这部分需要和后面的词一起看。",
+    "irrealis": "连接否定等变化：后面可以接不做、让人做或被动的表达。",
+    "attributive": "修饰后面的名词：说明是怎样的人或事。",
+    "conditional": "条件形：如果这样，就……。",
+    "imperative": "命令形：要求对方做，通常比较直接。",
+    "volitional": "意愿形：想做、一起做吧，或表示大概如此。",
+    "causative": "使役形：让、使或允许某人做。",
+    "potential": "可能形：能做某事。例如読める：能读。",
+    "voice_ambiguous": "れる／られる：可能表示被做、能做、尊敬或自然产生。下面列出适合这个词形的解释，具体看前后文。",
+    "causative_passive": "使役被动：被要求或被迫做某事。",
+    "short_causative_passive": "使役被动的口语短形式：表示被要求或被迫做某事。",
+    "negative": "否定：不做、没有做，或不是这样。",
+    "polite": "礼貌形式：用ます或です，让语气更客气。",
+    "past": "た形：通常表示已经做了或已经发生。",
+    "desiderative": "たい：想做某事，通常是说话者的愿望。",
+    "desiderative_behavior": "たがる：看起来想做，常用来描述别人的愿望。",
+    "adjective_stem": "形容词去掉词尾的部分：可以连接看起来等表达。",
+    "te_form": "て／で形：把动作和后面的表达连起来，要一起理解。",
+    "progressive_resultative": "ている：正在做、经常做，或做完后保持的状态。不是每次都表示正在。",
+    "resultative": "てある：有人做了这件事，结果还保留着。",
+    "preparative": "ておく：提前做好，或先保持这样。",
+    "completion": "てしまう：做完；有时表示不小心或觉得遗憾。",
+    "trial": "てみる：试着做一下。",
+    "benefactive": "帮忙的表达：帮别人做，或得到别人的帮助。是谁帮谁要看前后文。",
+    "directional_aspect": "ていく／てくる：做了再走或再来，也能表示逐渐变化。",
+    "copula": "判断表达：说明是什么或是怎样的，相当于中文的是。",
+    "appearance": "そう：看起来如此，或好像快要发生。",
+    "reported_inference": "らしい：听说，或根据线索推测是这样。",
+    "prohibition_intention": "まい：不打算做，或推测不会发生。",
+    "contracted_completion": "ちゃう／じゃう：てしまう／でしまう的口语说法，表示做完或不小心做了。",
+    "contracted_progressive_resultative": "てる／でる：ている／でいる的口语说法，表示正在做、经常做或保持某种状态。",
+    "honorific": "尊敬表达：用更尊敬的说法描述对方的动作，动作的基本意思不变。",
+    "humble": "谦逊表达：把自己一方的动作说得更谦逊，以表示对对方的尊重。",
+    "respectful_benefactive": "尊敬的帮忙表达：别人为我这一方做某事，比くれる更尊敬。",
+    "humble_benefactive": "谦逊的求助表达：请别人帮忙或得到帮助，比もらう更客气。",
+    "unknown": "暂未确定：现有信息不足，不能可靠说明这种变化。",
+    "nominal_change": "状态变化：变成某种情况。例如休みになる：变成休息日。"
+  },
+  "auxiliaries": {
+    "せる": "causative",
+    "させる": "causative",
+    "れる": "voice_ambiguous",
+    "られる": "voice_ambiguous",
+    "ない": "negative",
+    "ぬ": "negative",
+    "ず": "negative",
+    "ます": "polite",
+    "です": "polite",
+    "だ": "copula",
+    "た": "past",
+    "たい": "desiderative",
+    "たがる": "desiderative_behavior",
+    "らしい": "reported_inference",
+    "まい": "prohibition_intention",
+    "ちゃう": "contracted_completion",
+    "じゃう": "contracted_completion",
+    "てる": "contracted_progressive_resultative",
+    "でる": "contracted_progressive_resultative"
+  },
+  "te_auxiliaries": {
+    "いる": "progressive_resultative",
+    "ある": "resultative",
+    "おく": "preparative",
+    "しまう": "completion",
+    "みる": "trial",
+    "見る": "trial",
+    "くれる": "benefactive",
+    "あげる": "benefactive",
+    "もらう": "benefactive",
+    "いく": "directional_aspect",
+    "行く": "directional_aspect",
+    "くる": "directional_aspect",
+    "来る": "directional_aspect",
+    "いただく": "humble_benefactive",
+    "頂く": "humble_benefactive",
+    "くださる": "respectful_benefactive",
+    "下さる": "respectful_benefactive",
+    "さしあげる": "humble",
+    "差し上げる": "humble",
+    "やる": "benefactive"
+  },
+  "connections": {
+    "causative": [
+      "未然形",
+      "連用形"
+    ],
+    "voice_ambiguous": [
+      "未然形"
+    ],
+    "negative": [
+      "未然形",
+      "連用形"
+    ],
+    "polite": [
+      "連用形",
+      "終止形",
+      "連体形"
+    ],
+    "past": [
+      "連用形"
+    ],
+    "desiderative": [
+      "連用形"
+    ],
+    "desiderative_behavior": [
+      "連用形"
+    ],
+    "reported_inference": [
+      "終止形",
+      "連体形"
+    ],
+    "prohibition_intention": [
+      "終止形",
+      "連体形"
+    ],
+    "contracted_completion": [
+      "連用形"
+    ],
+    "contracted_progressive_resultative": [
+      "連用形"
+    ]
+  },
+  "respectful_verbs": {
+    "おっしゃる": "言う",
+    "仰る": "言う",
+    "いらっしゃる": "行く／来る／いる",
+    "なさる": "する",
+    "くださる": "くれる",
+    "召し上がる": "食べる／飲む",
+    "ご覧になる": "見る"
+  },
+  "humble_verbs": {
+    "申す": "言う",
+    "申し上げる": "言う",
+    "伺う": "訪ねる／聞く",
+    "参る": "行く／来る",
+    "拝見する": "見る",
+    "いたす": "する",
+    "致す": "する",
+    "いただく": "もらう／食べる／飲む",
+    "頂く": "もらう／食べる／飲む",
+    "差し上げる": "あげる",
+    "さしあげる": "あげる",
+    "おる": "いる"
+  },
+  "honorific_heads": {
+    "ご覧": {
+      "lemma": "見る",
+      "reading": "ミル"
+    },
+    "お話": {
+      "lemma": "話す",
+      "reading": "ハナス"
+    },
+    "おいで": {
+      "lemma": "おいでになる",
+      "reading": "オイデニナル"
+    }
+  },
+  "honorific_verbal_nouns": [
+    "案内",
+    "連絡",
+    "説明",
+    "確認",
+    "利用",
+    "相談",
+    "返事",
+    "挨拶",
+    "報告",
+    "質問",
+    "検討",
+    "紹介",
+    "出席",
+    "参加",
+    "回答",
+    "注文",
+    "予約"
+  ]
+}

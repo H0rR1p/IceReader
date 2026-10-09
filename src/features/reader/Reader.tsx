@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { cancelVoiceJob, correctWordSense, createCardCandidate, loadKnowledgeStates, loadVoiceJob, lookupDictionary, recordActivityMetric, recordLearningEvents, startVoiceJob } from '../../api'
+import { cancelVoiceJob, correctWordSense, createCardCandidate, loadAnalysisCapabilities, loadKnowledgeStates, loadVoiceJob, lookupDictionary, parseResponse, recordActivityMetric, recordLearningEvents, startVoiceJob } from '../../api'
 import type { KnowledgeState, WordCorrection } from '../../api'
-import { db, loadChapterDetails, syncRecords } from '../../db'
+import { db, loadChapterDetails, loadSentenceStructures, syncRecords } from '../../db'
+import LearningSpanText from './LearningSpanText'
+import LearningInspector from './LearningInspector'
+import GrammarStructurePanel from './GrammarStructurePanel'
+import { headToken, isVocabularyToken } from './learningSpans'
 import type {
   Annotation,
   AnalyzeResponse,
@@ -10,6 +14,8 @@ import type {
   ContentBlock,
   ContextSense,
   Lexeme,
+  LearningSpan,
+  LearningSpanSense,
   Sentence,
   SentenceBookmark,
   Token,
@@ -54,6 +60,11 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   const [contextSenses, setContextSenses] = useState<ContextSense[]>([])
   const [selectedSentenceId, setSelectedSentenceId] = useState<string | null>(null)
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null)
+  const [structures, setStructures] = useState<Record<string, LearningSpan[]>>({})
+  const [spanSenses, setSpanSenses] = useState<LearningSpanSense[]>([])
+  const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)
+  const [structureError, setStructureError] = useState('')
+  const [structureRetry, setStructureRetry] = useState(0)
   const [lexemesByToken, setLexemesByToken] = useState<Record<string, Lexeme | null>>({})
   const [explaining, setExplaining] = useState(false)
   const [explainError, setExplainError] = useState('')
@@ -88,6 +99,10 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
     setTokens([])
     setAnnotations([])
     setContextSenses([])
+    setStructures({})
+    setSpanSenses([])
+    setSelectedSpanId(null)
+    setStructureError('')
     void (async () => {
       const nextSentences = await db.sentences.where('chapter_id').equals(chapter.id).sortBy('start')
       if (canceled) return
@@ -107,12 +122,14 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
       }
     })
     return () => { canceled = true }
-  }, [book.currentSentenceId, chapter.id, chapter.status, dataRevision])
+  }, [book.currentSentenceId, chapter.id, chapter.status, chapter.analysis_revision, dataRevision])
 
   useEffect(() => {
     if (!sentences.length || sentences[0]?.chapter_id !== chapter.id || detailsLoadedRef.current >= Math.min(visibleSentenceCount, sentences.length)) return
     const controller = new AbortController()
     void (async () => {
+      const capabilities = await loadAnalysisCapabilities(controller.signal).catch(() => null)
+      const structureVersion = capabilities?.version
       while (!controller.signal.aborted && detailsLoadedRef.current < Math.min(visibleSentenceCount, sentences.length)) {
         const offset = detailsLoadedRef.current
         const limit = Math.min(120, visibleSentenceCount - offset)
@@ -133,6 +150,17 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
           for (const row of page.contextSenses) merged.set(row.token_id, row)
           return [...merged.values()]
         })
+        try {
+          const snapshot = await loadSentenceStructures(sentences.filter((sentence) => page.sentence_ids.includes(sentence.id)), controller.signal, structureVersion)
+          if (controller.signal.aborted) return
+          setStructures((current) => ({ ...current, ...Object.fromEntries(snapshot.map((row) => [row.sentence_id, row.learning_spans])) }))
+          const senses = await db.spanSenses.where('sentence_id').anyOf(page.sentence_ids).toArray()
+          if (controller.signal.aborted) return
+          setSpanSenses((current) => [...new Map([...current, ...senses].map((sense) => [sense.span_id, sense])).values()])
+        } catch (error) {
+          if (controller.signal.aborted) return
+          setStructureError(error instanceof Error ? error.message : String(error))
+        }
         detailsLoadedRef.current = offset + page.sentence_ids.length
         if (!page.sentence_ids.length) break
       }
@@ -140,7 +168,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
       if (!controller.signal.aborted) onNotice(error instanceof Error ? error.message : String(error))
     })
     return () => controller.abort()
-  }, [chapter.id, onNotice, sentences.length, visibleSentenceCount])
+  }, [chapter.id, onNotice, sentences.length, visibleSentenceCount, structureRetry])
 
   useEffect(() => () => {
     voicePollAbortRef.current?.abort()
@@ -157,24 +185,35 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
 
   useEffect(() => {
     const unique = new Map<string,{ id: string; type: 'vocabulary' | 'grammar'; canonical_key: string; lemma?: string; reading?: string; grammar_pattern?: string }>()
-    for (const token of tokens.filter((value) => value.is_content)) unique.set(`vocabulary:${token.lexemeKey}`,{
+    for (const token of tokens.filter(isVocabularyToken)) unique.set(`vocabulary:${token.lexemeKey}`,{
       id:crypto.randomUUID(),type:'vocabulary',canonical_key:token.lexemeKey,lemma:token.lemma,reading:token.reading,
     })
     for (const note of annotations.filter((value) => value.type === 'grammar' && value.structure)) {
       const key=normalizeGrammar(note.structure ?? '')
       if (key) unique.set(`grammar:${key}`,{id:crypto.randomUUID(),type:'grammar',canonical_key:key,grammar_pattern:note.structure})
     }
+    for (const span of Object.values(structures).flat()) for (const grammarId of span.grammar_ids) unique.set(`grammar:${grammarId}`, {
+      id: crypto.randomUUID(), type: 'grammar', canonical_key: grammarId, grammar_pattern: span.surface,
+    })
     if (!unique.size) { setKnowledgeStates({}); return }
     const controller=new AbortController()
     void loadKnowledgeStates([...unique.values()],controller.signal).then((rows) => {
       if (!controller.signal.aborted) setKnowledgeStates(Object.fromEntries(rows.map((row) => [`${row.type}:${row.canonical_key}`,row])))
     }).catch(() => undefined)
     return () => controller.abort()
-  }, [annotations,tokens])
+  }, [annotations,tokens,structures])
   const selectedSentence = sentences.find((sentence) => sentence.id === selectedSentenceId) ?? null
   const selectedToken = tokens.find((token) => token.id === selectedTokenId) ?? null
   const selectedSentenceTokens = selectedSentenceId ? (tokensBySentence.get(selectedSentenceId) ?? []) : []
-  const selectedContentTokens = selectedSentenceTokens.filter((token) => token.is_content)
+  const selectedContentTokens = selectedSentenceTokens.filter(isVocabularyToken)
+  const selectedSentenceSpans = selectedSentenceId ? structures[selectedSentenceId] ?? [] : []
+  const selectedSpan = selectedSentenceSpans.find((span) => span.id === selectedSpanId) ?? null
+  const selectedDictionaryToken = selectedToken && selectedSpan && headToken(selectedSpan, selectedSentenceTokens)?.id === selectedToken.id
+    ? { ...selectedToken, lemma: selectedSpan.lemma || selectedToken.lemma,
+      reading: selectedSpan.reading || selectedToken.lemma_reading || '',
+      lemma_reading: selectedSpan.reading || selectedToken.lemma_reading,
+      lexemeKey: `${selectedSpan.lemma || selectedToken.lemma}|${selectedSpan.reading || selectedToken.lemma_reading || ''}|${selectedToken.part_of_speech}` }
+    : selectedToken
   const lexeme = selectedTokenId ? (lexemesByToken[selectedTokenId] ?? null) : null
   const currentSense = contextSenses.find((sense) => sense.token_id === selectedTokenId)
   const currentNotes = annotations.filter((annotation) => annotation.sentence_id === selectedSentenceId && annotation.type === 'grammar')
@@ -236,7 +275,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
         || assistedSentenceIdsRef.current.has(sentenceId)
         || exposedSentenceIdsRef.current.has(sentenceId)
         || timers.has(sentenceId)) return
-      const sentenceTokens = tokensBySentence.get(sentenceId)?.filter((token) => token.is_content) ?? []
+      const sentenceTokens = tokensBySentence.get(sentenceId)?.filter(isVocabularyToken) ?? []
       if (!sentenceTokens.length) return
       timers.set(sentenceId, window.setTimeout(() => {
         timers.delete(sentenceId)
@@ -308,14 +347,18 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   useEffect(() => {
     if (!selectedSentenceId) return
     const controller = new AbortController()
-    const rows = tokensBySentence.get(selectedSentenceId)?.filter((token) => token.is_content) ?? []
+    const rows = tokensBySentence.get(selectedSentenceId)?.filter(isVocabularyToken) ?? []
     void Promise.all(rows.map(async (token) => {
-      const personal = await db.lexemes.get(token.lexemeKey)
-      const value = personal ?? await lookupDictionary(token.lemma, token.reading, token.surface, controller.signal).catch(() => null)
+      const span = (structures[selectedSentenceId] ?? []).find((value) => value.kind === 'morphology' && headToken(value, rows)?.id === token.id && value.lemma)
+      const lemma = span?.lemma || token.lemma
+      const reading = span ? span.reading || token.lemma_reading || '' : token.lemma_reading || (token.surface === token.lemma ? token.reading : '')
+      const canonicalKey = `${lemma}|${reading}|${token.part_of_speech}`
+      const personal = await db.lexemes.get(canonicalKey) ?? await db.lexemes.get(token.lexemeKey)
+      const value = personal ?? await lookupDictionary(lemma, reading, token.surface, controller.signal).catch(() => null)
       return [token.id, value] as const
     })).then((values) => { if (!controller.signal.aborted) setLexemesByToken(Object.fromEntries(values)) })
     return () => controller.abort()
-  }, [selectedSentenceId, tokensBySentence, contextSenses])
+  }, [selectedSentenceId, tokensBySentence, contextSenses, structures])
 
   useEffect(() => {
     voicePollAbortRef.current?.abort()
@@ -396,6 +439,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   async function selectSentence(sentence: Sentence) {
     setSelectedSentenceId(sentence.id)
     setSelectedTokenId(null)
+    setSelectedSpanId(null)
     const latestBook = (await db.books.get(book.id)) ?? book
     const nextBook = { ...latestBook, currentChapterId: chapter.id, currentSentenceId: sentence.id, updatedAt: Date.now() }
     await db.books.put(nextBook)
@@ -404,7 +448,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
 
   function selectToken(sentence: Sentence, token: Token) {
     void selectSentence(sentence)
-    if (!token.is_content) return
+    if (!isVocabularyToken(token)) { setSelectedTokenId(token.id); return }
     assistedSentenceIdsRef.current.add(sentence.id)
     forcedAssistanceRef.current.add(token.lexemeKey)
     setSelectedTokenId(token.id)
@@ -423,13 +467,26 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
     }]).catch(() => undefined)
   }
 
+  function selectLearningSpan(sentence: Sentence, span: LearningSpan) {
+    const head = headToken(span, tokensBySentence.get(sentence.id) ?? [])
+    if (head) selectToken(sentence, head)
+    else void selectSentence(sentence)
+    setSelectedSpanId(span.id)
+    assistedSentenceIdsRef.current.add(sentence.id)
+    if (span.grammar_ids.length) void recordLearningEvents(span.grammar_ids.map((grammarId) => ({
+      id: crypto.randomUUID(), item: { id: crypto.randomUUID(), type: 'grammar' as const, canonical_key: grammarId, grammar_pattern: span.surface },
+      event_type: 'grammar_reveal' as const, occurred_at: Date.now() / 1000,
+      context: { book_id: book.id, chapter_id: chapter.id, sentence_id: sentence.id, learning_span_id: span.id, source: span.source, rule_version: span.version },
+    }))).catch((error) => onNotice(error instanceof Error ? error.message : String(error)))
+  }
+
   async function saveLexeme(senses: string[]) {
-    if (!selectedToken) return
+    if (!selectedToken || !selectedDictionaryToken) return
     const next: Lexeme = {
-      key: selectedToken.lexemeKey,
-      lemma: selectedToken.lemma,
-      reading: selectedToken.reading,
-      firstKana: selectedToken.reading[0] || '未',
+      key: selectedDictionaryToken.lexemeKey,
+      lemma: selectedDictionaryToken.lemma,
+      reading: selectedDictionaryToken.reading,
+      firstKana: selectedDictionaryToken.reading[0] || '未',
       part_of_speech: selectedToken.part_of_speech,
       senses_zh: senses,
       source: '用户修正',
@@ -442,17 +499,51 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   }
 
   async function addCurrentCard() {
-    if (!selectedToken || !selectedSentence) return
+    if (!selectedToken || !selectedDictionaryToken || !selectedSentence) return
     await createCardCandidate({
       item: {
-        id: crypto.randomUUID(), type: 'vocabulary', canonical_key: selectedToken.lexemeKey,
-        lemma: selectedToken.lemma, reading: selectedToken.reading,
+        id: crypto.randomUUID(), type: 'vocabulary', canonical_key: selectedDictionaryToken.lexemeKey,
+        lemma: selectedDictionaryToken.lemma, reading: selectedDictionaryToken.reading,
       },
-      lemma: selectedToken.lemma, reading: selectedToken.reading,
+      lemma: selectedDictionaryToken.lemma, reading: selectedDictionaryToken.reading,
       gloss: currentSense?.gloss_zh || lexeme?.senses_zh[0] || '', sentence: selectedSentence.original,
       book_id: book.id, book_title: book.title, chapter_id: chapter.id, sentence_id: selectedSentence.id,
     })
     onNotice('已加入卡片收件箱。')
+  }
+
+  async function addGrammarCard(grammarId: string, template: 'grammar-recognition' | 'form-restoration') {
+    if (!selectedSpan || !selectedSentence) return
+    try {
+      const saved = await db.sentenceStructures.get(selectedSentence.id)
+      if (!saved) throw new Error('请先刷新语法结构')
+      await fetch('/api/cards/grammar-candidates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        sentence_id: selectedSentence.id, span_id: selectedSpan.id, grammar_id: grammarId,
+        text_hash: saved.analysis_manifest.text_hash, version: saved.analysis_manifest.version,
+        analysis_revision: saved.analysis_manifest.revision, card_template: template,
+      }) }).then(parseResponse)
+      onNotice('语法卡已加入收件箱，确认后进入每日复习。')
+    } catch (error) { onNotice(String(error)) }
+  }
+
+  async function chooseSpan(choiceId: string | null) {
+    if (!selectedSpan || !selectedSentence) return
+    try {
+      const saved = await db.sentenceStructures.get(selectedSentence.id)
+      if (!saved) throw new Error('请先刷新语法结构')
+      const response = await fetch('/api/grammar/choices', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          sentence_id: selectedSentence.id, span_id: selectedSpan.id, text_hash: saved.analysis_manifest.text_hash,
+          version: saved.analysis_manifest.version, analysis_revision: saved.analysis_manifest.revision,
+          expected_override_revision: selectedSpan.override_revision ?? 0,
+          choice_id: choiceId,
+        }),
+      }).then(parseResponse<{ span: LearningSpan; status: string; reason?: string }>)
+      const nextSpans = (structures[selectedSentence.id] ?? []).map((span) => span.id === response.span.id ? response.span : span)
+      await db.sentenceStructures.put({ ...saved, learning_spans: nextSpans })
+      setStructures((current) => ({ ...current, [selectedSentence.id]: nextSpans }))
+      onNotice(response.status === 'confirmed' ? '已保存用户确认。' : response.reason || '保留未知和候选。')
+    } catch (error) { onNotice(String(error)) }
   }
 
   async function requestCorrection(hint: string, signal: AbortSignal) {
@@ -462,7 +553,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
 
   async function acceptCorrection(result: WordCorrection) {
     if (!selectedToken || result.context_sense.token_id !== selectedToken.id) throw new Error('所选词语已变化，请重新生成')
-    const next: Lexeme = { ...result.lexeme, key: selectedToken.lexemeKey,
+    const next: Lexeme = { ...result.lexeme, key: selectedToken.lexemeKey, source: 'AI 修正（用户确认）',
       firstKana: selectedToken.reading[0] || '未', correctedByUser: true, updatedAt: Date.now() }
     await syncRecords({ lexemes: [next], contextSenses: [result.context_sense] })
     await db.transaction('rw', [db.lexemes, db.contextSenses], async () => {
@@ -492,6 +583,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
       }
       if (annotationMode === 'none') {
         setContextSenses((current) => [...current.filter((sense) => !tokenIds.includes(sense.token_id)), ...result.context_senses])
+        if (result.learning_span_senses?.length) setSpanSenses((current) => [...new Map([...current, ...result.learning_span_senses!].map((sense) => [sense.span_id, sense])).values()])
       }
       const nextLexemes = { ...lexemesByToken }
       for (const token of annotationMode === 'none' ? selectedContentTokens : []) {
@@ -550,14 +642,15 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   }
 
   const chapterInsight = useMemo(() => {
-    const content=[...new Map(tokens.filter((token) => token.is_content).map((token) => [token.lexemeKey,token])).values()]
+    const content=[...new Map(tokens.filter(isVocabularyToken).map((token) => [token.lexemeKey,token])).values()]
     if (!content.length) return null
     const unknown=content.filter((token) => {
       const state=knowledgeStates[`vocabulary:${token.lexemeKey}`]
       return !state || state.confidence < 0.2 || state.mastery < 0.55
     })
     const vocabularyCoverage=1-unknown.length/content.length
-    const grammarKeys=[...new Set(annotations.filter((note) => note.type==='grammar' && note.structure).map((note) => normalizeGrammar(note.structure ?? '')).filter(Boolean))]
+    const localGrammarKeys=Object.values(structures).flat().flatMap((span) => span.grammar_ids)
+    const grammarKeys=[...new Set([...localGrammarKeys, ...annotations.filter((note) => note.type==='grammar' && note.structure).map((note) => normalizeGrammar(note.structure ?? '')).filter(Boolean)])]
     const unknownGrammar=grammarKeys.filter((key) => {
       const state=knowledgeStates[`grammar:${key}`]
       return !state || state.confidence < 0.2 || state.mastery < 0.55
@@ -571,7 +664,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
       : (0.55*(1-vocabularyCoverage)+0.25*unknownGrammarRatio+0.1*sentencePenalty+0.1*syntaxComplexity)
     return { vocabularyCoverage,grammarCoverage:unknownGrammarRatio === null ? null : 1-unknownGrammarRatio,score,
       suggestions:unknown.slice(0,5).map((token) => token.lemma) }
-  },[annotations,knowledgeStates,sentences,tokens])
+  },[annotations,knowledgeStates,sentences,tokens,structures])
 
   const renderSentence = (sentence: Sentence) => (
     <span
@@ -587,22 +680,9 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
         void selectSentence(sentence)
       }}
     >
-      {(tokensBySentence.get(sentence.id) ?? []).length ? (tokensBySentence.get(sentence.id) ?? []).map((token) => (
-        <span
-          key={token.id}
-          className={`token ${token.is_content ? 'content' : ''} ${token.is_content ? `assist-level-${assistanceLevel(token)}` : ''} ${selectedTokenId === token.id ? 'selected' : ''}`}
-          onClick={(event) => { event.stopPropagation(); selectToken(sentence, token) }}
-          tabIndex={token.is_content ? 0 : -1}
-          onKeyDown={(event) => {
-            if (!token.is_content || (event.key !== 'Enter' && event.key !== ' ')) return
-            event.preventDefault()
-            event.stopPropagation()
-            selectToken(sentence, token)
-          }}
-        >
-          {showFurigana && token.is_content && containsKanji(token.surface) && assistanceLevel(token) > 0 ? <ruby>{token.surface}<rt className={assistanceLevel(token) === 1 ? 'faint' : ''}>{toHiragana(token.reading)}</rt></ruby> : token.surface}
-        </span>
-      )) : sentence.original}
+      <LearningSpanText text={sentence.original} tokens={tokensBySentence.get(sentence.id) ?? []} spans={structures[sentence.id] ?? []}
+        selectedSpanId={selectedSpanId} selectedTokenId={selectedTokenId} showFurigana={showFurigana} showGrammar={showAnnotations}
+        assistanceLevel={assistanceLevel} onSelectSpan={(span) => selectLearningSpan(sentence, span)} onSelectToken={(token) => selectToken(sentence, token)} />
     </span>
   )
 
@@ -645,6 +725,7 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
         {chapterInsight && <div className="chapter-insight"><div><strong>{chapterInsight.score < .28 ? '个人难度：舒适' : chapterInsight.score < .55 ? '个人难度：适中' : '个人难度：较难'}</strong><span>词汇覆盖 {Math.round(chapterInsight.vocabularyCoverage*100)}% · 语法覆盖 {chapterInsight.grammarCoverage === null ? '待分析' : `${Math.round(chapterInsight.grammarCoverage*100)}%`}</span></div>{!!chapterInsight.suggestions.length && <small>当前范围建议预习：{chapterInsight.suggestions.join('、')}</small>}</div>}
         {(chapter.status === 'pending' || chapter.status === 'failed') && <div className="inline-warning">本章尚未切分。<button disabled={backgroundJob?.running} onClick={onRetry}>{chapter.status === 'failed' ? '重试切分' : '切分本章'}</button></div>}
         {chapter.status === 'processing' && <div className="inline-warning">正在切分本章。</div>}
+        {structureError && <div className="inline-warning" role="status">完整活用暂不可用：{structureError}<button type="button" onClick={() => { setStructureError(''); detailsLoadedRef.current = 0; setStructureRetry((value) => value + 1) }}>重新加载结构</button></div>}
         {readerLoading ? <div className="reader-loading" aria-live="polite"><div className="loading-dango" aria-hidden="true" /><span>正在整理本章内容…</span></div> : viewMode === 'original' && chapter.originalHtmlUrl
           ? <iframe className="original-preview" sandbox="" src={chapter.originalHtmlUrl} title={`${chapter.title} 原书预览`} />
           : <div className="japanese-text" lang="ja">
@@ -670,10 +751,6 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
         {selectedSentence ? (
           <>
             <p className="panel-original" lang="ja">{selectedSentence.original}</p>
-            <button className="button primary full explain-button" disabled={explaining} onClick={() => void explainCurrentSentence('none')}>
-              {explaining ? '正在释义…' : sentenceExplained ? '重新释义本句' : '释义本句'}
-            </button>
-            <button className="button full grammar-analysis-button" disabled={explaining} onClick={() => void explainCurrentSentence('grammar')}>语法句法分析</button>
             <div className="voice-controls" aria-live="polite">
               <div className="voice-actions">
                 <button className="button full" disabled={voiceJob?.status === 'queued' || voiceJob?.status === 'running'} onClick={() => void synthesizeVoice(false)}>
@@ -686,9 +763,20 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
               {voiceJob && <small className={`voice-status ${voiceJob.status}`}>{voiceJob.message}{voiceJob.cached ? ' · 缓存' : ''}</small>}
             </div>
             {(explainError || selectedSentence.explanation_status === 'failed') && <div className="error-box">{explainError || selectedSentence.error}</div>}
-            {sentenceExplained && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
-            {selectedToken && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} knowledge={knowledgeStates[`vocabulary:${selectedToken.lexemeKey}`]} assistanceMode={assistanceMode} assistanceLevel={assistanceLevel(selectedToken)} forced={forcedAssistanceRef.current.has(selectedToken.lexemeKey)} onSave={saveLexeme} onAddCard={addCurrentCard} onAiCorrect={requestCorrection} onAcceptCorrection={acceptCorrection} />}
-            {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>语法句法</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>语法结构</span><strong>{note.structure || note.quote}</strong><small className="annotation-quote" lang="ja">{note.quote}</small><p>{note.explanation_zh}</p></div>)}</section>}
+            {selectedSentence.analysis_stale_reason && <p role="status">{selectedSentence.analysis_stale_reason}：旧句意保留供对照，建议重新释义。</p>}
+            {(sentenceExplained || selectedSentence.analysis_stale_reason) && selectedSentence.translation_zh && <section className="panel-section"><h3>句意</h3><p>{selectedSentence.translation_zh}</p></section>}
+            {selectedToken && isVocabularyToken(selectedToken) && <DictionaryCard token={selectedToken} lexeme={lexeme} contextGloss={currentSense?.gloss_zh ?? ''} onSave={saveLexeme} onAddCard={addCurrentCard} onAiCorrect={requestCorrection} onAcceptCorrection={acceptCorrection} />}
+            {(selectedSpan || showAnnotations && selectedSentenceSpans.some((span) => span.kind !== 'morphology')) && <div className="grammar-card">
+            {selectedSpan && <LearningInspector key={selectedSpan.id} span={selectedSpan} onAddCard={addGrammarCard} onChoose={chooseSpan} contextGloss={spanSenses.find((sense) => sense.span_id === selectedSpan.id)?.gloss_zh} />}
+            {showAnnotations && <GrammarStructurePanel spans={selectedSentenceSpans} selectedSpanId={selectedSpanId} onSelectSpan={(span) => selectLearningSpan(selectedSentence, span)} />}
+            </div>}
+            <section className="sentence-analysis-actions" aria-label="当前句分析">
+              <button className="button primary full explain-button" disabled={explaining} onClick={() => void explainCurrentSentence('none')}>
+                {explaining ? '正在释义…' : sentenceExplained ? '重新释义本句' : '释义本句'}
+              </button>
+              <button className="button full grammar-analysis-button" disabled={explaining} onClick={() => void explainCurrentSentence('grammar')}>语法句法分析</button>
+            </section>
+            {showAnnotations && currentNotes.length > 0 && <section className="panel-section"><h3>AI 语境说明</h3>{currentNotes.map((note) => <div className="annotation" key={note.id}><span>语法结构</span><strong>{note.structure || note.quote}</strong><small className="annotation-quote" lang="ja">{note.quote}</small><p>{note.explanation_zh}</p></div>)}</section>}
           </>
         ) : <p className="muted">选择一个句子开始冰读。</p>}
         </div>}
@@ -697,9 +785,8 @@ export default function Reader({ userId, book, chapter, previousChapter, nextCha
   )
 }
 
-function DictionaryCard({ token, lexeme, contextGloss, knowledge, assistanceMode, assistanceLevel, forced, onSave, onAddCard, onAiCorrect, onAcceptCorrection }: {
+function DictionaryCard({ token, lexeme, contextGloss, onSave, onAddCard, onAiCorrect, onAcceptCorrection }: {
   token: Token; lexeme: Lexeme | null; contextGloss: string
-  knowledge?: KnowledgeState; assistanceMode: 'auto' | 'always' | 'challenge'; assistanceLevel: number; forced: boolean
   onSave: (senses: string[]) => void
   onAddCard: () => Promise<void>
   onAiCorrect: (hint: string, signal: AbortSignal) => Promise<WordCorrection>
@@ -787,7 +874,7 @@ function DictionaryCard({ token, lexeme, contextGloss, knowledge, assistanceMode
   }
   return (
     <section className="dictionary-card">
-      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.reading)}</p></div><div className="dictionary-actions"><button className="button small" onClick={() => void onAddCard()}>加入词卡</button><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}</div></div>
+      <div className="dictionary-head"><div><small>{token.part_of_speech}</small><h2>{token.lemma}</h2><p>{toHiragana(token.lemma_reading || token.reading)}</p></div><div className="dictionary-actions"><button className="button small" onClick={() => void onAddCard()}>加入词卡</button><button className="button small" disabled={wordVoice?.status === 'queued' || wordVoice?.status === 'running'} onClick={() => void voiceWord()}>{wordVoice?.status === 'queued' || wordVoice?.status === 'running' ? '配音中…' : wordVoice?.status === 'complete' ? '再次播放' : '播放读音'}</button>{wordVoice?.status === 'complete' && <button className="text-button" onClick={() => void voiceWord(true)}>重新生成</button>}</div></div>
       {wordVoice?.status === 'failed' && <small className="voice-status failed">{wordVoice.message}</small>}
       {contextGloss && <div className="context-gloss"><small>当前语境选择</small><p>{contextGloss}</p></div>}
       <div className="dictionary-senses">
@@ -801,7 +888,6 @@ function DictionaryCard({ token, lexeme, contextGloss, knowledge, assistanceMode
         {correctionError && <p role="alert" className="voice-status failed">{correctionError}</p>}
         <div className="dictionary-actions"><button className="button small" disabled={correctionBusy} onClick={() => void generateCorrection()}>{correctionBusy ? '处理中…' : correctionResult ? '重新生成' : '生成修正'}</button>{correctionResult && <button className="button primary small" disabled={correctionBusy} onClick={() => void saveCorrection()}>确认保存</button>}<button className="text-button" disabled={correctionBusy && !!correctionResult} onClick={() => { correctionAbort.current?.abort(); setCorrectionBusy(false); setCorrecting(false); setCorrectionResult(null) }}>取消</button></div>
       </div>}
-      <div className="assistance-explanation"><small>辅助依据</small><p>{forced ? '你刚刚主动查询了这个词，本句内会保留完整辅助并记录为一次学习证据。' : assistanceMode === 'always' ? '当前选择始终显示辅助。' : assistanceMode === 'challenge' ? '挑战模式已隐藏自动辅助。' : !knowledge || knowledge.confidence < .2 ? '学习证据还不充分，暂时保留完整辅助。' : assistanceLevel >= 2 ? `熟练度约 ${Math.round(knowledge.mastery * 100)}%，继续显示读音和释义提示。` : assistanceLevel === 1 ? `熟练度约 ${Math.round(knowledge.mastery * 100)}%，辅助已减弱。` : `熟练度约 ${Math.round(knowledge.mastery * 100)}%，当前词已自动隐藏辅助。`}</p></div>
     </section>
   )
 }

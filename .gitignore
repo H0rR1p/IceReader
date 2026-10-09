@@ -15,6 +15,7 @@ vite.config.js
 vite.config.d.ts
 /冰读.exe
 /build/
+/docs/archive/
 ymm4-bridge/bin/
 ymm4-bridge/obj/
 *.ymmp
@@ -25,3 +26,8 @@ ymm4-bridge/obj/
 
 /桌面客户端重构计划书.md
 
+
+/冰读自适应学习与账号系统升级方案.md
+/切分、翻译优化.txt
+/日语语法切分与上下文翻译实施方案.md
+/日语语法切分与上下文翻译优化方案.md

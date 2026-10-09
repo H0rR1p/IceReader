@@ -42,6 +42,12 @@ def initialize_store() -> None:
             return
         connection = _raw_connection()
         try:
+            if connection.execute("SELECT 1 FROM sqlite_master WHERE name='notes'").fetchone():
+                backup = resolved.parent / 'migration-backups' / 'learning.pre-grammar-cards.sqlite3'
+                if not backup.exists():
+                    backup.parent.mkdir(parents=True, exist_ok=True)
+                    with sqlite3.connect(backup) as target:
+                        connection.backup(target)
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS card_candidates (
@@ -106,6 +112,9 @@ def initialize_store() -> None:
                 );
                 """
             )
+            for table in ('notes','card_candidates'):
+                if 'source_json' not in {row[1] for row in connection.execute(f'PRAGMA table_info({table})')}:
+                    connection.execute(f"ALTER TABLE {table} ADD COLUMN source_json TEXT NOT NULL DEFAULT '{{}}'")
             connection.commit()
             _initialized_path = resolved
         finally:
@@ -132,6 +141,8 @@ def _row(value: sqlite3.Row | None) -> dict | None:
     result = dict(value)
     if "tags_json" in result:
         result["tags"] = json.loads(result.pop("tags_json") or "[]")
+    if 'source_json' in result:
+        result['source'] = json.loads(result.pop('source_json') or '{}')
     return result
 
 
@@ -142,16 +153,16 @@ def create_candidate(user_id: str, knowledge_item_id: str, payload: dict) -> dic
         connection.execute(
             """INSERT INTO card_candidates(
                 id,user_id,knowledge_item_id,lemma,reading,gloss,sentence,book_id,book_title,
-                chapter_id,sentence_id,card_template,status,created_at,updated_at
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                chapter_id,sentence_id,card_template,status,created_at,updated_at,source_json
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(user_id,knowledge_item_id,card_template,sentence_id) DO UPDATE SET
                 gloss=CASE WHEN excluded.gloss<>'' THEN excluded.gloss ELSE card_candidates.gloss END,
                 sentence=excluded.sentence,book_title=excluded.book_title,updated_at=excluded.updated_at,
-                version=card_candidates.version+1,deleted_at=NULL""",
+                version=card_candidates.version+1,deleted_at=NULL,source_json=excluded.source_json""",
             (candidate_id,user_id,knowledge_item_id,payload["lemma"],payload.get("reading",""),payload.get("gloss",""),
              payload.get("sentence",""),payload.get("book_id",""),payload.get("book_title",""),
              payload.get("chapter_id",""),payload.get("sentence_id",""),payload.get("card_template","context-recognition"),
-             "candidate",now,now),
+             "candidate",now,now,json.dumps(payload.get('source', {}), ensure_ascii=False)),
         )
         row = connection.execute(
             "SELECT * FROM card_candidates WHERE user_id=? AND knowledge_item_id=? AND card_template=? AND sentence_id=?",
@@ -188,10 +199,10 @@ def accept_candidate(user_id: str, candidate_id: str) -> dict:
             raise KeyError("candidate_not_found")
         note_id, card_id = str(uuid.uuid4()), str(uuid.uuid4())
         connection.execute(
-            """INSERT INTO notes(id,user_id,knowledge_item_id,lemma,reading,gloss,sentence,book_id,book_title,chapter_id,sentence_id,created_at,updated_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            """INSERT INTO notes(id,user_id,knowledge_item_id,lemma,reading,gloss,sentence,book_id,book_title,chapter_id,sentence_id,created_at,updated_at,source_json)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (note_id,user_id,candidate["knowledge_item_id"],candidate["lemma"],candidate["reading"],candidate["gloss"],
-             candidate["sentence"],candidate["book_id"],candidate["book_title"],candidate["chapter_id"],candidate["sentence_id"],now,now),
+             candidate["sentence"],candidate["book_id"],candidate["book_title"],candidate["chapter_id"],candidate["sentence_id"],now,now,candidate['source_json']),
         )
         connection.execute(
             "INSERT INTO cards(id,user_id,note_id,knowledge_item_id,card_template,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
@@ -234,7 +245,7 @@ def search_cards(user_id: str, query: str = "", status: str = "", due: str = "",
         clauses.append("c.id IN (SELECT card_id FROM card_search WHERE user_id=? AND card_search MATCH ?)")
         values.extend([user_id, " AND ".join(f'\"{part.replace(chr(34), chr(34)*2)}\"*' for part in query.split())])
     values.extend([min(500,max(1,limit)),max(0,offset)])
-    sql = f"""SELECT c.*,n.lemma,n.reading,n.gloss,n.sentence,n.book_id,n.book_title,n.chapter_id,n.sentence_id,n.tags_json,
+    sql = f"""SELECT c.*,n.lemma,n.reading,n.gloss,n.sentence,n.book_id,n.book_title,n.chapter_id,n.sentence_id,n.tags_json,n.source_json,
               m.difficulty,m.stability,m.due_at,m.last_review_at,m.reps,m.lapses,
               CASE WHEN m.stability>0 THEN pow(1.0+MAX(0,?-COALESCE(m.last_review_at,?))/(86400.0*9.0*m.stability),-1.0) ELSE 0 END AS retrievability
               FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id
@@ -253,7 +264,7 @@ def cards_by_ids(user_id: str, card_ids: list[str]) -> list[dict]:
     with _connect() as connection:
         rows = connection.execute(
             f"""SELECT c.*,n.version AS note_version,n.lemma,n.reading,n.gloss,n.sentence,n.book_id,n.book_title,
-                       n.chapter_id,n.sentence_id,n.tags_json,m.difficulty,m.stability,
+                       n.chapter_id,n.sentence_id,n.tags_json,n.source_json,m.difficulty,m.stability,
                        m.retrievability,m.due_at,m.last_review_at,m.reps,m.lapses,m.model_version
                 FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id
                 WHERE c.user_id=? AND c.id IN ({placeholders})""", [user_id, *ids],
@@ -591,18 +602,19 @@ def upsert_synced_card(user_id: str, payload: dict) -> bool:
         connection.execute(
             """INSERT INTO notes(
                 id,user_id,knowledge_item_id,lemma,reading,gloss,sentence,book_id,book_title,
-                chapter_id,sentence_id,tags_json,created_at,updated_at,version,deleted_at
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                chapter_id,sentence_id,tags_json,created_at,updated_at,version,deleted_at,source_json
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET lemma=excluded.lemma,reading=excluded.reading,
                 gloss=excluded.gloss,sentence=excluded.sentence,book_id=excluded.book_id,
                 book_title=excluded.book_title,chapter_id=excluded.chapter_id,
                 sentence_id=excluded.sentence_id,tags_json=excluded.tags_json,
                 updated_at=excluded.updated_at,version=MAX(notes.version,excluded.version),
-                deleted_at=excluded.deleted_at""",
+                deleted_at=excluded.deleted_at,source_json=CASE WHEN excluded.source_json='{}' THEN notes.source_json ELSE excluded.source_json END""",
             (note_id,user_id,knowledge_item_id,str(payload.get("lemma") or ""),str(payload.get("reading") or ""),
              str(payload.get("gloss") or ""),str(payload.get("sentence") or ""),str(payload.get("book_id") or ""),
              str(payload.get("book_title") or ""),str(payload.get("chapter_id") or ""),str(payload.get("sentence_id") or ""),
-             json.dumps(tags,ensure_ascii=False),created,now,int(payload.get("version") or 1),payload.get("deleted_at")),
+             json.dumps(tags,ensure_ascii=False),created,now,int(payload.get("version") or 1),payload.get("deleted_at"),
+             json.dumps(payload.get('source') if isinstance(payload.get('source'),dict) else {},ensure_ascii=False)),
         )
         connection.execute(
             """INSERT INTO cards(id,user_id,note_id,knowledge_item_id,card_template,status,priority,created_at,updated_at,version,deleted_at)

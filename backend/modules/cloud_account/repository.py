@@ -153,6 +153,16 @@ def account_credentials(local_user_id: str) -> dict | None:
     return value
 
 
+def legacy_local_user(cloud_user_id: str, preferred_user_id: str) -> str | None:
+    with _connect() as connection:
+        row = connection.execute(
+            """SELECT local_user_id FROM cloud_accounts WHERE cloud_user_id=?
+               ORDER BY CASE WHEN local_user_id=? THEN 0 ELSE 1 END,updated_at DESC LIMIT 1""",
+            (cloud_user_id, preferred_user_id),
+        ).fetchone()
+    return str(row['local_user_id']) if row else None
+
+
 def account_status(local_user_id: str) -> dict:
     with _connect() as connection:
         row = connection.execute(

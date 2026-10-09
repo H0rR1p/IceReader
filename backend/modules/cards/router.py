@@ -4,11 +4,13 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from ...model_compat import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from ..learning.service import record_learning_events
 from . import repository, service
+from . import grammar
+from ..learning.repository import get_knowledge_item
 from ..sync.repository import push_changes
 
 
@@ -21,6 +23,12 @@ async def _sync_cards(context: RequestContext, card_ids: list[str]) -> None:
     for card in rows:
         updated = float(card.get("updated_at") or time.time())
         deleted = card.get("deleted_at")
+        try:
+            knowledge = await asyncio.to_thread(get_knowledge_item,card['knowledge_item_id'])
+        except KeyError:
+            knowledge = {'id':card['knowledge_item_id'],'type':'vocabulary','canonical_key':f"card:{card['id']}"}
+        mutations.append({'change_id':str(uuid.uuid4()),'entity_type':'knowledge_item','entity_id':knowledge['id'],
+                          'payload':knowledge,'updated_at':updated})
         mutations.extend([
             {"change_id": str(uuid.uuid4()), "entity_type": "note", "entity_id": str(card["note_id"]), "payload": card, "updated_at": updated,
              "base_version": max(0, int(card.get("note_version") or 1) - 1)},
@@ -44,6 +52,21 @@ class CandidateInput(BaseModel):
     chapter_id: str = ""
     sentence_id: str = ""
     card_template: str = "context-recognition"
+
+
+class GrammarCandidateInput(BaseModel):
+    sentence_id: str
+    span_id: str
+    grammar_id: str
+    text_hash: str = Field(min_length=64, max_length=64)
+    version: str
+    analysis_revision: int = Field(ge=1)
+    card_template: Literal['grammar-recognition','form-restoration'] = 'grammar-recognition'
+
+
+@router.post('/grammar-candidates')
+async def grammar_candidate(payload: GrammarCandidateInput, context: RequestContext = Depends(current_request_context)):
+    return await asyncio.to_thread(grammar.create, context.user_id, payload.model_dump())
 
 
 class BulkInput(BaseModel):
@@ -95,11 +118,7 @@ async def accept_candidate(candidate_id: str,context: RequestContext=Depends(cur
     try: card=await asyncio.to_thread(service.accept,context.user_id,candidate_id)
     except KeyError: raise HTTPException(404,"候选卡不存在") from None
     except repository.DailyNewLimitError as exc: raise HTTPException(409,str(exc)) from None
-    now=float(card.get("updated_at") or time.time())
-    await asyncio.to_thread(push_changes,context.user_id,context.device_id,[
-        {"change_id":f"note:{card['note_id']}:1","entity_type":"note","entity_id":card["note_id"],"payload":card,"updated_at":now,"base_version":0},
-        {"change_id":f"card:{card['id']}:1","entity_type":"card","entity_id":card["id"],"payload":card,"updated_at":now,"base_version":0},
-    ])
+    await _sync_cards(context,[card['id']])
     return card
 
 
@@ -204,8 +223,10 @@ async def submit_review(card_id: str,payload: ReviewInput,context: RequestContex
     try:
         state=await asyncio.to_thread(repository.review_card,context.user_id,context.device_id,card_id,payload.rating,payload.reviewed_at,payload.id)
     except KeyError: raise HTTPException(404,"卡片不存在") from None
+    owned_cards = await asyncio.to_thread(repository.cards_by_ids, context.user_id, [card_id])
+    item = await asyncio.to_thread(get_knowledge_item, owned_cards[0]['knowledge_item_id'])
     await asyncio.to_thread(record_learning_events,context.user_id,context.device_id,[{
-        "id":f"learning:{payload.id}","item":{"id":card_id,"type":"vocabulary","canonical_key":f"card:{card_id}"},
+        "id":f"learning:{payload.id}","item":item,
         "event_type":f"srs_{payload.rating}","occurred_at":payload.reviewed_at,"context":{"card_id":card_id},
     }])
     await asyncio.to_thread(push_changes,context.user_id,context.device_id,[{

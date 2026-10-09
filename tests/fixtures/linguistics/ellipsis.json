@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "license": "AGPL-3.0-or-later",
+  "source": "IceReader contributors: original synthetic Japanese examples; no imported corpus",
+  "annotation_status": "initial_authored_seed_not_human_adjudicated",
+  "cases": [
+    {
+      "id": "ellipsis-01",
+      "category": "ellipsis",
+      "text": "もう食べました。",
+      "preceding": [
+        "昼休みになった。",
+        "机にはお弁当がある。"
+      ],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "subject"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-02",
+      "category": "ellipsis",
+      "text": "それなら大丈夫。",
+      "preceding": [
+        "電車はまだ来ていない。",
+        "次の便も空いている。"
+      ],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "referent_sore"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-03",
+      "category": "ellipsis",
+      "text": "「行ける？」と聞いた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "speaker",
+          "addressee"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-04",
+      "category": "ellipsis",
+      "text": "「うん」とだけ答えた。",
+      "preceding": [
+        "「一緒に行こう」と遥さんが言った。",
+        "私は時計を見た。"
+      ],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "answer_speaker"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-05",
+      "category": "ellipsis",
+      "text": "「あの人が好き」と花さんは言った。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "referent_ano_hito",
+          "referent_gender"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-06",
+      "category": "ellipsis",
+      "text": "開けておいたよ。",
+      "preceding": [
+        "窓も箱も閉まっていた。",
+        "部屋を片付けた。"
+      ],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "object"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-07",
+      "category": "ellipsis",
+      "text": "見られた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "見られた",
+            "start": 0,
+            "end": 4,
+            "kind": "morphology",
+            "required_features": [
+              "past"
+            ],
+            "lemma": "見る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": [
+          "passive_or_potential",
+          "agent"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-08",
+      "category": "ellipsis",
+      "text": "帰るそうです。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "帰るそうです",
+            "start": 0,
+            "end": 6,
+            "kind": "morphology",
+            "required_features": [
+              "hearsay",
+              "polite"
+            ],
+            "lemma": "帰る"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": [
+          "subject"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-09",
+      "category": "ellipsis",
+      "text": "眠そうです。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [
+          {
+            "surface": "眠そうです",
+            "start": 0,
+            "end": 5,
+            "kind": "morphology",
+            "required_features": [
+              "appearance",
+              "polite"
+            ],
+            "lemma": "眠い"
+          }
+        ],
+        "rejected_matches": [],
+        "unknown": [
+          "subject"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    },
+    {
+      "id": "ellipsis-10",
+      "category": "ellipsis",
+      "text": "「明日だって」と聞こえた。",
+      "preceding": [],
+      "preceding_translations": [],
+      "expected": {
+        "spans": [],
+        "rejected_matches": [],
+        "unknown": [
+          "quotation_source",
+          "datte_quotation_or_topic"
+        ]
+      },
+      "annotation_note": "原创短句；这里只断言所列教学跨度，不代表完整语义标注。"
+    }
+  ]
+}

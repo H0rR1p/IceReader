@@ -2,7 +2,8 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
 root = Path(SPECPATH).parent
-datas = [(str(root / 'dist'), 'dist'), (str(root / 'assets' / 'ymm4-bridge'), 'ymm4-bridge')]
+datas = [(str(root / 'dist'), 'dist'), (str(root / 'assets' / 'ymm4-bridge'), 'ymm4-bridge'),
+         (str(root / 'resources' / 'grammar'), 'resources/grammar')]
 binaries, hiddenimports = [], []
 for package in ('sudachidict_core', 'sudachipy'):
     extra = collect_all(package)

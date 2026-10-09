@@ -3,13 +3,33 @@ from __future__ import annotations
 import asyncio
 import platform
 import time
+import weakref
 from urllib.parse import urlencode, urlsplit
 
 import httpx
 
 from ..sync import repository as sync_repository
 from ..sync.projection import apply_remote_changes
+from ..sync.protocol import capabilities as sync_capabilities, validate_exchange
+from ..sync.emission import collect_user_revisions
 from . import repository
+from ..identity import repository as identity_repository
+from ...runtime_config import PUBLIC_MODE
+
+
+class CloudAuthenticationError(RuntimeError):
+    """The bound cloud account must authenticate again."""
+
+
+_refresh_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
+
+
+def _refresh_lock(local_user_id: str) -> asyncio.Lock:
+    lock = _refresh_locks.get(local_user_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _refresh_locks[local_user_id] = lock
+    return lock
 
 
 def validate_cloud_url(value: str) -> str:
@@ -37,7 +57,8 @@ def _error(response: httpx.Response) -> RuntimeError:
         detail = response.json().get("detail")
     except Exception:
         detail = response.text.strip()
-    return RuntimeError(str(detail or f"云端服务返回 {response.status_code}"))
+    error_type = CloudAuthenticationError if response.status_code == 401 else RuntimeError
+    return error_type(str(detail or f"云端服务返回 {response.status_code}"))
 
 
 async def _authorized_request(local_user_id: str, method: str, path: str, **kwargs) -> httpx.Response:
@@ -45,13 +66,13 @@ async def _authorized_request(local_user_id: str, method: str, path: str, **kwar
     if not credentials:
         raise RuntimeError("尚未绑定云端账号")
     if float(credentials["access_expires_at"]) <= time.time() + 30:
-        await refresh(local_user_id)
+        await refresh(local_user_id, expected_access_token=credentials["access_token"])
         credentials = await asyncio.to_thread(repository.account_credentials, local_user_id)
     headers = dict(kwargs.pop("headers", {}))
     headers["Authorization"] = f"Bearer {credentials['access_token']}"
     response = await _plain_request(method, path, headers=headers, **kwargs)
     if response.status_code == 401:
-        await refresh(local_user_id)
+        await refresh(local_user_id, expected_access_token=credentials["access_token"])
         credentials = await asyncio.to_thread(repository.account_credentials, local_user_id)
         headers["Authorization"] = f"Bearer {credentials['access_token']}"
         response = await _plain_request(method, path, headers=headers, **kwargs)
@@ -90,8 +111,23 @@ async def register(local_user_id: str, device_id: str, email: str, password: str
     if response.status_code >= 400:
         raise _error(response)
     payload = response.json()
-    await asyncio.to_thread(repository.save_account, local_user_id, payload)
-    return {**repository.account_status(local_user_id), "verification_delivery": payload.get("verification_delivery"), "development_verification_token": payload.get("development_verification_token")}
+    result = await _save_authenticated_account(local_user_id, device_id, payload)
+    return {**result, "verification_delivery": payload.get("verification_delivery"), "development_verification_token": payload.get("development_verification_token")}
+
+
+async def _save_authenticated_account(local_user_id: str, device_id: str, payload: dict) -> dict:
+    identity = None
+    if PUBLIC_MODE:
+        issuer = await asyncio.to_thread(repository.get_base_url)
+        legacy_user_id = await asyncio.to_thread(repository.legacy_local_user, str(payload['user']['id']), local_user_id)
+        identity = await asyncio.to_thread(identity_repository.create_cloud_session, issuer, payload['user'], device_id, legacy_user_id)
+        local_user_id = identity.user_id
+    async with _refresh_lock(local_user_id):
+        await asyncio.to_thread(repository.save_account, local_user_id, payload)
+    result = await asyncio.to_thread(repository.account_status, local_user_id)
+    if identity is not None:
+        result['_identity'] = identity
+    return result
 
 
 async def login(local_user_id: str, device_id: str, email: str, password: str) -> dict:
@@ -100,19 +136,24 @@ async def login(local_user_id: str, device_id: str, email: str, password: str) -
     })
     if response.status_code >= 400:
         raise _error(response)
-    await asyncio.to_thread(repository.save_account, local_user_id, response.json())
-    return repository.account_status(local_user_id)
+    return await _save_authenticated_account(local_user_id, device_id, response.json())
 
 
-async def refresh(local_user_id: str) -> None:
-    credentials = await asyncio.to_thread(repository.account_credentials, local_user_id)
-    if not credentials:
-        raise RuntimeError("尚未绑定云端账号")
-    response = await _plain_request("POST", "/v1/auth/refresh", json={"refresh_token": credentials["refresh_token"]})
-    if response.status_code >= 400:
-        await asyncio.to_thread(repository.update_sync_state, local_user_id, error=str(_error(response)))
-        raise _error(response)
-    await asyncio.to_thread(repository.update_tokens, local_user_id, response.json())
+async def refresh(local_user_id: str, *, expected_access_token: str | None = None) -> None:
+    # Hold the per-account lock until rotated credentials have been persisted.
+    # Waiting requests must reread the store instead of replaying their old token.
+    async with _refresh_lock(local_user_id):
+        credentials = await asyncio.to_thread(repository.account_credentials, local_user_id)
+        if not credentials:
+            raise CloudAuthenticationError("尚未绑定云端账号，请重新登录")
+        if expected_access_token is not None and credentials["access_token"] != expected_access_token:
+            return
+        response = await _plain_request("POST", "/v1/auth/refresh", json={"refresh_token": credentials["refresh_token"]})
+        if response.status_code >= 400:
+            error = _error(response)
+            await asyncio.to_thread(repository.update_sync_state, local_user_id, error=str(error))
+            raise error
+        await asyncio.to_thread(repository.update_tokens, local_user_id, response.json())
 
 
 async def logout(local_user_id: str) -> None:
@@ -143,12 +184,11 @@ async def oidc_start_url(provider_id: str, device_id: str, local_callback: str) 
     return f"{base}/v1/auth/oidc/start/{provider_id}?{query}"
 
 
-async def exchange_handoff(local_user_id: str, code: str) -> dict:
+async def exchange_handoff(local_user_id: str, code: str, device_id: str = '') -> dict:
     response = await _plain_request("POST", "/v1/auth/oidc/exchange", json={"code": code})
     if response.status_code >= 400:
         raise _error(response)
-    await asyncio.to_thread(repository.save_account, local_user_id, response.json())
-    return repository.account_status(local_user_id)
+    return await _save_authenticated_account(local_user_id, device_id, response.json())
 
 
 async def request_verification(email: str) -> dict:
@@ -205,38 +245,70 @@ async def sync(local_user_id: str, device_id: str, *, pull_only: bool = False) -
     account = await asyncio.to_thread(repository.account_credentials, local_user_id)
     if not account:
         raise RuntimeError("尚未绑定云端账号")
-    uploaded = downloaded = applied = skipped = 0
+    uploaded = downloaded = applied = skipped = conflicts_count = pending = 0
     try:
+        try:
+            peer = (await _authorized_request(local_user_id, "GET", "/v1/sync/capabilities")).json()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+            peer = {"schema_version": 1, "capabilities": []}
+        peer_schema = int(peer.get("schema_version", 1))
+        peer_features = peer.get("capabilities") or []
+        local_protocol = sync_capabilities()
+        negotiated_schema = min(peer_schema, local_protocol["schema_version"])
+        negotiated_features = sorted(set(peer_features) & set(local_protocol["capabilities"]))
+        if not pull_only:
+            collected = await asyncio.to_thread(collect_user_revisions, local_user_id, device_id)
+            conflicts_count += collected['conflicts']
+        # Retry changes whose book/source was unavailable on a previous pull.
+        retried = await asyncio.to_thread(apply_remote_changes, local_user_id, device_id, [])
+        applied += retried["applied"]
+        conflicts_count += retried['conflicts']
+        pending += retried['pending']
         if not pull_only:
             local_cursor = int(account["local_cursor"])
             while True:
                 batch = await asyncio.to_thread(sync_repository.list_changes_after, local_user_id, local_cursor, 500)
                 if batch["changes"]:
-                    response = await _authorized_request(local_user_id, "POST", "/v1/sync/push", json={"changes": batch["changes"]})
+                    validate_exchange(batch["changes"], negotiated_schema, negotiated_features)
+                    response = await _authorized_request(local_user_id, "POST", "/v1/sync/push", json={"changes": batch["changes"], "schema_version": negotiated_schema, "capabilities": negotiated_features})
                     result = response.json()
                     uploaded += len(result.get("accepted", [])) + len(result.get("skipped", []))
+                    conflicts_count += len(result.get('conflicts', []))
                     local_cursor = int(batch["cursor"])
                     await asyncio.to_thread(repository.update_sync_state, local_user_id, local_cursor=local_cursor)
                 if not batch["has_more"]:
                     break
         remote_cursor = int(account["remote_cursor"])
         while True:
-            response = await _authorized_request(local_user_id, "GET", f"/v1/sync/pull?after={remote_cursor}&limit=500")
+            advertised = ",".join(local_protocol["capabilities"])
+            response = await _authorized_request(local_user_id, "GET", f"/v1/sync/pull?after={remote_cursor}&limit=500&schema_version={local_protocol['schema_version']}&capabilities={advertised}")
             batch = response.json()
             changes = batch.get("changes") or []
             if changes:
-                await asyncio.to_thread(sync_repository.push_changes, local_user_id, device_id, changes)
-                projected = await asyncio.to_thread(apply_remote_changes, local_user_id, device_id, changes)
+                validate_exchange(changes, local_protocol["schema_version"], local_protocol["capabilities"])
+                ingested = await asyncio.to_thread(sync_repository.push_changes, local_user_id, device_id, changes)
+                project_ids = {row["change_id"] for row in ingested["accepted"]}
+                project_ids.update(row["change_id"] for row in ingested["skipped"] if row["reason"] == "duplicate")
+                projected = await asyncio.to_thread(apply_remote_changes, local_user_id, device_id, [change for change in changes if change["change_id"] in project_ids])
                 applied += projected["applied"]
                 skipped += projected["skipped"]
+                conflicts_count += projected['conflicts'] + len(ingested.get('conflicts', []))
+                pending += projected['pending']
                 downloaded += len(changes)
                 remote_cursor = int(batch["cursor"])
                 await asyncio.to_thread(repository.update_sync_state, local_user_id, remote_cursor=remote_cursor)
             if not batch.get("has_more"):
                 break
-        await asyncio.to_thread(repository.update_sync_state, local_user_id, error=None, completed=True)
         remote_status = (await _authorized_request(local_user_id, "GET", "/v1/sync/status")).json()
-        return {"uploaded":uploaded,"downloaded":downloaded,"applied":applied,"skipped":skipped,"remote":remote_status,**repository.account_status(local_user_id)}
+        pending = len(await asyncio.to_thread(sync_repository.pending_projections, local_user_id))
+        local_status = await asyncio.to_thread(sync_repository.sync_status, local_user_id)
+        conflicts_count = max(conflicts_count, local_status['conflicts'], int(remote_status.get('conflicts', 0)))
+        complete = not pending and not conflicts_count
+        error = None if complete else f'同步待处理：{conflicts_count} 个冲突，{pending} 个来源尚未导入'
+        await asyncio.to_thread(repository.update_sync_state, local_user_id, error=error, completed=complete)
+        return {"uploaded":uploaded,"downloaded":downloaded,"applied":applied,"skipped":skipped,"conflicts":conflicts_count,"pending":pending,"complete":complete,"remote":remote_status,"negotiated_schema_version":negotiated_schema,"negotiated_capabilities":negotiated_features,**repository.account_status(local_user_id)}
     except Exception as exc:
         await asyncio.to_thread(repository.update_sync_state, local_user_id, error=str(exc))
         raise

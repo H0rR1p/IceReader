@@ -13332,6 +13332,31 @@
           "sha256": "886a0ead2d89030ee62dbff52b04e47ab91998341295bb9c56fb952b4e081c7a"
         }
       ]
+    },
+    {
+      "ecosystem": "runtime",
+      "name": "Electron/Chromium native components",
+      "version": "42.4.0",
+      "scopes": [
+        "runtime"
+      ],
+      "license": "Upstream component licenses including LGPL-2.1-or-later and MPL",
+      "source_url": "https://codeload.github.com/electron/electron/tar.gz/refs/tags/v42.4.0",
+      "licenses": [
+        {
+          "path": "third_party_licenses/runtime/chromium/00-LICENSES.chromium.html",
+          "sha256": "e3c8a6093358521d4512d68945e16338755e687619196e63948d46c9267537b6"
+        },
+        {
+          "path": "third_party_licenses/runtime/desktop-native/COPYING.LGPLv2.1",
+          "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30"
+        },
+        {
+          "path": "third_party_licenses/runtime/desktop-native/CREDITS.chromium",
+          "sha256": "a4f057d42d8a93077a37d2381a8ebf47e9e0ce2a80336d6ba1534767634ce0d1"
+        }
+      ],
+      "source_manifest": "third_party_licenses/runtime/desktop-native/manifest.json"
     }
   ],
   "uninstalled_optional_platform_packages": [
