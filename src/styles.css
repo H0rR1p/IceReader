@@ -593,8 +593,12 @@ rt { font-family: "Noto Sans JP", sans-serif; font-size: .48em; color: #756e65; 
 .legal-links > button { color: var(--primary, #367fab); border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; }
 .legal-links > button:disabled { opacity: .6; cursor: wait; }
 .touhou-logo-notice { flex-basis: 100%; line-height: 1.5; }
-.legal-dialog { width: min(760px, 92vw); max-height: 85vh; overflow: auto; text-align: left; }
-.legal-license-text { max-height: 42vh; overflow: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.5; }
+.legal-dialog { width: min(760px, 100%); max-height: min(85vh, calc(100dvh - 40px)); overflow: auto; padding: 22px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); color: var(--ink); box-shadow: 0 24px 70px #29476040; text-align: left; }
+.legal-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.legal-dialog > header h2 { margin: 0; }
+.legal-dialog .legal-close { flex: 0 0 32px; width: 32px; height: 32px; padding: 0; font-size: 22px; line-height: 1; }
+.legal-dialog > p { margin: 12px 0; line-height: 1.7; overflow-wrap: anywhere; }
+.legal-license-text { max-height: 42vh; overflow: auto; padding: 14px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.5; }
 .app-navigation > .legal-links { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 640px) {
   .app-navigation { display: grid; height: auto; grid-template-columns: 65px minmax(0, 1fr) 54px; grid-template-rows: 58px auto; }

@@ -12,7 +12,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="许可证：AGPL-3.0-or-later" /></a>
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" alt="Windows x64" />
-  <img src="https://img.shields.io/badge/version-0.5.1-blue" alt="当前桌面版本：0.5.1" />
+  <img src="https://img.shields.io/badge/version-0.5.2-blue" alt="当前桌面版本：0.5.2" />
 </p>
 
 <p align="center">
@@ -32,13 +32,20 @@
 
 书籍与学习数据保存在本机。已有正文、分析结果和复习内容可离线使用；生成新的 AI 释义和语法分析需要配置自己的接口。配音可连接本机 YMM4。
 
-> **当前版本：0.5.1**。`main` 为 Windows 本地桌面客户端，无需云账号即可使用。书籍、卡片和学习记录可通过迁移包带到其他账号；[`Online`](https://github.com/H0rR1p/IceReader/tree/Online) 为停止维护的历史公网版本。
+> **当前版本：0.5.2**。`main` 为 Windows 本地桌面客户端，无需云账号即可使用。书籍、卡片和学习记录可通过迁移包带到其他账号；[`Online`](https://github.com/H0rR1p/IceReader/tree/Online) 为停止维护的历史公网版本。
 
 > **维护范围（2026-10-09起）**：后续只开发和维护Windows桌面客户端；Android及Online分支作为历史版本保留，停止后续开发。
 
 ![书架概览：最近阅读、合集与隐藏封面](docs/images/bookshelf.png)
 
 ## 最新更新
+
+### 0.5.2 · 2026-10-13
+
+- 词卡「编辑」按钮使用页面统一的按钮样式。
+- 源码与许可证弹窗增加浅蓝色实底、边框和内边距，许可证正文单独显示在可滚动区域。
+
+Windows x64安装包名称为 `IceReader-0.5.2-Setup.exe`。
 
 ### 0.5.1 · 2026-10-13
 
