@@ -14,7 +14,7 @@ internal static class BingduBootstrap
         string root = AppDomain.CurrentDomain.BaseDirectory;
         string executable = null;
         string buildRoot = Path.GetFullPath(Path.Combine(root, "build")) + Path.DirectorySeparatorChar;
-        string pointer = Path.Combine(buildRoot, "desktop-current.txt");
+        string pointer = Path.Combine(buildRoot, "ice-reader-current.txt");
         if (File.Exists(pointer))
         {
             string candidate = Path.GetFullPath(Path.Combine(buildRoot, File.ReadAllText(pointer).Trim(), "win-unpacked", "冰读.exe"));
@@ -27,7 +27,7 @@ internal static class BingduBootstrap
         }
         if (executable == null)
         {
-            MessageBox(IntPtr.Zero, "没有找到目录版冰读，请先运行 scripts\\build_windows.ps1。", "冰读启动失败", 0x10);
+            MessageBox(IntPtr.Zero, "没有找到目录版冰读，请先运行 scripts\\build_desktop.ps1。", "冰读启动失败", 0x10);
             return;
         }
 

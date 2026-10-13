@@ -47,6 +47,6 @@ if ($LASTEXITCODE -ne 0) { throw "安装包图标验证失败" }
 $compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 & $compiler /nologo /target:winexe /win32icon:"$root\assets\bingdu.ico" /out:"$root\冰读.exe" "$root\scripts\windows_bootstrap.cs"
 if ($LASTEXITCODE -ne 0) { throw "项目根目录启动器更新失败" }
-$pointer = Join-Path $root "build\desktop-current.txt"
+$pointer = Join-Path $root "build\ice-reader-current.txt"
 [System.IO.File]::WriteAllText($pointer + ".tmp", $releaseName)
 Move-Item -LiteralPath ($pointer + ".tmp") -Destination $pointer -Force

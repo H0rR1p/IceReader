@@ -1,5 +1,8 @@
+import json
 import sqlite3
 import time
+
+import pytest
 
 from .modules.cards import repository as cards_store
 from .modules.cards.scheduler import MODEL_VERSION, retrievability, schedule_review
@@ -33,11 +36,42 @@ def test_candidate_dedup_search_and_owner_boundary(tmp_path, monkeypatch):
     _isolated_store(tmp_path, monkeypatch)
     first = _candidate()
     second = _candidate()
+    assert first["source"] is None
     assert first["id"] == second["id"]
     card = cards_store.accept_candidate("user-a", first["id"])
+    assert card["source"] is None
     assert cards_store.search_cards("user-a", "猫")[0]["id"] == card["id"]
+    assert cards_store.search_cards("user-a", "猫")[0]["source"] is None
     assert cards_store.search_cards("user-b", "猫") == []
     assert cards_store.due_cards("user-a")[0]["id"] == card["id"]
+
+
+@pytest.mark.parametrize("stored_source", ["{}", "null", "", "[]", "not-json"])
+def test_legacy_vocabulary_sources_are_absent_without_changing_storage(tmp_path, monkeypatch, stored_source):
+    path = _isolated_store(tmp_path, monkeypatch)
+    candidate = _candidate()
+    card = cards_store.accept_candidate("user-a", candidate["id"])
+    pending = _candidate(sentence_id="sentence-2")
+    with sqlite3.connect(path) as connection:
+        connection.execute("UPDATE notes SET source_json=? WHERE id=?", (stored_source, card["note_id"]))
+        connection.execute("UPDATE card_candidates SET source_json=? WHERE id=?", (stored_source, pending["id"]))
+    assert cards_store.list_candidates("user-a")[0]["source"] is None
+    assert cards_store.search_cards("user-a")[0]["source"] is None
+    assert cards_store.due_cards("user-a")[0]["source"] is None
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT source_json FROM notes WHERE id=?", (card["note_id"],)).fetchone()[0] == stored_source
+
+
+def test_grammar_source_survives_candidate_acceptance_and_review_loading(tmp_path, monkeypatch):
+    path = _isolated_store(tmp_path, monkeypatch)
+    source = {"kind": "grammar", "grammar_id": "ja.morph.causative", "derivation": ["読む", "読ませる"]}
+    candidate = _candidate()
+    with sqlite3.connect(path) as connection:
+        connection.execute("UPDATE card_candidates SET source_json=? WHERE id=?", (json.dumps(source), candidate["id"]))
+    assert cards_store.list_candidates("user-a")[0]["source"] == source
+    assert cards_store.accept_candidate("user-a", candidate["id"])["source"] == source
+    assert cards_store.search_cards("user-a")[0]["source"] == source
+    assert cards_store.due_cards("user-a")[0]["source"] == source
 
 
 def test_review_is_idempotent_and_preserves_log_state(tmp_path, monkeypatch):

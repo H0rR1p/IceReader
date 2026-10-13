@@ -142,7 +142,15 @@ def _row(value: sqlite3.Row | None) -> dict | None:
     if "tags_json" in result:
         result["tags"] = json.loads(result.pop("tags_json") or "[]")
     if 'source_json' in result:
-        result['source'] = json.loads(result.pop('source_json') or '{}')
+        raw_source = result.pop('source_json')
+        try:
+            source = json.loads(raw_source or '{}')
+        except (TypeError, ValueError):
+            source = None
+        # Vocabulary cards historically store an empty JSON object here.  Do
+        # not expose that object as a grammar source: an empty object is truthy
+        # in JavaScript and would make the UI render fields it cannot contain.
+        result['source'] = source if isinstance(source, dict) and source else None
     return result
 
 
@@ -214,7 +222,7 @@ def accept_candidate(user_id: str, candidate_id: str) -> dict:
         )
         connection.execute("UPDATE card_candidates SET status='accepted',updated_at=?,version=version+1 WHERE id=?",(now,candidate_id))
         _index_card(connection,user_id,card_id)
-        row = connection.execute("SELECT c.*,n.lemma,n.reading,n.gloss,n.sentence,n.book_title,n.tags_json,m.difficulty,m.stability,m.retrievability,m.due_at,m.reps,m.lapses FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id WHERE c.id=?",(card_id,)).fetchone()
+        row = connection.execute("SELECT c.*,n.lemma,n.reading,n.gloss,n.sentence,n.book_id,n.book_title,n.chapter_id,n.sentence_id,n.tags_json,n.source_json,m.difficulty,m.stability,m.retrievability,m.due_at,m.reps,m.lapses FROM cards c JOIN notes n ON n.id=c.note_id JOIN memory_states m ON m.card_id=c.id WHERE c.id=?",(card_id,)).fetchone()
     return _row(row) or {}
 
 

@@ -12,7 +12,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="许可证：AGPL-3.0-or-later" /></a>
   <img src="https://img.shields.io/badge/platform-Windows%20x64-blue" alt="Windows x64" />
-  <img src="https://img.shields.io/badge/version-0.5.0-blue" alt="当前桌面版本：0.5.0" />
+  <img src="https://img.shields.io/badge/version-0.5.1-blue" alt="当前桌面版本：0.5.1" />
 </p>
 
 <p align="center">
@@ -32,13 +32,20 @@
 
 书籍与学习数据保存在本机。已有正文、分析结果和复习内容可离线使用；生成新的 AI 释义和语法分析需要配置自己的接口。配音可连接本机 YMM4。
 
-> **当前版本：0.5.0**。`main` 为 Windows 本地桌面客户端，无需云账号即可使用。书籍、卡片和学习记录可通过迁移包带到其他账号；[`Online`](https://github.com/H0rR1p/IceReader/tree/Online) 为停止维护的历史公网版本。
+> **当前版本：0.5.1**。`main` 为 Windows 本地桌面客户端，无需云账号即可使用。书籍、卡片和学习记录可通过迁移包带到其他账号；[`Online`](https://github.com/H0rR1p/IceReader/tree/Online) 为停止维护的历史公网版本。
 
 > **维护范围（2026-10-09起）**：后续只开发和维护Windows桌面客户端；Android及Online分支作为历史版本保留，停止后续开发。
 
 ![书架概览：最近阅读、合集与隐藏封面](docs/images/bookshelf.png)
 
 ## 最新更新
+
+### 0.5.1 · 2026-10-13
+
+- 修复部分旧卡片或无来源卡片导致「词语与语法卡片」及「今日复习」页面无法打开的问题，保留已有卡片与学习记录。
+- 冰读构建与启动器统一使用 `build/ice-reader-current.txt`，日常客户端与 JSR 软著申请版的构建指针分别保存。
+
+Windows x64安装包名称为 `IceReader-0.5.1-Setup.exe`。
 
 ### 0.5.0 · 2026-10-10
 
@@ -274,7 +281,7 @@ build/desktop-release-<构建时间>/
 └── win-unpacked/            完整目录版客户端
 ```
 
-`build/desktop-current.txt` 记录最新构建，项目根目录的 `冰读.exe` 启动器据此打开客户端。构建流程会核验 EXE 和安装包内嵌图标。
+`build/ice-reader-current.txt` 记录最新冰读构建，项目根目录的 `冰读.exe` 启动器据此打开客户端。JSR 软著申请版使用独立的 `build/desktop-current.txt`，不覆盖冰读日常入口。构建流程会核验 EXE 和安装包内嵌图标。
 
 ### 检查代码与客户端
 
@@ -282,6 +289,7 @@ build/desktop-release-<构建时间>/
 npm run build
 .\.venv64\Scripts\python -m pytest backend
 npm run desktop:test
+npm run desktop:test:cards
 ```
 
 验证打包版本时，可先将 `BINGDU_TEST_EXECUTABLE` 设为对应 `win-unpacked\冰读.exe` 的完整路径。

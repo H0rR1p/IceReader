@@ -385,14 +385,14 @@ export async function loadKnowledgeStates(items: LearningEventInput['item'][], s
 }
 
 export type CardCandidate = {
-  source?: GrammarCardSource
+  source?: GrammarCardSource | null
   id: string; knowledge_item_id: string; lemma: string; reading: string; gloss: string
   sentence: string; book_id: string; book_title: string; chapter_id: string; sentence_id: string
   card_template: string; status: string; created_at: number; updated_at: number
 }
 
 export type StudyCard = {
-  source?: GrammarCardSource
+  source?: GrammarCardSource | null
   id: string; note_id: string; knowledge_item_id: string; lemma: string; reading: string; gloss: string
   sentence: string; book_id: string; book_title: string; chapter_id: string; sentence_id: string
   card_template: string; status: string; tags: string[]; difficulty: number; stability: number
