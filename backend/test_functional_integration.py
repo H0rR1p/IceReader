@@ -30,7 +30,7 @@ def test_transfer_rewrites_graph_links_without_rewriting_japanese_or_offsets():
     ids.add("sentences", "sentence")
     source = {"learning_spans": [{"id": "outer", "sentence_id": "sentence",
         "surface": "じゃないか", "start": 4, "end": 9,
-        "token_ids": ["atom"], "children": ["inner"], "overlap_ids": ["cross"],
+        "token_ids": ["atom"], "children": ["inner"], "overlap_ids": ["cross"], "legacy_span_id": "inner",
         "grammar_ids": ["ja.functional.confirmation"],
         "marker_ranges": [{"start": 4, "end": 9}],
         "normalization_steps": [{"surface": "じゃ", "normalized": "では", "start": 4, "end": 6}]}]}
@@ -40,6 +40,7 @@ def test_transfer_rewrites_graph_links_without_rewriting_japanese_or_offsets():
     assert node["id"] == ids.get("spans", "outer")
     assert node["children"] == [ids.get("spans", "inner")]
     assert node["overlap_ids"] == [ids.get("spans", "cross")]
+    assert node["legacy_span_id"] == ids.get("spans", "inner")
     assert node["token_ids"] == [ids.get("tokens", "atom")]
     for field in ("surface", "start", "end", "marker_ranges", "normalization_steps", "grammar_ids"):
         assert node[field] == source["learning_spans"][0][field]
