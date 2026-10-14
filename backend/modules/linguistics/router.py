@@ -1,10 +1,11 @@
 import asyncio
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from ...model_compat import BaseModel, Field
 
 from ...core.request_context import RequestContext, current_request_context
 from .models import ContextPolicy, StructureRequest
 from . import repository, service
+from .explanations import ExpressionExplanationRequest, explain_expression
 
 router = APIRouter(prefix="/api", tags=["linguistics"])
 
@@ -36,3 +37,10 @@ async def structure(request: StructureRequest,
                     context: RequestContext = Depends(current_request_context)):
     return await asyncio.to_thread(service.structure_results, context.user_id, request.sentence_ids,
                                    required_version=request.required_version, force=request.force)
+
+
+@router.post("/grammar/expressions/explain")
+async def explain_selected_expression(request: ExpressionExplanationRequest,
+                                      x_api_key: str | None = Header(default=None),
+                                      context: RequestContext = Depends(current_request_context)):
+    return await explain_expression(request, context.user_id, x_api_key)

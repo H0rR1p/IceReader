@@ -44,7 +44,19 @@ def restore_choices(user, result, context_hash):
     manifest=result['analysis_manifest']
     spans=[]
     for span in result['learning_spans']:
-        override=repository.load_span_override(user,result['sentence_id'],span['id'],manifest['text_hash'],manifest['version'])
+        override=repository.load_span_override(user,result['sentence_id'],span['id'],manifest['text_hash'],manifest['version'], include_retired=True)
+        if override and override.get('_retired'):
+            # Carry only unchanged, explicitly confirmed legacy candidates.
+            # Otherwise retain the CAS revision so a fresh choice can replace
+            # a retired row without silently discarding its history.
+            compatible = (override.get('source') == 'user' and override.get('_same_text')
+                and str(override.get('version', '')).startswith('linguistics-v2:')
+                and manifest['version'].startswith('linguistics-v3:')
+                and (override.get('start'), override.get('end'), override.get('analysis_revision'))
+                    == (span['start'], span['end'], manifest['revision'])
+                and override.get('choice_id') in {value['id'] for value in span['candidates']})
+            if not compatible:
+                override = {**override, 'choice_id': None}
         if override and override.get('source') != 'user':
             # Keep the CAS revision so a user can replace a retired suggestion.
             override={**override, 'choice_id': None}

@@ -102,13 +102,16 @@ export async function loadSentenceStructures(sentences: Sentence[], signal?: Abo
       if (result.learning_spans.some((span) => span.sentence_id !== result.sentence_id
         || !Number.isInteger(span.start) || !Number.isInteger(span.end)
         || span.start < 0 || span.end <= span.start || span.end > characters.length
-        || characters.slice(span.start, span.end).join('') !== span.surface)) throw new Error('语法分析锚点无效，请重新分析')
+        || characters.slice(span.start, span.end).join('') !== span.surface
+        || span.marker_ranges?.some((range) => !Number.isInteger(range.start) || !Number.isInteger(range.end)
+          || range.start < span.start || range.end <= range.start || range.end > span.end))) throw new Error('语法分析锚点无效，请重新分析')
       const snapshot = { ...result, chapter_id: sentences[index].chapter_id, cached_at: Date.now() }
       incoming.push(snapshot); resolved.set(result.sentence_id, snapshot)
     }
     signal?.throwIfAborted()
     if (incoming.length) await db.transaction('rw', [db.sentenceStructures, db.spanSenses], async () => {
       await db.sentenceStructures.bulkPut(incoming)
+      await db.spanSenses.where('sentence_id').anyOf(incoming.map((snapshot) => snapshot.sentence_id)).delete()
       const senses = incoming.flatMap((snapshot) => (snapshot.learning_span_senses ?? []).map((sense) => ({ ...sense, sentence_id: snapshot.sentence_id })))
       if (senses.length) await db.spanSenses.bulkPut(senses)
     })

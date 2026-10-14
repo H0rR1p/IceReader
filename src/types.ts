@@ -91,6 +91,13 @@ export interface LearningSpan {
   derivation: string[]
   source: 'rule' | 'parser' | 'ai' | 'user'; version: string; status: 'determined' | 'ambiguous' | 'unknown' | 'user_confirmed'
   captures: Record<string, string>; evidence: string[]
+  unit_role?: 'lexical' | 'particle' | 'auxiliary' | 'morphology' | 'construction' | 'ending'
+  marker_ranges?: Array<{ start: number; end: number }>
+  normalized_form?: string
+  normalization_steps?: Array<Record<string, unknown>>
+  overlap_ids?: string[]
+  boundary_status?: 'supported' | 'possible' | 'unknown'
+  confidence?: number
 }
 export interface AnalysisManifest {
   version: string; tokenizer_version: string; dictionary_version: string; rules_version: string; parser_version: string

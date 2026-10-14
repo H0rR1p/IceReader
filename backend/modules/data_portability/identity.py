@@ -7,6 +7,7 @@ FIELD_DOMAINS = {
     "currentChapterId": "chapters", "sentence_id": "sentences", "sentenceId": "sentences",
     "currentSentenceId": "sentences", "token_id": "tokens", "tokenId": "tokens",
     "token_ids": "tokens", "span_id": "spans", "span_ids": "spans", "children": "spans",
+    "overlap_ids": "spans", "related_ids": "spans",
     "entity_id": "entities", "entity_ids": "entities", "fact_id": "facts", "fact_ids": "facts",
     "target_entity_id": "entities", "merged_into": "entities", "knowledge_item_id": "knowledge",
     "card_id": "cards", "note_id": "notes", "bookmark_id": "bookmarks", "change_id": "changes",

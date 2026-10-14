@@ -7,6 +7,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import JSZip from 'jszip'
 import { chromium } from 'playwright'
+import { learningUnit, selectLearningUnit } from './reader_test_helpers.mjs'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const output = path.join(root, 'build/ui-linguistics-full', String(Date.now()))
@@ -83,12 +84,12 @@ try {
   await dialog.waitFor({ state: 'hidden' })
   await page.getByRole('button', { name: `打开《${title}》`, exact: true }).click()
   await page.getByRole('button', { name: '切分本章', exact: true }).click()
-  await page.getByRole('button', { name: '読ませました，完整活用', exact: true }).waitFor({ timeout: 20000 })
+  await learningUnit(page, '読ませました').waitFor({ timeout: 20000 })
   let index = await snapshot()
   const book = index.books.find((row) => row.title === title)
   const chapters = index.chapters.filter((row) => row.bookId === book.id).sort((a, b) => a.order - b.order)
   assert.equal(chapters.length, 4)
-  await page.getByRole('button', { name: '読ませました，完整活用', exact: true }).click()
+  await learningUnit(page, '読ませました').click()
   assert.match(await page.locator('.learning-inspector').innerText(), /読む/)
   await page.getByRole('button', { name: '加入结构识别卡', exact: true }).click()
   await poll(() => api('/api/cards/candidates'), (rows) => rows.length === 1, 'recognition candidate')
@@ -119,7 +120,7 @@ try {
   record('Both grammar templates render and SRS ratings remain grammar learning events')
   await page.getByRole('button', { name: '继续阅读', exact: true }).click()
   await api('/api/settings', { api_key: 'ui-test-only', base_url: `${origin}/mock-ai`, model: 'mock-model' }, 'PUT')
-  await page.getByRole('button', { name: '褒められた，完整活用', exact: true }).click()
+  await learningUnit(page, '褒められた').click()
   const inspector = page.locator('.learning-inspector')
   await inspector.getByRole('button', { name: '确认此解释', exact: true }).first().click()
   await poll(() => inspector.locator('.inspector-heading small').innerText(), (label) => label === '用户确认', 'manual ambiguity confirmation')
@@ -149,7 +150,7 @@ try {
   await page.getByRole('button', { name: `打开《${title}》`, exact: true }).click()
   assert.equal(await taskRegion.locator('.task-progress').count(), 0, 'canceled status must remain hidden after reopening')
   record('Compact unfinished task panel disappears after cancellation and stays hidden after reopening')
-  await page.getByRole('button', { name: '読ませました，完整活用', exact: true }).click()
+  await learningUnit(page, '読ませました').click()
   const seededChapter = await api(`/api/library/chapters/${chapters[0].id}`)
   const translatedSentence = seededChapter.sentences.find((row) => row.original.includes('読ませました'))
   const failedChapter = await api(`/api/library/chapters/${chapters[3].id}`)
@@ -192,7 +193,7 @@ try {
   assert.ok(cards.every((row) => row.reps === 1 && row.source.original_sentence === candidates[0].source.original_sentence))
   await page.getByRole('button', { name: /书签\s*1/ }).click()
   await page.locator('.bookmark-item').click()
-  await page.getByRole('button', { name: '読ませました，完整活用', exact: true }).waitFor()
+  await learningUnit(page, '読ませました').waitFor()
   record('Generation restoration preserves reading anchor, mapped bookmark, grammar card old example, and SRS history')
   await page.getByRole('button', { name: '重新切分全书', exact: true }).click()
   const second = await poll(() => api(`/api/jobs?book_id=${book.id}`), (rows) => rows.some((row) => row.kind === 'resegmentation-v1' && row.id !== job.id && row.id !== failedTask.id), 'force all segmented chapters')
@@ -214,7 +215,7 @@ try {
   await page.locator('.study-card-table article').first().getByText('原始例句与来源', { exact: true }).click()
   await screenshot('07-重切后保留旧例句')
   await page.locator('.study-card-table article').first().getByRole('button', { name: '定位来源原文', exact: true }).click()
-  await page.getByRole('button', { name: '読ませました，完整活用', exact: true }).waitFor()
+  await learningUnit(page, '読ませました').waitFor()
   record('Grammar card old source snapshot navigates to current original-text anchor')
   await page.setViewportSize({ width: 800, height: 1280 })
   await page.getByRole('button', { name: '设置', exact: true }).click()

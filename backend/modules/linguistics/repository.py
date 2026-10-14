@@ -124,14 +124,39 @@ def load_span_senses(user_id: str, sentence_id: str, text_hash: str, version: st
     return json.loads(row["payload"])
 
 
-def load_span_override(user_id: str, sentence_id: str, span_id: str, text_hash: str, version: str) -> dict | None:
+def merge_span_sense(user_id: str, sentence_id: str, sense: dict, manifest: dict,
+                     context_hash: str) -> None:
+    """Merge an individual meaning transactionally without erasing other nodes."""
     with session() as connection:
-        row = connection.execute('SELECT payload,revision FROM span_overrides WHERE user_id=? AND sentence_id=? AND span_id=? AND text_hash=?',
-                                 (user_id, sentence_id, span_id, text_hash)).fetchone()
+        row = connection.execute("SELECT * FROM span_senses WHERE user_id=? AND sentence_id=?",
+                                 (user_id, sentence_id)).fetchone()
+        valid = row is not None and (row["text_hash"], row["version"], row["revision"], row["context_hash"]) == (
+            manifest["text_hash"], manifest["version"], manifest["revision"], context_hash)
+        previous = json.loads(row["payload"]) if valid else []
+        senses = {value["span_id"]: value for value in previous}
+        senses[sense["span_id"]] = sense
+        connection.execute("""INSERT INTO span_senses VALUES(?,?,?,?,?,?,?,?)
+            ON CONFLICT(user_id,sentence_id) DO UPDATE SET text_hash=excluded.text_hash,
+            version=excluded.version,revision=excluded.revision,context_hash=excluded.context_hash,
+            payload=excluded.payload,updated_at=excluded.updated_at""",
+            (user_id, sentence_id, manifest["text_hash"], manifest["version"], manifest["revision"],
+             context_hash, json.dumps(list(senses.values()), ensure_ascii=False), time.time()))
+
+
+def load_span_override(user_id: str, sentence_id: str, span_id: str, text_hash: str, version: str,
+                       *, include_retired: bool = False) -> dict | None:
+    with session() as connection:
+        row = connection.execute('SELECT payload,revision,text_hash FROM span_overrides WHERE user_id=? AND sentence_id=? AND span_id=?',
+                                 (user_id, sentence_id, span_id)).fetchone()
     if not row:
         return None
     value = json.loads(row['payload'])
-    return {**value, 'revision': row['revision']} if value.get('version') == version else None
+    same_text = row['text_hash'] == text_hash
+    if same_text and value.get('version') == version:
+        return {**value, 'revision': row['revision']}
+    if include_retired:
+        return {**value, 'revision': row['revision'], '_retired': True, '_same_text': same_text}
+    return None
 
 
 def save_span_override(user_id: str, sentence_id: str, span_id: str, text_hash: str,
@@ -148,4 +173,6 @@ def save_span_override(user_id: str, sentence_id: str, span_id: str, text_hash: 
                            (user_id, sentence_id, span_id, text_hash, json.dumps(value, ensure_ascii=False), current + 1, time.time()))
         connection.execute('INSERT INTO span_override_history VALUES(?,?,?,?,?,?)',
                            (user_id,sentence_id,span_id,current+1,json.dumps(value,ensure_ascii=False),time.time()))
+        # Meanings generated before a changed interpretation may now be stale.
+        connection.execute('DELETE FROM span_senses WHERE user_id=? AND sentence_id=?', (user_id, sentence_id))
     return value

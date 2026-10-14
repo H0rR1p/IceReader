@@ -1,7 +1,9 @@
-.learning-span { cursor: pointer; padding: 2px 1px; }
-.learning-span.selected, .learning-span:focus-visible { border-bottom: 2px dashed #6da8d0; outline: none; }
-.learning-span .token { border-bottom: 0; }
-.learning-span.selected .token.content, .learning-span:focus-visible .token.content { background: transparent; box-shadow: none; }
+.learning-fragment[role="button"], .learning-token rt { cursor: pointer; }
+.learning-fragment { padding: 0; }
+.learning-fragment.selected, .learning-fragment:focus-visible { border-bottom: 2px dashed #6da8d0; outline: none; }
+.learning-fragment.token-selected { background: #c1e1f6; }
+.learning-token.content:hover, .learning-token.content:focus { background: transparent; box-shadow: none; }
+.learning-fragment:not(.selected)[role="button"]:hover { background: #dceefb; }
 .inspector-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .inspector-heading small { color: #6b8bab; font-size: 12px; }
 .inspector-surface { font-size: 1.35rem; overflow-wrap: anywhere; }
@@ -13,6 +15,10 @@
 .structure-choice { display: grid; width: 100%; gap: 6px; text-align: left; color: inherit; background: #f7fbff; border: 1px solid #bedef3; border-radius: 4px; padding: 10px; margin-top: 8px; }
 .structure-choice.active { background: #d9effc; }
 .structure-choice small { color: #6b8bab; }
+.learning-selection-choices { margin-bottom: 12px; }
+.learning-selection-choices .grammar-rule-field { margin-top: 0; }
+.grammar-structure-panel summary { cursor: pointer; color: var(--ink); font-size: 13px; font-weight: 600; }
+.grammar-structure-panel summary small { color: var(--muted); margin-left: 6px; }
 
 .grammar-rule-field { display: grid; gap: 6px; margin-top: 12px; min-width: 0; font-size: 12px; color: var(--muted); }
 .grammar-rule-field select { display: block; box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; padding: 7px 10px; border: 1px solid #bfd9ec; border-radius: 5px; background: #f7fbff; color: var(--ink); font: inherit; text-overflow: ellipsis; }

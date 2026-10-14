@@ -26,7 +26,9 @@ def test_owned_structures_and_revision_cache(tmp_path, monkeypatch):
                        "original": "本を読ませました。", "analysis_revision": 1}],
     }))
     result = service.structure_results("a", ["s"])
-    assert result["results"][0]["learning_spans"][0]["lemma"] == "読む"
+    morphology = [span for span in result["results"][0]["learning_spans"]
+                  if span["kind"] == "morphology" and "causative" in span["features"]]
+    assert morphology and morphology[0]["lemma"] == "読む"
     assert service.structure_results("a", ["s"]) == result
     with pytest.raises(HTTPException) as denied:
         service.structure_results("b", ["s"])

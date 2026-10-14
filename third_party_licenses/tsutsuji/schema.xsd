@@ -1,0 +1,523 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- 日本語機能表現辞書 version 1.0用のW3C XML Schema
+     (c) Suguru Matsuyoshi
+-->
+
+<xs:schema targetNamespace="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/simpleXML"
+  elementFormDefault="qualified" attributeFormDefault="unqualified"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:kkk="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/kokken"
+  xmlns:dsj="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/DoSJ"
+  xmlns:jpt="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/jpt"
+  xmlns:don="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/donnatoki"
+  xmlns:lex="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/simpleXML">
+ <xs:import namespace="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/kokken"
+   schemaLocation="kkkID.xsd" />
+ <xs:import namespace="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/DoSJ"
+   schemaLocation="dsjID.xsd" />
+ <xs:import namespace="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/jpt"
+   schemaLocation="jptID.xsd" />
+ <xs:import namespace="http://sslab.nuee.nagoya-u.ac.jp/~matuyosi/donnatoki"
+   schemaLocation="donID.xsd" />
+ <xs:element name="ENTRIES">
+  <xs:annotation>
+   <xs:documentation>
+ルート要素
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L1" maxOccurs="unbounded" />
+   </xs:sequence>
+  </xs:complexType>
+  <xs:key name="L1">
+   <xs:selector xpath="L1" />
+   <xs:field xpath="@L1ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L1">
+  <xs:annotation>
+   <xs:documentation>
+階層 L1 (構成による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L2" maxOccurs="unbounded" />
+   </xs:sequence>
+   <xs:attribute name="L1ID" use="required">
+<!-- 階層 L1のID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:positiveInteger">
+      <xs:totalDigits value="3" />
+      <xs:pattern value="\d{3}" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="BASE" type="xs:token" use="required" />
+<!-- 辞書形
+     短単位を"."で区切る
+ -->
+  <xs:attributeGroup ref="lex:basicATTR" />  
+  </xs:complexType>
+  <xs:key name="L2">
+   <xs:selector xpath="L2" />
+   <xs:field xpath="@L2ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L2">
+  <xs:annotation>
+   <xs:documentation>
+階層 L2 (意味による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L3" maxOccurs="unbounded" />
+   </xs:sequence>
+   <xs:attribute name="L2ID" use="required">
+<!-- 階層 L2のID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:positiveInteger">
+      <xs:totalDigits value="1" />
+      <xs:pattern value="\d" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="L1to2ID" use="required">
+<!-- L1ID-L2ID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:positiveInteger">
+      <xs:totalDigits value="4" />
+      <xs:pattern value="\d{4}" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="MCLASS" use="required">
+<!-- 意味的等価クラスID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:NMTOKEN">
+      <xs:pattern value="\w\d{2}" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="BASE" type="xs:token" use="required" />
+<!-- 辞書形
+     短単位を"."で区切る
+ -->
+   <xs:attribute name="MEANING" type="xs:token" />
+<!-- (昔使っていた)意味カテゴリーの名前
+ -->
+   <xs:attribute name="MORITA">
+<!-- 森田・松木の「日本語表現文型」における参照ページ
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:token">
+<!--        <xs:pattern value="\d+([\-;]\d+)*" /> -->
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+  <xs:attribute name="REPSPELLING">
+<!-- 同じL2IDを持つ機能表現集合において代表となる表記のL9ID。
+     これが"01"の場合、ひらがな表記が代表表記ということを意味する
+ -->
+   <xs:simpleType>
+    <xs:restriction base="xs:positiveInteger">
+     <xs:totalDigits value="2" />
+     <xs:pattern value="\d{2}" />
+    </xs:restriction>
+   </xs:simpleType>
+  </xs:attribute>
+  <xs:attribute name="LASTUPDATE" use="required">
+<!-- 最終更新日時
+ -->
+   <xs:simpleType>
+    <xs:restriction base="xs:NMTOKEN">
+     <xs:pattern value="\d{4}\w{3}\d{2}" />
+    </xs:restriction>
+   </xs:simpleType>
+  </xs:attribute>
+  <xs:attributeGroup ref="lex:basicATTR" />  
+  </xs:complexType>
+  <xs:key name="L3">
+   <xs:selector xpath="L3" />
+   <xs:field xpath="@L3ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L3">
+  <xs:annotation>
+   <xs:documentation>
+階層 L3 (機能による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L4" maxOccurs="unbounded" />
+   </xs:sequence>
+   <xs:attribute name="L3ID" use="required">
+<!-- 階層 L3のID
+     P:格助詞型;Q:接続助詞型;D:連体助詞型;C:接続詞型;
+     M:助動詞型;N:形式名詞型;T:とりたて詞型;W:提題助詞型
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:NCName">
+      <xs:length value="1" />
+      <xs:pattern value="[PQDCMNTW]" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="L1to3ID" use="required">
+<!-- L1ID-L3ID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:token">
+      <xs:pattern value="\d{4}[PQDCMNTW]" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="BASE" type="xs:token" use="required" />
+<!-- 辞書形
+     短単位を"."で区切る
+ -->
+  <xs:attributeGroup ref="lex:basicATTR" />  
+  </xs:complexType>
+  <xs:key name="L4">
+   <xs:selector xpath="L4" />
+   <xs:field xpath="@L4ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L4">
+  <xs:annotation>
+   <xs:documentation>
+階層 L4 (機能語の交替による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L5" maxOccurs="unbounded" />
+   </xs:sequence>
+   <xs:attribute name="L4ID" use="required">
+<!-- 階層 L4のID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:positiveInteger">
+      <xs:totalDigits value="1" />
+      <xs:pattern value="\d" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="L1to4ID" use="required">
+<!-- L1ID-L4ID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:token">
+      <xs:pattern value="\d{4}[PQDCMNTW]\.\d" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="BASE" type="xs:token" use="required" />
+<!-- 辞書形
+     短単位を"."で区切る
+ -->
+  <xs:attributeGroup ref="lex:basicATTR" />  
+  </xs:complexType>
+  <xs:key name="L5">
+   <xs:selector xpath="L5" />
+   <xs:field xpath="@L5ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L5">
+  <xs:annotation>
+   <xs:documentation>
+階層 L5 (音韻的変化による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L6" maxOccurs="unbounded" />
+   </xs:sequence>
+   <xs:attribute name="L5ID" use="required">
+<!-- 階層 L5のID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:NCName">
+      <xs:length value="1" />
+      <xs:pattern value="\w" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="L1to5ID" use="required">
+<!-- L1ID-L5ID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:token">
+      <xs:pattern value="\d{4}[PQDCMNTW]\.\d\w" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="BASE" type="xs:token" use="required" />
+<!-- 辞書形
+     短単位を"."で区切る
+ -->
+  <xs:attributeGroup ref="lex:basicATTR" />  
+  </xs:complexType>
+  <xs:key name="L6">
+   <xs:selector xpath="L6" />
+   <xs:field xpath="@L6ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L6">
+  <xs:annotation>
+   <xs:documentation>
+階層 L6 (とりたて詞の挿入による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L7" maxOccurs="unbounded" />
+   </xs:sequence>
+   <xs:attribute name="L6ID" use="required">
+<!-- 階層 L6のID
+     x:挿入なし;h:は;m:も;e:さえ;d:でも;s:すら;q:だって;a:まで;l:だけ;
+     b:ばかり;i:のみ;c:しか;o:こそ;n:など;g:なんか;t:なんて;r:くらい;
+     k:か
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:NCName">
+      <xs:length value="1" />
+      <xs:pattern value="[xhmedsqalbicongtrk]" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="L1to6ID" use="required">
+<!-- L1ID-L6ID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:token">
+      <xs:pattern value="\d{4}[PQDCMNTW]\.\d\w[xhmedsqalbicongtrk]" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="BASE" type="xs:token" use="required" />
+<!-- 辞書形
+     短単位を"."で区切る
+ -->
+  <xs:attributeGroup ref="lex:basicATTR" />  
+  </xs:complexType>
+  <xs:key name="L7">
+   <xs:selector xpath="L7" />
+   <xs:field xpath="@L7ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L7">
+  <xs:annotation>
+   <xs:documentation>
+階層 L7 (活用形による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L8" maxOccurs="unbounded" />
+   </xs:sequence>
+   <xs:attribute name="L7ID" use="required">
+<!-- 階層 L7のID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:positiveInteger">
+      <xs:totalDigits value="2" />
+      <xs:pattern value="\d{2}" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="L1to7ID" use="required">
+<!-- L1ID-L7ID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:token">
+      <xs:pattern value="\d{4}[PQDCMNTW]\.\d\w[xhmedsqalbicongtrk]\.\d{2}" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="BASE" type="xs:token" use="required" />
+<!-- 辞書形
+     短単位を"."で区切る
+ -->
+   <xs:attribute name="TAIL" type="xs:token" use="required" />
+<!-- 活用形の語尾
+ -->
+  <xs:attributeGroup ref="lex:basicATTR" />  
+  </xs:complexType>
+  <xs:key name="L8">
+   <xs:selector xpath="L8" />
+   <xs:field xpath="@L8ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L8">
+  <xs:annotation>
+   <xs:documentation>
+階層 L8 (「です/ます」の有無による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:sequence>
+    <xs:element ref="lex:L9" maxOccurs="unbounded" />
+   </xs:sequence>
+   <xs:attribute name="L8ID" use="required">
+<!-- 階層 L8のID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:NCName">
+      <xs:length value="1" />
+      <xs:pattern value="[ns]" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="L1to8ID" use="required">
+<!-- L1ID-L8ID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:token">
+      <xs:pattern value="\d{4}[PQDCMNTW]\.\d\w[xhmedsqalbicongtrk]\.\d{2}[ns]" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="BASE" type="xs:token" use="required" />
+<!-- 辞書形
+     短単位を"."で区切る
+ -->
+  <xs:attributeGroup ref="lex:basicATTR" />  
+  </xs:complexType>
+  <xs:key name="L9">
+   <xs:selector xpath="L9" />
+   <xs:field xpath="@L9ID" />
+  </xs:key>
+ </xs:element>
+
+ <xs:element name="L9">
+  <xs:annotation>
+   <xs:documentation>
+階層 L9 (表記による区分)
+   </xs:documentation>
+  </xs:annotation>
+  <xs:complexType>
+   <xs:simpleContent>
+    <xs:extension base="xs:token">
+<!-- 短単位を"."で区切る
+ -->
+   <xs:attribute name="L9ID" use="required">
+<!-- 階層 L9のID
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:positiveInteger">
+      <xs:totalDigits value="2" />
+      <xs:pattern value="\d{2}" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+     <xs:attribute name="ID" use="required">
+<!-- 機能表現ID
+ -->
+      <xs:simpleType>
+       <xs:restriction base="xs:token">
+        <xs:pattern value="\d{4}[PQDCMNTW]\.\d\w[xhmedsqalbicongtrk]\.\d{2}[ns]\d{2}" />
+       </xs:restriction>
+      </xs:simpleType>
+     </xs:attribute>
+     <xs:attribute name="PRONUNCIATION" type="xs:token" use="required" />
+<!-- 読み
+     短単位を"."で区切る
+ -->
+   <xs:attribute name="LEFTMOST" type="xs:token" use="required" />
+<!-- 一番左の構成形態素
+ -->
+   <xs:attribute name="RIGHTMOST" type="xs:token" use="required" />
+<!-- 一番右の構成形態素
+ -->
+     <xs:attributeGroup ref="lex:basicATTR" />
+    </xs:extension>
+   </xs:simpleContent>
+  </xs:complexType>
+ </xs:element>
+
+ <xs:attributeGroup name="basicATTR">
+   <xs:attribute ref="kkk:ID" />
+   <xs:attribute ref="dsj:ID" />
+   <xs:attribute ref="jpt:ID" />
+   <xs:attribute ref="don:ID" />
+   <xs:attribute name="DIFFICULTY">
+<!-- JCoreにおける難易度
+     A1が一番易しい
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:NCName">
+      <xs:enumeration value="A1" />
+      <xs:enumeration value="A2" />
+      <xs:enumeration value="B" />
+      <xs:enumeration value="C" />
+      <xs:enumeration value="F" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="STYLE">
+<!-- 文体
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:NCName">
+      <xs:enumeration value="normal" />
+<!-- 常体
+ -->
+      <xs:enumeration value="polite" />
+<!-- 敬体
+ -->
+      <xs:enumeration value="colloquial" />
+<!-- 口語体
+ -->
+      <xs:enumeration value="stiff" />
+<!-- 堅い文体
+ -->
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+   <xs:attribute name="LEFT" type="lex:leftright" />
+<!-- 左接続ID
+ -->
+   <xs:attribute name="RIGHT" type="lex:leftright" />
+<!-- 右接続ID
+ -->
+   <xs:attribute name="UNCOMMON" type="xs:boolean" />
+<!-- 使用が稀
+ -->
+   <xs:attribute name="CORE">
+<!-- (短単位における，先頭からの核の位置)/(短単位の全数)
+ -->
+    <xs:simpleType>
+     <xs:restriction base="xs:token">
+      <xs:pattern value="\d+/\d+" />
+     </xs:restriction>
+    </xs:simpleType>
+   </xs:attribute>
+ </xs:attributeGroup>
+
+ <xs:simpleType name="leftright">
+  <xs:restriction base="xs:NMTOKEN">
+   <xs:pattern value="\w{4}" />
+<!-- 現在は、"connectID"の2桁の数字 + "90"を記述している。
+     左接続は、表現の左に接続しうる品詞集合のIDを、
+     右接続は、表現末尾の短単位の形態素の品詞のIDを記述している
+ -->
+  </xs:restriction>
+ </xs:simpleType>
+
+</xs:schema>

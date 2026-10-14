@@ -100,7 +100,7 @@ def test_rule_catalogue_has_stable_unique_identities_and_original_explanations()
     assert len(rules) == 88
     assert len({item["id"] for item in rules}) == 88
     assert all(item["positive"] and item["negative"] and item["explanation_zh"] for item in rules)
-    assert validate_rules()["manifest"]["version"] == "1.1.0"
+    assert validate_rules()["manifest"]["version"] == "1.2.0"
 
 
 def test_external_catalogue_views_cannot_poison_subsequent_analysis():

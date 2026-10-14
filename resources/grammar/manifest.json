@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "grammar_count": 88,
   "license": "AGPL-3.0-or-later",
   "authors": [
@@ -24,7 +24,10 @@
     "constructions",
     "idioms",
     "overlapping_spans",
-    "ambiguity_candidates"
+    "ambiguity_candidates",
+    "functional_graph",
+    "functional_atom_coverage",
+    "contracted_source_mapping"
   ],
   "offset_unit": "unicode_codepoints"
 }

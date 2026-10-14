@@ -480,6 +480,28 @@ def main():
     if not mpl.is_file():
         raise RuntimeError("Add the official full MPL-2.0 text under third_party_licenses/texts/")
 
+    functional_source = ROOT / "build/legal-cache/tsutsuji-1.1u.zip"
+    functional_sha256 = "38ecf8f9d147edd7c167d31fa0a8c11648a7896fbdb1d66544aacd98c4697270"
+    functional_url = "https://drive.google.com/uc?export=download&id=1-Ya2uoUzGpQEtb9SMgq5OsC4vNZ9mkn_"
+    if not functional_source.is_file() and args.fetch:
+        functional_source.parent.mkdir(parents=True, exist_ok=True)
+        content = read_url(functional_url)
+        if sha256(content) != functional_sha256:
+            raise RuntimeError("Tsutsuji source archive differs from the pinned resource")
+        functional_source.write_bytes(content)
+    if not functional_source.is_file() or file_hash(functional_source) != functional_sha256:
+        raise RuntimeError("Verified Tsutsuji 1.1u source required; prepare build/legal-cache/tsutsuji-1.1u.zip")
+    functional_licenses = [file for file in sorted((licenses_dir / "tsutsuji").iterdir())
+                           if file.is_file() and file.suffix.lower() in {".txt", ".md"}]
+    if not functional_licenses:
+        raise RuntimeError("Tsutsuji attribution and CC BY-SA 4.0 license text are required")
+    rows.append({"ecosystem": "data", "name": "Tsutsuji functional expressions", "version": "1.1u",
+                 "license": "CC-BY-SA-4.0", "scopes": ["runtime", "data"],
+                 "source_url": functional_url, "source_sha256": functional_sha256,
+                 "licenses": [{"path": file.relative_to(ROOT).as_posix(), "sha256": file_hash(file)}
+                              for file in functional_licenses]})
+    source_archives.append(functional_source)
+
     inventory = {"project_license": "AGPL-3.0-or-later", "components": rows,
                  "uninstalled_optional_platform_packages": skipped,
                  "scope_note": "Includes installed build tools for transparency; this is not a count of bundled runtime modules."}
@@ -487,6 +509,15 @@ def main():
     project = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     notices = """冰读第三方组件与内容许可 / IceReader third-party notices
 ========================================================
+
+Japanese functional-expression data
+----------------------------------
+The Tsutsuji 1.1u hierarchy, surface forms and connection data are by
+Suguru Matsuyoshi and Satoshi Sato (Copyright 2008), under CC BY-SA 4.0.
+IceReader adapts the connection labels and adds Chinese learning notes.
+The adapted resource retains CC BY-SA 4.0 independently of the AGPL code.
+The original archive and attribution/license materials are included.
+See third_party_licenses/tsutsuji/ and NOTICE.md for source and changes.
 
 IceReader application source: AGPL-3.0-or-later; see LICENSE and COPYRIGHT.
 EbookLib 0.19 is retained under AGPL-3.0-or-later. Its upstream license,

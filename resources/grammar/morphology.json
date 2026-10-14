@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "max_chain_tokens": 24,
   "features": {
     "dictionary": "词典形：词典中用来查这个词的基本形式。",

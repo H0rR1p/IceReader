@@ -37,6 +37,34 @@ can also be used directly for review; they are not executable app modules.
 Do not substitute a wheel or native binary for an upstream source archive.
 The exact version of EbookLib is 0.19; its source and AGPL license are supplied.
 
+Functional expression resources
+-------------------------------
+resources/grammar/functional_expressions.json is generated from Tsutsuji
+1.1u. Its original archive is dependency-sources/tsutsuji-1.1u.zip; the pinned
+archive SHA-256 is 38ecf8f9d147edd7c167d31fa0a8c11648a7896fbdb1d66544aacd98c4697270.
+The nine-level hierarchy, connection codes and original notices are retained.
+Chinese teaching notes and the machine-readable connection mapping are in
+resources/grammar/functional_teaching.py and the resource compiler. Tsutsuji
+and adapted expression data use CC-BY-SA-4.0, separately from application code.
+See third_party_licenses/tsutsuji/ for attribution and the full license.
+
+functional_inventory.json is generated from the pinned Sudachi dictionary
+installed by requirements-release.txt. It records the dictionary's hash and
+all relevant particle, auxiliary and supporting word forms. To regenerate
+both resources, run from the IceReader directory after installing requirements:
+
+  .\.venv64\Scripts\python.exe scripts/build_functional_resources.py --tsutsuji-source ..\dependency-sources\tsutsuji-1.1u.zip
+
+Use --sudachi-dictionary with the installed system.dic path when needed.
+Add --check to compare the output with the supplied resources without writing
+them. Release builds use the supplied resources and do not download grammar
+data at application startup. The Sudachi dictionary package source wrapper
+and notices are included among the dependency source archives; the wrapper
+downloads the fixed dictionary data during installation. That wrapper archive
+does not itself contain the dictionary's binary or original word-list source.
+The expected installed system.dic SHA-256 is
+cd6ee0d3d4f038314b16ddf611a776db97c1813f42068a9354b1c17e966aee53.
+
 YMM4 bridge
 ------------
 The independent bridge source and project are in ymm4-bridge/. The desktop

@@ -13357,6 +13357,32 @@
         }
       ],
       "source_manifest": "third_party_licenses/runtime/desktop-native/manifest.json"
+    },
+    {
+      "ecosystem": "data",
+      "name": "Tsutsuji functional expressions",
+      "version": "1.1u",
+      "license": "CC-BY-SA-4.0",
+      "scopes": [
+        "runtime",
+        "data"
+      ],
+      "source_url": "https://drive.google.com/uc?export=download&id=1-Ya2uoUzGpQEtb9SMgq5OsC4vNZ9mkn_",
+      "source_sha256": "38ecf8f9d147edd7c167d31fa0a8c11648a7896fbdb1d66544aacd98c4697270",
+      "licenses": [
+        {
+          "path": "third_party_licenses/tsutsuji/LICENSE-CC-BY-SA-4.0.txt",
+          "sha256": "28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5"
+        },
+        {
+          "path": "third_party_licenses/tsutsuji/NOTICE.md",
+          "sha256": "b6e5faf142b6a06585f42e157618108e5225bf2ed4e2e7a0a5a6803abe093771"
+        },
+        {
+          "path": "third_party_licenses/tsutsuji/README.txt",
+          "sha256": "70698f510ca5f7fdfca94bfe6a3fee3bf8830304ca52e15c180c55f30aeb5013"
+        }
+      ]
     }
   ],
   "uninstalled_optional_platform_packages": [

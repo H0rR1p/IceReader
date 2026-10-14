@@ -1,0 +1,15 @@
+{
+  "name":"Tsutsuji Japanese functional expression dictionary",
+  "version":"1.1u",
+  "authors":["Suguru Matsuyoshi","Satoshi Sato"],
+  "copyright":"2008 Suguru Matsuyoshi and Satoshi Sato",
+  "official_page":"https://sites.google.com/edu.teu.ac.jp/cl-lab/研究/言語資源/日本語機能表現辞書つつじ",
+  "download_url":"https://drive.google.com/uc?export=download&id=1-Ya2uoUzGpQEtb9SMgq5OsC4vNZ9mkn_",
+  "sha256":"38ecf8f9d147edd7c167d31fa0a8c11648a7896fbdb1d66544aacd98c4697270",
+  "xml_sha256":"e1a51a18d9fed11fada34a1458963623add9dac46e38727ff58e6601299a1b29",
+  "license":"CC-BY-SA-4.0",
+  "license_url":"https://creativecommons.org/licenses/by-sa/4.0/",
+  "changes":"Full XML to JSON; inherited teaching text; explicit legacy-to-Sudachi mapping",
+  "derived_files":["resources/grammar/functional_expressions.json"],
+  "inventory_source":{"name":"Sudachi core dictionary","version":"20250515","tokenizer_version":"0.6.10","system_dictionary_sha256":"cd6ee0d3d4f038314b16ddf611a776db97c1813f42068a9354b1c17e966aee53","license":"Apache-2.0","authors":["Works Applications"],"notice_path":"third_party_licenses/python/sudachidict-core-20250515/00-sudachidict_core-20250515.dist-info_licenses_LICENSE-2.0.txt","changes":"IceReader full binary word-info enumeration, functional-POS selection, JSON conversion; original word IDs, forms, POS and normalization retained","binary_layout_reference":"https://github.com/WorksApplications/sudachi.rs/tree/v0.6.10/sudachi/src/dic","enumeration":"all word-info records, without tokenization sampling"}
+}

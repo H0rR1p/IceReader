@@ -29,6 +29,11 @@ class MorphCandidate(BaseModel):
     derivation: list[str] = Field(default_factory=list)
 
 
+class MarkerRange(BaseModel):
+    start: int
+    end: int
+
+
 class LearningSpan(BaseModel):
     override_revision: int = 0
     choice_id: str | None = None
@@ -53,6 +58,15 @@ class LearningSpan(BaseModel):
     status: Literal["determined", "ambiguous", "unknown", "user_confirmed"] = "determined"
     captures: dict[str, str] = Field(default_factory=dict)
     evidence: list[str] = Field(default_factory=list)
+    # These describe selection units; semantic ambiguity does not remove a
+    # supported original-text boundary. Defaults keep old cards/cache readable.
+    unit_role: Literal["lexical", "particle", "auxiliary", "morphology", "construction", "ending"] | None = None
+    marker_ranges: list[MarkerRange] = Field(default_factory=list)
+    normalized_form: str = ""
+    normalization_steps: list[dict] = Field(default_factory=list)
+    overlap_ids: list[str] = Field(default_factory=list)
+    boundary_status: Literal["supported", "possible", "unknown"] = "supported"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
 class AnalysisManifest(BaseModel):

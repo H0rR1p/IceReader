@@ -10,6 +10,7 @@ from .models import LearningSpan
 from . import repository
 from .morphology import analyze_morphology
 from .grammar import match_grammar
+from .functional import build_functional_graph, functional_manifest, functional_version
 from .rules import get_manifest, get_rule_catalog, rule_version
 
 
@@ -21,19 +22,22 @@ def _package_version(name: str, fallback: str) -> str:
 
 
 def analysis_version() -> str:
-    return "linguistics-v2:" + rule_version()
+    return "linguistics-v3:" + rule_version() + ":" + functional_version()
 
 
 def capabilities() -> dict:
     from .adapters.ginza_adapter import backend
     from ...platform_capabilities import platform_capabilities
     from ..data_portability.protocol import capabilities as transfer_capabilities
+    functional = functional_manifest()
     return {**platform_capabilities(), "version": analysis_version(), "linguistics_v1": True,
             "rules_version": rule_version(), "grammar_count": len(get_rule_catalog()),
             "context_windows": [0, 2, 4, 8],
             "dependency_enhancement": {**backend.manifest(), "enabled": False},
             "ambiguity_resolution": False, "resegmentation": True, "grammar_learning_v1": True,
-            "book_memory_v1": True, "document_preflight": True, "transfer_capabilities": transfer_capabilities()}
+            "book_memory_v1": True, "document_preflight": True, "transfer_capabilities": transfer_capabilities(),
+            "functional_graph_v1": True, "functional_form_count": functional["form_count"],
+            "functional_inventory": functional}
 
 
 def analyze_sentence(sentence_id: str, text: str, tokens: list[dict] | None = None,
@@ -44,7 +48,8 @@ def analyze_sentence(sentence_id: str, text: str, tokens: list[dict] | None = No
     for span in morph:
         span['grammar_ids'] = [f'ja.morph.{feature}' for feature in span['features'] if get_rule(f'ja.morph.{feature}')]
     grammar = match_grammar(sentence_id, text, atomic, morph)
-    spans = [LearningSpan.model_validate(item).model_dump() for item in [*morph, *grammar]]
+    graph = build_functional_graph(sentence_id, text, atomic, morph, grammar)
+    spans = [LearningSpan.model_validate(item).model_dump() for item in graph]
     for span in spans:
         if text[span["start"]:span["end"]] != span["surface"]:
             raise ValueError("Learning span no longer matches its original source")

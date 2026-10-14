@@ -14,6 +14,15 @@ Logo 是项目作者 **H0rR1p** 自行绘制的 Q 版琪露诺（Cirno）头像�
 
 官方指引：[東方Projectの二次創作ガイドライン](https://touhou-project.news/guideline/)。本次核对日期：2026 年 10 月 10 日，官方页面标注更新日期为 2024 年 5 月 31 日。指引可能变更，使用素材时请查阅现行规则；企业营利活动及未覆盖的用途按官方要求另行联系权利方。本声明不是原作方的个别授权。
 
+## 日语功能表达数据
+
+`resources/grammar/functional_expressions.json` 使用日本语功能表达词典「つつじ」1.1u 的层级、表层形和接续数据。原作者为 Suguru Matsuyoshi、Satoshi Sato（Copyright © 2008）。该数据及其改编的中文分类说明采用 CC BY-SA 4.0，独立于应用代码的 AGPL 许可证。冰读增加了 Sudachi 接续映射、学习说明和资源校验；原始数据、许可全文、署名与修改记录随对应源码提供。
+
+来源：https://sites.google.com/edu.teu.ac.jp/cl-lab/研究/言語資源/日本語機能表現辞書つつじ
+
+许可：https://creativecommons.org/licenses/by-sa/4.0/
+完整声明：`third_party_licenses/tsutsuji/`。
+
 ## Touhou Project fan artwork notice
 
 **The IceReader logo is an unofficial fan-made derivative work based on Touhou Project.**

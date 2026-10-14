@@ -1,6 +1,15 @@
 冰读第三方组件与内容许可 / IceReader third-party notices
 ========================================================
 
+Japanese functional-expression data
+----------------------------------
+The Tsutsuji 1.1u hierarchy, surface forms and connection data are by
+Suguru Matsuyoshi and Satoshi Sato (Copyright 2008), under CC BY-SA 4.0.
+IceReader adapts the connection labels and adds Chinese learning notes.
+The adapted resource retains CC BY-SA 4.0 independently of the AGPL code.
+The original archive and attribution/license materials are included.
+See third_party_licenses/tsutsuji/ and NOTICE.md for source and changes.
+
 IceReader application source: AGPL-3.0-or-later; see LICENSE and COPYRIGHT.
 EbookLib 0.19 is retained under AGPL-3.0-or-later. Its upstream license,
 authors and exact source distribution accompany this release.

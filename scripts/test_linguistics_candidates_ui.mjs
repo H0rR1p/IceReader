@@ -7,6 +7,7 @@ import { spawn, execFile } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { learningUnit, selectLearningUnit } from './reader_test_helpers.mjs'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const output = path.join(root, 'build/ui-linguistics-full', `candidates-${Date.now()}`)
@@ -51,8 +52,8 @@ try {
   await dialog.waitFor({ state: 'hidden' })
   await page.getByText(title, { exact: true }).first().click()
   await page.getByRole('button', { name: '切分本章', exact: true }).click()
-  await page.getByRole('button', { name: '励まされた，完整活用', exact: true }).waitFor({ timeout: 20000 })
-  await page.getByRole('button', { name: '励まされた，完整活用', exact: true }).click()
+  await learningUnit(page, '励まされた').waitFor({ timeout: 20000 })
+  await learningUnit(page, '励まされた').click()
   const inspector = page.locator('.learning-inspector')
   const head = inspector.locator(':scope > p').first()
   assert.match(await head.innerText(), /励ます/)
@@ -74,11 +75,18 @@ try {
   assert.match(await head.innerText(), /励ます/)
   assertions.push('clear selection restores original lexical analysis')
   await page.screenshot({ path: path.join(output, '词典形双候选.png'), fullPage: true })
-  await page.getByRole('button', { name: '書かれる，完整活用', exact: true }).click()
+  await learningUnit(page, '書かれる').click()
   assert.equal(await inspector.locator('.morph-candidates strong').filter({ hasText: /能够这样做/ }).count(), 0)
   assert.equal(await inspector.locator('.morph-candidates strong').filter({ hasText: /被别人这样做/ }).count(), 1)
   assertions.push('godan passive does not offer modern potential')
-  await page.getByRole('button', { name: 'いるのに，语法结构', exact: true }).click()
+  await selectLearningUnit(page, 'いるのに')
+  // The published resource also has alternative analyses at the same range;
+  // the existing nominalised-case rule must remain explicitly reachable.
+  const levels = page.getByRole('combobox', { name: '查看层级', exact: true })
+  const nominalised = levels.locator('option').filter({ hasText: 'いるのに · 〜のに' })
+  if (await nominalised.count()) await levels.selectOption(await nominalised.first().getAttribute('value'))
+  const structures = page.locator('.grammar-structure-panel')
+  if (!await structures.evaluate(node => node.open)) await structures.locator('summary').click()
   assert.match(await page.locator('.grammar-structure-panel').innerText(), /把前面的事/)
   assert.match(await inspector.locator('.morph-candidates').innerText(), /作为注意、发现等动作的对象/)
   assertions.push('noni contains nominalized-case interpretation')

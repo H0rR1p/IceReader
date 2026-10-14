@@ -6,6 +6,7 @@ import { spawn, execFile } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
+import { learningUnit, selectLearningUnit } from './reader_test_helpers.mjs'
 import JSZip from 'jszip'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
@@ -64,7 +65,7 @@ try {
   await page.getByText(title, { exact: true }).first().click()
   await page.getByRole('button', { name: '切分本章', exact: true }).click()
   await page.locator('.learning-span').first().waitFor({ timeout: 20000 })
-  const full = page.getByRole('button', { name: '読ませました，完整活用', exact: true })
+  const full = learningUnit(page, '読ませました')
   await full.click()
   await page.getByRole('heading', { name: '完整活用', exact: true }).waitFor()
   const inspector = page.locator('.learning-inspector')
@@ -83,8 +84,8 @@ try {
   assert.equal(style.background, 'rgba(0, 0, 0, 0)')
   assert.equal(style.ordinary, '0px')
   assert.equal(style.word, 'none')
-  await full.locator('.token.content').first().hover()
-  const childStyle = await full.locator('.token.content').first().evaluate((node) => ({ background: getComputedStyle(node).backgroundColor, shadow: getComputedStyle(node).boxShadow }))
+  await full.hover()
+  const childStyle = await full.evaluate((node) => ({ background: getComputedStyle(node).backgroundColor, shadow: getComputedStyle(node).boxShadow }))
   assert.deepEqual(childStyle, { background: 'rgba(0, 0, 0, 0)', shadow: 'none' }, 'hovering a selected grammar atom must not add a second box')
   const layout = await page.evaluate(() => {
     const dictionary = document.querySelector('.dictionary-card')
@@ -125,18 +126,19 @@ try {
   const source = await page.locator('.japanese-text .sentence').first().evaluate((node) => [...node.childNodes].map((child) => child.nodeType === Node.TEXT_NODE ? child.textContent : child.querySelectorAll ? (() => { const clone = child.cloneNode(true); clone.querySelectorAll('rt').forEach((x) => x.remove()); return clone.textContent })() : child.textContent).join(''))
   assert.equal(source, '🙂先生が生徒に本を読ませました。')
   await page.screenshot({ path: path.join(output, '完整活用.png'), fullPage: true })
-  await page.getByRole('button', { name: '食べさせられなかった，完整活用', exact: true }).click()
+  await learningUnit(page, '食べさせられなかった').click()
   assert.match(await inspector.innerText(), /食べる/)
   assert.match(await inspector.innerText(), /否定/)
   await page.screenshot({ path: path.join(output, '使役被动链.png'), fullPage: true })
-  await page.getByRole('button', { name: '目にした，语法结构', exact: true }).click()
-  await page.getByRole('heading', { name: '本地语法结构' }).waitFor()
+  await selectLearningUnit(page, '目にした', '固定搭配')
+  await page.locator('.grammar-structure-panel summary').waitFor()
+  await page.locator('.grammar-structure-panel summary').click()
   assert.match(await page.locator('.grammar-structure-panel').innerText(), /目/)
   await page.screenshot({ path: path.join(output, '固定搭配.png'), fullPage: true })
   await page.reload()
   await page.getByRole('button', { name: `打开《${title}》`, exact: true }).click()
   await page.locator('.learning-span').first().waitFor({ timeout: 20000 })
-  assert.equal(await page.getByRole('button', { name: '読ませました，完整活用', exact: true }).count(), 1)
+  assert.equal(await learningUnit(page, '読ませました').count(), 1)
   await page.getByRole('button', { name: '设置', exact: true }).click()
   await page.getByRole('heading', { name: '上下文与语法学习', exact: true }).waitFor()
   const section = page.locator('.settings-section').filter({ has: page.getByRole('heading', { name: '上下文与语法学习', exact: true }) })

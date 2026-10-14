@@ -88,6 +88,9 @@ def get_rule_catalog(*, include_disabled: bool = False) -> list[dict]:
 
 def get_rule(grammar_id: str) -> dict | None:
     """Disabled rules remain addressable by old cards and learning history."""
+    if grammar_id.startswith('ja.functional.'):
+        from .functional import functional_rule
+        return functional_rule(grammar_id)
     if grammar_id.startswith('ja.morph.'):
         feature = grammar_id[len('ja.morph.'):]
         explanation = rule_data()['morphology']['features'].get(feature)

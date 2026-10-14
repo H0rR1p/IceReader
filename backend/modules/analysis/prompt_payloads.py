@@ -40,18 +40,21 @@ def lexical_tokens(tokens, spans: list[dict]) -> list:
     Copies may have canonical lemma/reading; raw token objects/IDs stay intact.
     Unknown canonical readings remain unknown instead of borrowing stem kana.
     """
+    morphology = sorted((span for span in spans if span.get("kind") == "morphology"
+                         and span.get("status") != "unknown" and span.get("token_ids")),
+                        key=lambda span: ("composed" in span.get("features", []),
+                                          -(span["end"] - span["start"]),
+                                          -len(span.get("features", [])), span["id"]))
     heads, internal = {}, set()
-    for span in spans:
-        if span.get("kind") != "morphology" or span.get("status") == "unknown" or not span.get("token_ids"):
-            continue
+    for span in morphology:
         ids = span["token_ids"]
-        heads[ids[0]] = span
+        heads.setdefault(ids[0], span)
         internal.update(ids[1:])
     result = []
     for token in tokens:
         primary_pos = token.part_of_speech.split("-", 1)[0]
-        covering = next((span for span in spans if span.get("kind") == "morphology" and span.get("status") != "unknown"
-                         and span["start"] <= token.start and token.end <= span["end"]), None)
+        covering = next((span for span in morphology if span["start"] <= token.start
+                         and token.end <= span["end"]), None)
         is_internal = covering is not None and token.start > covering["start"]
         if not token.is_content or token.id in internal or is_internal or token.role == "grammatical" or primary_pos in {"助詞", "助動詞", "補助記号", "記号", "空白"}:
             continue
@@ -66,7 +69,7 @@ def learning_units(spans: list[dict]) -> list[list]:
     return [[span["id"], span["surface"], span.get("lemma", ""),
              span.get("features", []), span.get("grammar_ids", []), span.get("status", "unknown"),
              [[choice["id"], choice["label"]] for choice in span.get("candidates", [])]]
-            for span in spans]
+            for span in spans if span.get("unit_role") != "lexical" and span.get("kind") != "lexical"]
 
 
 def compact_learning_batch(items: list[dict]) -> tuple[dict, dict[str, str]]:

@@ -83,3 +83,22 @@ def test_old_ai_suggestion_is_not_restored_but_history_remains(span_request):
     revision = next(row for row in restored if row['id'] == span['id'])['override_revision']
     replacement = ambiguity.choose('a', {**payload, 'expected_override_revision': revision}, span['candidates'][0]['id'])
     assert replacement['span']['source'] == 'user'
+
+
+@pytest.mark.parametrize('case', ['compatible', 'retired-candidate', 'changed-text'])
+def test_legacy_upgrade_preserves_confirmations_or_allows_new_choice(span_request, case):
+    payload, span = span_request
+    choice = span['candidates'][0]['id']
+    repository.save_span_override('a', 's', span['id'],
+        payload['text_hash'] if case != 'changed-text' else 'old-hash', 'linguistics-v2:1.1.0', 0,
+        {'source': 'user', 'choice_id': choice if case != 'retired-candidate' else 'removed-choice',
+         'reason': '旧版用户确认', 'start': span['start'], 'end': span['end'], 'analysis_revision': 1})
+    restored = service.structure_results('a', ['s'])['results'][0]['learning_spans']
+    current = next(row for row in restored if row['id'] == span['id'])
+    assert current['override_revision'] == 1
+    assert (current['source'] == 'user') == (case == 'compatible')
+    assert not repository.load_span_override('a', 's', span['id'], payload['text_hash'], payload['version'])
+    replacement = ambiguity.choose('a', {**payload, 'expected_override_revision': 1}, choice)
+    assert replacement['span']['source'] == 'user' and replacement['span']['override_revision'] == 2
+    with repository.session() as connection:
+        assert connection.execute('SELECT COUNT(*) FROM span_override_history').fetchone()[0] == 2

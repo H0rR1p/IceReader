@@ -55,13 +55,18 @@ def verify(folder: Path, *, desktop: bool = False):
             raise ValueError("Private or proprietary resources found in source archive")
         for required in ("IceReader/LICENSE", "IceReader/NOTICE.md", "IceReader/scripts/build_desktop.ps1", "IceReader/backend/requirements-release.txt",
                          "IceReader/resources/grammar/manifest.json", "IceReader/resources/grammar/morphology.json",
-                         "IceReader/resources/grammar/constructions.json", "IceReader/resources/grammar/idioms.json"):
+                         "IceReader/resources/grammar/constructions.json", "IceReader/resources/grammar/idioms.json",
+                         "IceReader/resources/grammar/functional_expressions.json", "IceReader/resources/grammar/functional_inventory.json",
+                         "dependency-sources/tsutsuji-1.1u.zip"):
             if required not in names:
                 raise ValueError(f"Source archive missing build material: {required}")
     inventory = json.loads((folder / "third_party_licenses" / "inventory.json").read_text(encoding="utf-8"))
     ebooklib = [item for item in inventory["components"] if item["name"].lower() == "ebooklib"]
     if not ebooklib or not any(item["version"] == "0.19" and item["licenses"] for item in ebooklib):
         raise ValueError("EbookLib 0.19 license inventory missing")
+    functional = [item for item in inventory["components"] if item["name"] == "Tsutsuji functional expressions"]
+    if len(functional) != 1 or functional[0]["license"] != "CC-BY-SA-4.0":
+        raise ValueError("Tsutsuji source and CC BY-SA 4.0 resource notice missing")
     for component in inventory["components"]:
         license_files = component.get("license_files", component.get("licenses", []))
         if not license_files:
