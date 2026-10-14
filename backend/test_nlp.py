@@ -67,6 +67,25 @@ def test_existing_zero_width_punctuation_is_filtered_only_in_the_analysis_view()
         analyze_sentence("ellipsis", text, tokens)
 
 
+def test_legacy_empty_punctuation_does_not_block_ai_request_validation():
+    from fastapi import HTTPException
+    from .models import SentenceOut, TokenOut
+    from .modules.analysis.context import validate_tokens
+    sentence = SentenceOut(id="ellipsis", chapter_id="chapter", start=0, end=6, original="そうか……")
+    atom = TokenOut(id="legacy-empty", sentence_id="ellipsis", surface="", start=4, end=4,
+                    lemma="", reading="", part_of_speech="補助記号-句点", is_content=False)
+    before = atom.model_dump()
+    validate_tokens(sentence, [atom])
+    assert atom.model_dump() == before
+    for invalid in [atom.model_copy(update={"part_of_speech": "名詞"}),
+                    atom.model_copy(update={"sentence_id": "foreign"}),
+                    atom.model_copy(update={"start": 99, "end": 99})]:
+        with pytest.raises(HTTPException):
+            validate_tokens(sentence, [invalid])
+    with pytest.raises(HTTPException):
+        validate_tokens(sentence, [atom, atom])
+
+
 def test_hiragana_to_katakana():
     assert kata("たべる") == "タベル"
 

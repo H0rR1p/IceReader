@@ -128,7 +128,9 @@ def _validate_target(request_sentence, stored: dict) -> None:
 def validate_tokens(sentence, tokens) -> None:
     ids: set[str] = set()
     for token in tokens:
-        if token.id in ids or token.sentence_id != sentence.id or token.start < 0 or token.end <= token.start or token.end > len(sentence.original) or sentence.original[token.start:token.end] != token.surface:
+        empty_symbol = (token.surface == "" and token.start == token.end
+                        and token.part_of_speech.split("-", 1)[0] in {"補助記号", "記号", "空白"})
+        if token.id in ids or token.sentence_id != sentence.id or token.start < 0 or (token.end <= token.start and not empty_symbol) or token.end > len(sentence.original) or sentence.original[token.start:token.end] != token.surface:
             raise HTTPException(422, "词语位置与原句不一致，请重新打开章节")
         ids.add(token.id)
 
