@@ -1,3 +1,6 @@
+from copy import deepcopy
+import pytest
+
 from . import nlp
 from .nlp import kata, split_sentences, tokenize_sentence
 
@@ -33,6 +36,35 @@ def test_token_offsets_are_exact():
     tokens = tokenize_sentence("s1", text)
     assert "".join(token["surface"] for token in tokens) == text
     assert all(text[token["start"]:token["end"]] == token["surface"] for token in tokens)
+
+
+@pytest.mark.parametrize("text", [
+    "そうか…", "そうか……", "そうか……？", "……", "……？", "猫……犬", "猫…  …犬",
+    "🍧猫……？犬。", "ＡＢＣ……。", "ｶﾀｶﾅ……", "　猫\n……　犬。",
+])
+def test_ellipsis_normalization_never_creates_empty_or_shifted_original_atoms(text):
+    from .modules.linguistics.service import analyze_sentence
+    tokens = tokenize_sentence("ellipsis", text)
+    assert "".join(token["surface"] for token in tokens) == text
+    assert all(0 <= token["start"] < token["end"] <= len(text) for token in tokens)
+    assert all(text[token["start"]:token["end"]] == token["surface"] for token in tokens)
+    result = analyze_sentence("ellipsis", text, tokens)
+    assert all(text[span["start"]:span["end"]] == span["surface"] for span in result["learning_spans"])
+
+
+def test_existing_zero_width_punctuation_is_filtered_only_in_the_analysis_view():
+    from .modules.linguistics.service import analyze_sentence
+    text = "そうか……"
+    tokens = tokenize_sentence("ellipsis", text)
+    tokens.insert(3, {"id": "legacy-empty", "surface": "", "start": 4, "end": 4,
+                      "pos_full": ["補助記号", "句点", "*", "*", "*", "*"]})
+    before = deepcopy(tokens)
+    result = analyze_sentence("ellipsis", text, tokens)
+    assert tokens == before
+    assert not any("legacy-empty" in span["token_ids"] for span in result["learning_spans"])
+    tokens[3]["pos_full"][0] = "名詞"
+    with pytest.raises(ValueError):
+        analyze_sentence("ellipsis", text, tokens)
 
 
 def test_hiragana_to_katakana():

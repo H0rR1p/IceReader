@@ -1,5 +1,6 @@
 """User-confirmed candidate selection with source and revision checks."""
 import copy
+import hashlib
 from fastapi import HTTPException
 from . import repository
 
@@ -40,21 +41,56 @@ def apply_override(span, override):
     return value
 
 
+def _compatible_legacy(override, span, manifest):
+    return (override.get('source') == 'user'
+        and override.get('_stored_text_hash') == manifest['text_hash']
+        and str(override.get('version', '')).startswith('linguistics-v2:')
+        and manifest['version'].startswith('linguistics-v3:')
+        and (override.get('start'), override.get('end'), override.get('analysis_revision'))
+            == (span['start'], span['end'], manifest['revision'])
+        and override.get('choice_id') in {value['id'] for value in span['candidates']})
+
+
+def _legacy_identity(sentence_id, span, old_version):
+    if 'composed' in span.get('features', []) or 'functional_expression' in span.get('features', []):
+        return set()
+    kinds = ['morphology'] if span['kind'] == 'morphology' else [value for value in span['grammar_ids']
+             if not value.startswith('ja.functional.')]
+    parts = old_version.split(':')
+    if len(parts) < 2:
+        return set()
+    return {'span_' + hashlib.sha256(f"{sentence_id}:{span['start']}:{span['end']}:{kind}:{parts[1]}".encode()).hexdigest()[:24]
+            for kind in kinds}
+
+
 def restore_choices(user, result, context_hash):
     manifest=result['analysis_manifest']
+    overrides = repository.load_sentence_overrides(user, result['sentence_id'])
     spans=[]
     for span in result['learning_spans']:
-        override=repository.load_span_override(user,result['sentence_id'],span['id'],manifest['text_hash'],manifest['version'], include_retired=True)
-        if override and override.get('_retired'):
+        override = overrides.get(span['id'])
+        if not override and span.get('candidates'):
+            for old_id, old in overrides.items():
+                if (_compatible_legacy(old, span, manifest)
+                        and old_id in _legacy_identity(result['sentence_id'], span, str(old.get('version', '')))):
+                    try:
+                        override = repository.save_span_override(user, result['sentence_id'], span['id'],
+                            manifest['text_hash'], manifest['version'], 0,
+                            {**{key: old[key] for key in ('choice_id', 'source', 'start', 'end', 'analysis_revision')},
+                             'reason': '延续旧版相同原文候选的用户确认', 'legacy_span_id': old_id,
+                             'legacy_version': old['version']})
+                        override['_stored_text_hash'] = manifest['text_hash']
+                    except HTTPException as error:
+                        if error.status_code != 409:
+                            raise
+                        override = repository.load_span_override(user, result['sentence_id'], span['id'],
+                            manifest['text_hash'], manifest['version'], include_retired=True)
+                    break
+        if override and (override.get('_stored_text_hash') != manifest['text_hash'] or override.get('version') != manifest['version']):
             # Carry only unchanged, explicitly confirmed legacy candidates.
             # Otherwise retain the CAS revision so a fresh choice can replace
             # a retired row without silently discarding its history.
-            compatible = (override.get('source') == 'user' and override.get('_same_text')
-                and str(override.get('version', '')).startswith('linguistics-v2:')
-                and manifest['version'].startswith('linguistics-v3:')
-                and (override.get('start'), override.get('end'), override.get('analysis_revision'))
-                    == (span['start'], span['end'], manifest['revision'])
-                and override.get('choice_id') in {value['id'] for value in span['candidates']})
+            compatible = _compatible_legacy(override, span, manifest)
             if not compatible:
                 override = {**override, 'choice_id': None}
         if override and override.get('source') != 'user':

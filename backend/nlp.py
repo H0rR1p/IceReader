@@ -152,12 +152,19 @@ def tokenize_sentence(sentence_id: str, sentence_text: str) -> list[dict]:
     with _tokenize_lock:
         for index, morpheme in enumerate(_get_tokenizer().tokenize(sentence_text, _mode)):
             surface = morpheme.surface()
-            start = sentence_text.find(surface, cursor)
-            if start < 0:
-                start = cursor
-            end = start + len(surface)
-            cursor = end
             pos = morpheme.part_of_speech()
+            start, end = morpheme.begin(), morpheme.end()
+            # Sudachi's normalization of … may emit empty punctuation atoms
+            # between the real characters. They have no source range and must
+            # not become selectable tokens or invalidate an entire book batch.
+            if not surface and start == end and pos[0] in {"補助記号", "記号", "空白"}:
+                continue
+            if not 0 <= start < end <= len(sentence_text) or sentence_text[start:end] != surface:
+                start = sentence_text.find(surface, cursor) if surface else -1
+                end = start + len(surface)
+                if start < cursor or start == end or sentence_text[start:end] != surface:
+                    raise ValueError("Tokenizer atom does not have an exact original-text range")
+            cursor = end
             pos_label = "-".join(x for x in pos[:2] if x and x != "*")
             lemma = morpheme.dictionary_form() or surface
             reading = kata(morpheme.reading_form() or surface)

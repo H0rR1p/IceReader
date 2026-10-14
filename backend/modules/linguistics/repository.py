@@ -159,6 +159,15 @@ def load_span_override(user_id: str, sentence_id: str, span_id: str, text_hash: 
     return None
 
 
+def load_sentence_overrides(user_id: str, sentence_id: str) -> dict[str, dict]:
+    """One read per sentence, including retired rows for safe upgrade checks."""
+    with session() as connection:
+        rows = connection.execute('SELECT span_id,text_hash,payload,revision FROM span_overrides WHERE user_id=? AND sentence_id=?',
+                                  (user_id, sentence_id)).fetchall()
+    return {row['span_id']: {**json.loads(row['payload']), 'revision': row['revision'],
+                            '_stored_text_hash': row['text_hash']} for row in rows}
+
+
 def save_span_override(user_id: str, sentence_id: str, span_id: str, text_hash: str,
                        version: str, expected_revision: int | None, payload: dict) -> dict:
     from fastapi import HTTPException

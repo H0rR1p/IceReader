@@ -17,7 +17,8 @@ def span_request(tmp_path,monkeypatch):
     library.apply_library_patch('a',LibraryPatch(upserts={'books':[{'id':'b'}],'chapters':[{'id':'c','bookId':'b','text':text}],
         'sentences':[{'id':'s','chapter_id':'c','start':0,'end':len(text),'original':text}]}))
     result=service.structure_results('a',['s'])['results'][0]
-    span=next(row for row in result['learning_spans'] if len(row['candidates'])>1)
+    span=next(row for row in result['learning_spans'] if row['kind']=='morphology'
+              and 'composed' not in row['features'] and len(row['candidates'])>1)
     return {'sentence_id':'s','span_id':span['id'],'text_hash':result['analysis_manifest']['text_hash'],'version':result['analysis_manifest']['version'],'analysis_revision':1,'expected_override_revision':0},span
 
 
@@ -85,20 +86,26 @@ def test_old_ai_suggestion_is_not_restored_but_history_remains(span_request):
     assert replacement['span']['source'] == 'user'
 
 
-@pytest.mark.parametrize('case', ['compatible', 'retired-candidate', 'changed-text'])
+@pytest.mark.parametrize('case', ['compatible', 'mapped-compatible', 'retired-candidate', 'changed-text'])
 def test_legacy_upgrade_preserves_confirmations_or_allows_new_choice(span_request, case):
     payload, span = span_request
     choice = span['candidates'][0]['id']
-    repository.save_span_override('a', 's', span['id'],
+    old_id = (next(iter(ambiguity._legacy_identity('s', span, 'linguistics-v2:1.1.0')))
+              if case == 'mapped-compatible' else span['id'])
+    repository.save_span_override('a', 's', old_id,
         payload['text_hash'] if case != 'changed-text' else 'old-hash', 'linguistics-v2:1.1.0', 0,
         {'source': 'user', 'choice_id': choice if case != 'retired-candidate' else 'removed-choice',
          'reason': '旧版用户确认', 'start': span['start'], 'end': span['end'], 'analysis_revision': 1})
     restored = service.structure_results('a', ['s'])['results'][0]['learning_spans']
     current = next(row for row in restored if row['id'] == span['id'])
     assert current['override_revision'] == 1
-    assert (current['source'] == 'user') == (case == 'compatible')
-    assert not repository.load_span_override('a', 's', span['id'], payload['text_hash'], payload['version'])
+    assert (current['source'] == 'user') == (case in {'compatible', 'mapped-compatible'})
+    if case == 'mapped-compatible':
+        assert repository.load_span_override('a', 's', span['id'], payload['text_hash'], payload['version'])['legacy_span_id'] == old_id
+        assert repository.load_span_override('a', 's', old_id, payload['text_hash'], 'linguistics-v2:1.1.0')['revision'] == 1
+    else:
+        assert not repository.load_span_override('a', 's', span['id'], payload['text_hash'], payload['version'])
     replacement = ambiguity.choose('a', {**payload, 'expected_override_revision': 1}, choice)
     assert replacement['span']['source'] == 'user' and replacement['span']['override_revision'] == 2
     with repository.session() as connection:
-        assert connection.execute('SELECT COUNT(*) FROM span_override_history').fetchone()[0] == 2
+        assert connection.execute('SELECT COUNT(*) FROM span_override_history').fetchone()[0] == (3 if case == 'mapped-compatible' else 2)

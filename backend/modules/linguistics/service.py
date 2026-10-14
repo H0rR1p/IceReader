@@ -11,7 +11,7 @@ from . import repository
 from .morphology import analyze_morphology
 from .grammar import match_grammar
 from .functional import build_functional_graph, functional_manifest, functional_version
-from .rules import get_manifest, get_rule_catalog, rule_version
+from .rules import get_manifest, get_rule_catalog, rule_version, token_pos
 
 
 def _package_version(name: str, fallback: str) -> str:
@@ -22,7 +22,7 @@ def _package_version(name: str, fallback: str) -> str:
 
 
 def analysis_version() -> str:
-    return "linguistics-v3:" + rule_version() + ":" + functional_version()
+    return "linguistics-v3:" + rule_version() + ":engine-2:" + functional_version()
 
 
 def capabilities() -> dict:
@@ -42,7 +42,13 @@ def capabilities() -> dict:
 
 def analyze_sentence(sentence_id: str, text: str, tokens: list[dict] | None = None,
                      revision: int = 1) -> dict:
-    atomic = tokens if tokens is not None else tokenize_sentence(sentence_id, text)
+    # Old imported books can contain Sudachi's zero-width punctuation artifacts.
+    # Filter an analysis view only; stored token identities and real characters
+    # are preserved. Invalid lexical atoms still fail the source contract.
+    atomic = [token for token in tokens if not (
+        token.get("surface") == "" and isinstance(token.get("start"), int) and
+        token["start"] == token.get("end") and token_pos(token)[0] in {"補助記号", "記号", "空白"}
+    )] if tokens is not None else tokenize_sentence(sentence_id, text)
     morph = analyze_morphology(sentence_id, text, atomic)
     from .rules import get_rule
     for span in morph:
