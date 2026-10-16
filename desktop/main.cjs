@@ -1,4 +1,4 @@
-const { app, BrowserWindow, protocol, session, ipcMain, dialog, Menu, shell, safeStorage } = require('electron')
+const { app, BrowserWindow, protocol, session, ipcMain, dialog, Menu, shell, safeStorage, nativeImage } = require('electron')
 const { spawn } = require('node:child_process')
 const { randomBytes } = require('node:crypto')
 const fs = require('node:fs')
@@ -7,7 +7,8 @@ const http = require('node:http')
 const { Readable } = require('node:stream')
 
 app.setName('IceReader')
-if (process.platform === 'win32') app.setAppUserModelId('io.bingdu.reader')
+const WINDOWS_APP_ID = 'io.bingdu.reader'
+if (process.platform === 'win32') app.setAppUserModelId(WINDOWS_APP_ID)
 app.setPath('userData', process.env.BINGDU_DESKTOP_USER_DATA || path.join(app.getPath('appData'), 'IceReader'))
 protocol.registerSchemesAsPrivileged([{ scheme: 'bingdu', privileges: {
   standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true,
@@ -180,13 +181,59 @@ async function startOidc(provider) {
   listener.once('close', () => clearTimeout(timer))
 }
 
+function windowsLauncher() {
+  const executable = app.getPath('exe')
+  if (!app.isPackaged) return null
+  // Directory builds are launched through a stable bootstrap, outside the
+  // versioned release folder. Keep taskbar pins usable after the next update.
+  const projectRoot = path.resolve(path.dirname(executable), '../../..')
+  const launcher = path.join(projectRoot, '冰读.exe')
+  try {
+    const release = fs.readFileSync(path.join(projectRoot, 'build', 'ice-reader-current.txt'), 'utf8').trim()
+    const current = path.resolve(projectRoot, 'build', release, 'win-unpacked', '冰读.exe')
+    if (current.toLowerCase() === executable.toLowerCase() && fs.existsSync(launcher)) return launcher
+  } catch { /* Installed clients use their own executable. */ }
+  return executable
+}
+
+function repairWindowsShortcuts(launcher) {
+  const links = [path.join(app.getPath('desktop'), '冰读.lnk'),
+    path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', '冰读.lnk')]
+  const pinned = path.join(app.getPath('appData'), 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned', 'TaskBar')
+  try { links.push(...fs.readdirSync(pinned).filter(name => name.endsWith('.lnk')).map(name => path.join(pinned, name))) } catch {}
+  for (const link of links) {
+    if (!fs.existsSync(link)) continue
+    try {
+      const details = shell.readShortcutLink(link)
+      const target = path.resolve(details.target).toLowerCase()
+      if (![launcher, app.getPath('exe')].some(file => path.resolve(file).toLowerCase() === target)) continue
+      if (details.appUserModelId !== WINDOWS_APP_ID || details.icon !== launcher || details.iconIndex !== 0) {
+        if (!shell.writeShortcutLink(link, 'update', { icon: launcher, iconIndex: 0, appUserModelId: WINDOWS_APP_ID })) {
+          console.warn('Could not refresh IceReader shortcut:', link)
+        }
+      }
+    } catch (error) { console.warn('Could not read IceReader shortcut:', error.message) }
+  }
+}
+
 function createWindow() {
+  // Use the bundled PNG for the native window; the ICO is also embedded in the
+  // EXE and installer. A valid PE icon alone does not set the taskbar window icon.
+  const logo = nativeImage.createFromPath(path.join(root, 'public', 'bingdu-logo.png'))
+  if (logo.isEmpty()) throw new Error('无法读取冰读 Logo，请重新安装客户端。')
+  const launcher = process.platform === 'win32' ? windowsLauncher() : null
+  if (launcher && process.env.BINGDU_DESKTOP_TEST !== '1') repairWindowsShortcuts(launcher)
   window = new BrowserWindow({ width: 1440, height: 940, minWidth: 900, minHeight: 640,
     backgroundColor: '#f3faff', title: '冰读', show: process.env.BINGDU_DESKTOP_TEST !== '1',
-    icon: app.isPackaged ? path.join(process.resourcesPath, 'bingdu.ico') : path.join(root, 'assets', 'bingdu.ico'),
+    icon: logo,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false,
       contextIsolation: true, sandbox: true, webSecurity: true, partition: 'persist:bingdu' },
   })
+  if (process.platform === 'win32') window.setIcon(logo)
+  if (launcher) {
+    window.setAppDetails({ appId: WINDOWS_APP_ID, appIconPath: launcher, appIconIndex: 0,
+      relaunchCommand: `"${launcher}"`, relaunchDisplayName: '冰读' })
+  }
   window.webContents.setWindowOpenHandler(({ url }) => {
     try { void shell.openExternal(externalUrl(url)) } catch {}
     return { action: 'deny' }

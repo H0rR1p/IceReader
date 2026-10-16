@@ -18,5 +18,5 @@ canvas = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
 canvas.alpha_composite(source, ((canvas_size - source.width) // 2, (canvas_size - source.height) // 2))
 output = ROOT / "assets" / "bingdu.ico"
 output.parent.mkdir(parents=True, exist_ok=True)
-canvas.save(output, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+canvas.save(output, sizes=[(size, size) for size in (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)])
 print(output)
